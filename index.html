@@ -4,8 +4,16 @@
 
 <head>
 
+    <!-- =====================================================
+         CONFIGURACIÓN GENERAL
+         ===================================================== -->
+
     <meta charset="UTF-8">
 
+    <!--
+        Fundamental para que la interfaz se adapte
+        correctamente a teléfonos móviles.
+    -->
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
@@ -14,15 +22,17 @@
     <title>Pasarelas UPM</title>
 
 
-    <!-- =====================================================
-         NUESTRO CSS
-         ===================================================== -->
-    <link rel="stylesheet" href="style.css">
+    <!-- Nuestro CSS -->
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
 
 
     <!-- =====================================================
          MAPLIBRE
          ===================================================== -->
+
     <link
         href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"
         rel="stylesheet"
@@ -32,6 +42,7 @@
     <!-- =====================================================
          CHART.JS
          ===================================================== -->
+
     <script
         src="https://cdn.jsdelivr.net/npm/chart.js">
     </script>
@@ -45,6 +56,7 @@
     <!-- =====================================================
          CABECERA
          ===================================================== -->
+
     <header>
 
         <h1>
@@ -61,12 +73,14 @@
     <!-- =====================================================
          CONTENIDO PRINCIPAL
          ===================================================== -->
+
     <main>
 
 
         <!-- =================================================
-             1. PANTALLA INICIAL
+             1. PANTALLA DE BIENVENIDA
              ================================================= -->
+
         <section class="welcome-card">
 
             <h2>
@@ -89,7 +103,11 @@
         <!-- =================================================
              2. MENÚ PRINCIPAL
              ================================================= -->
-        <section id="mainMenu" class="menu-card">
+
+        <section
+            id="mainMenu"
+            class="menu-card"
+        >
 
             <h2>
                 ¿Qué quieres hacer?
@@ -113,7 +131,11 @@
         <!-- =================================================
              3. REGISTRO DE PASARELA
              ================================================= -->
-        <section id="bridgeForm" class="menu-card">
+
+        <section
+            id="bridgeForm"
+            class="menu-card"
+        >
 
             <h2>
                 Registrar nueva pasarela
@@ -124,12 +146,12 @@
                 la pasarela en el mapa.
             </p>
 
-
             <button id="gpsButton">
                 Obtener ubicación
             </button>
 
 
+            <!-- Datos del GPS -->
             <div class="gps-data">
 
                 <p>
@@ -150,6 +172,7 @@
             </div>
 
 
+            <!-- Mapa -->
             <div id="map"></div>
 
 
@@ -163,7 +186,11 @@
         <!-- =================================================
              4. FOTOGRAFÍAS
              ================================================= -->
-        <section id="photoForm" class="menu-card">
+
+        <section
+            id="photoForm"
+            class="menu-card"
+        >
 
             <h2>
                 Fotografías de la pasarela
@@ -183,19 +210,20 @@
                 </p>
 
                 <ul>
-
                     <li>Vista general de la pasarela</li>
                     <li>Vista lateral</li>
                     <li>Tablero y pavimento</li>
                     <li>Apoyos o pilas</li>
                     <li>Daños o elementos relevantes</li>
-
                 </ul>
 
             </div>
 
 
-            <!-- Cámara -->
+            <!-- =================================================
+                 CÁMARA
+                 ================================================= -->
+
             <button id="openCameraButton">
                 📷 Tomar foto
             </button>
@@ -209,7 +237,12 @@
                     playsinline
                 ></video>
 
+                <!--
+                    Canvas oculto utilizado para convertir
+                    un fotograma de la cámara en una fotografía.
+                -->
                 <canvas id="cameraCanvas"></canvas>
+
 
                 <button id="capturePhotoButton">
                     Capturar foto
@@ -222,7 +255,10 @@
             </div>
 
 
-            <!-- Galería -->
+            <!-- =================================================
+                 GALERÍA
+                 ================================================= -->
+
             <label
                 for="galleryInput"
                 class="photo-button secondary-button"
@@ -258,39 +294,53 @@
         <!-- =================================================
              5. ENSAYO DINÁMICO
              ================================================= -->
-        <section id="testForm" class="menu-card">
 
-            <h2>
+        <section
+            id="testForm"
+            class="menu-card"
+        >
+
+            <!--
+                Este título seguirá siendo visible
+                durante la adquisición.
+            -->
+            <h2 id="testTitle">
                 Ensayo dinámico
             </h2>
 
 
-            <!-- Descripción -->
-            <label
-                for="testDescription"
-                class="field-label"
-            >
-                Descripción del ensayo
-            </label>
+            <!-- =================================================
+                 INFORMACIÓN PREVIA AL ENSAYO
+                 ================================================= -->
+
+            <div id="testSetup">
+
+                <label
+                    for="testDescription"
+                    class="field-label"
+                >
+                    Descripción del ensayo
+                </label>
 
 
-            <textarea
-                id="testDescription"
-                rows="3"
-                placeholder="Ej.: Heel drop en el centro del vano"
-            ></textarea>
+                <textarea
+                    id="testDescription"
+                    rows="3"
+                    placeholder="Ej.: Heel drop en el centro del vano"
+                ></textarea>
 
 
-            <!-- Estado -->
-            <div class="test-status">
+                <div class="test-status">
 
-                <span id="sensorStatus">
-                    Sensor preparado
-                </span>
+                    <span id="sensorStatus">
+                        Sensor preparado
+                    </span>
 
-                <span id="samplingFrequency">
-                    fs: -- Hz
-                </span>
+                    <span id="samplingFrequency">
+                        fs: -- Hz
+                    </span>
+
+                </div>
 
             </div>
 
@@ -298,6 +348,7 @@
             <!-- =================================================
                  GRÁFICA
                  ================================================= -->
+
             <div class="chart-card">
 
                 <canvas id="accelerationChart"></canvas>
@@ -307,8 +358,15 @@
 
             <!-- =================================================
                  VALORES INSTANTÁNEOS
+
+                 Se muestran antes/después, pero los ocultaremos
+                 durante la adquisición para ganar espacio.
                  ================================================= -->
-            <div class="live-values">
+
+            <div
+                id="liveValues"
+                class="live-values"
+            >
 
                 <div class="live-value x-value">
 
@@ -358,8 +416,9 @@
 
 
             <!-- =================================================
-                 INFORMACIÓN DEL ENSAYO
+                 TIEMPO Y MUESTRAS
                  ================================================= -->
+
             <div class="test-info">
 
                 <div>
@@ -393,6 +452,7 @@
             <!-- =================================================
                  BOTÓN PLAY / STOP
                  ================================================= -->
+
             <button
                 id="recordButton"
                 class="record-button"
@@ -402,8 +462,9 @@
 
 
             <!-- =================================================
-                 BOTONES DESPUÉS DEL ENSAYO
+                 BOTONES POST-ENSAYO
                  ================================================= -->
+
             <div id="finishedTestButtons">
 
                 <button id="newTestButton">
@@ -432,6 +493,7 @@
     <!-- =====================================================
          PIE
          ===================================================== -->
+
     <footer>
 
         <p>
