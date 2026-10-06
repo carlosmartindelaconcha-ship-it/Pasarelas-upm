@@ -1,0 +1,568 @@
+/* =========================================================
+   ESTILOS GENERALES
+   ========================================================= */
+
+body {
+
+    font-family: Arial, sans-serif;
+
+    background-color: #f4f4f4;
+
+    margin: 0;
+
+    color: #222222;
+
+}
+
+
+/* =========================================================
+   CABECERA
+   ========================================================= */
+
+header {
+
+    background-color: #0072bc;
+
+    color: white;
+
+    padding: 25px;
+
+    text-align: center;
+
+}
+
+
+header h1 {
+    margin: 0;
+}
+
+
+header p {
+    margin-top: 8px;
+}
+
+
+/* =========================================================
+   CONTENIDO
+   ========================================================= */
+
+main {
+
+    max-width: 900px;
+
+    margin: 40px auto;
+
+    padding: 0 20px;
+
+}
+
+
+/* =========================================================
+   TARJETAS
+   ========================================================= */
+
+.welcome-card,
+.menu-card {
+
+    background-color: white;
+
+    padding: 30px;
+
+    border-radius: 12px;
+
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+
+    text-align: center;
+
+}
+
+
+.menu-card {
+    display: none;
+}
+
+
+/* =========================================================
+   BOTONES
+   ========================================================= */
+
+button {
+
+    background-color: #0072bc;
+
+    color: white;
+
+    font-size: 18px;
+
+    padding: 14px 24px;
+
+    border: none;
+
+    border-radius: 8px;
+
+    cursor: pointer;
+
+    margin-top: 15px;
+
+}
+
+
+button:hover {
+    background-color: #005a94;
+}
+
+
+.menu-card button {
+
+    display: block;
+
+    width: 100%;
+
+    margin: 15px 0;
+
+}
+
+
+.secondary-button {
+
+    background-color: #555555;
+
+}
+
+
+/* =========================================================
+   GPS
+   ========================================================= */
+
+.gps-data {
+
+    margin-top: 20px;
+
+    margin-bottom: 10px;
+
+}
+
+
+.gps-data p {
+    margin: 5px 0;
+}
+
+
+/* =========================================================
+   MAPA
+   ========================================================= */
+
+#map {
+
+    width: 100%;
+
+    height: 400px;
+
+    margin-top: 20px;
+
+    border-radius: 10px;
+
+    overflow: hidden;
+
+}
+
+
+/* =========================================================
+   FOTOGRAFÍAS
+   ========================================================= */
+
+.photo-instructions {
+
+    background-color: #f5f5f5;
+
+    padding: 15px;
+
+    border-radius: 8px;
+
+    text-align: left;
+
+    margin-bottom: 20px;
+
+}
+
+
+.hidden-input {
+    display: none;
+}
+
+
+.photo-button {
+
+    display: block;
+
+    background-color: #0072bc;
+
+    color: white;
+
+    font-size: 18px;
+
+    padding: 14px 24px;
+
+    border-radius: 8px;
+
+    cursor: pointer;
+
+    margin: 15px 0;
+
+    text-align: center;
+
+}
+
+
+#cameraSection {
+
+    display: none;
+
+    margin-top: 20px;
+
+}
+
+
+#cameraPreview {
+
+    width: 100%;
+
+    max-height: 500px;
+
+    background-color: black;
+
+    border-radius: 10px;
+
+    object-fit: cover;
+
+}
+
+
+#cameraCanvas {
+    display: none;
+}
+
+
+#photoPreview {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 10px;
+
+    margin: 20px 0;
+
+}
+
+
+#photoPreview img {
+
+    width: 120px;
+
+    height: 90px;
+
+    object-fit: cover;
+
+    border-radius: 8px;
+
+}
+
+
+/* =========================================================
+   FORMULARIO ENSAYO
+   ========================================================= */
+
+.field-label {
+
+    display: block;
+
+    text-align: left;
+
+    font-weight: bold;
+
+    margin-bottom: 8px;
+
+}
+
+
+#testDescription {
+
+    width: 100%;
+
+    box-sizing: border-box;
+
+    font-size: 16px;
+
+    padding: 12px;
+
+    border: 1px solid #cccccc;
+
+    border-radius: 8px;
+
+    resize: vertical;
+
+}
+
+
+/* =========================================================
+   ESTADO DEL SENSOR
+   ========================================================= */
+
+.test-status {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    gap: 20px;
+
+    margin: 20px 0;
+
+    font-size: 14px;
+
+    color: #555555;
+
+}
+
+
+/* =========================================================
+   GRÁFICA
+   ========================================================= */
+
+.chart-card {
+
+    background-color: #ffffff;
+
+    border: 1px solid #dddddd;
+
+    border-radius: 10px;
+
+    padding: 10px;
+
+    height: 360px;
+
+}
+
+
+#accelerationChart {
+
+    width: 100% !important;
+
+    height: 100% !important;
+
+}
+
+
+/* =========================================================
+   VALORES EN TIEMPO REAL
+   ========================================================= */
+
+.live-values {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, 1fr);
+
+    gap: 10px;
+
+    margin-top: 20px;
+
+}
+
+
+.live-value {
+
+    padding: 12px;
+
+    border-radius: 8px;
+
+    background-color: #f5f5f5;
+
+}
+
+
+.live-value span {
+
+    display: block;
+
+    font-weight: bold;
+
+}
+
+
+.live-value strong {
+
+    display: block;
+
+    font-size: 22px;
+
+    margin-top: 4px;
+
+}
+
+
+.live-value small {
+    color: #666666;
+}
+
+
+.x-value strong {
+    color: #1565c0;
+}
+
+
+.y-value strong {
+    color: #c62828;
+}
+
+
+.z-value strong {
+    color: #2e7d32;
+}
+
+
+/* =========================================================
+   INFORMACIÓN DEL ENSAYO
+   ========================================================= */
+
+.test-info {
+
+    display: grid;
+
+    grid-template-columns:
+        1fr 1fr;
+
+    gap: 15px;
+
+    margin-top: 20px;
+
+}
+
+
+.test-info div {
+
+    background-color: #f5f5f5;
+
+    padding: 15px;
+
+    border-radius: 8px;
+
+}
+
+
+.test-info span {
+
+    display: block;
+
+    font-size: 14px;
+
+    color: #666666;
+
+}
+
+
+.test-info strong {
+
+    display: block;
+
+    margin-top: 5px;
+
+    font-size: 22px;
+
+}
+
+
+/* =========================================================
+   BOTÓN DE GRABACIÓN
+   ========================================================= */
+
+.record-button {
+
+    font-size: 20px;
+
+    font-weight: bold;
+
+}
+
+
+.recording {
+
+    background-color: #b71c1c;
+
+}
+
+
+.recording:hover {
+
+    background-color: #8e0000;
+
+}
+
+
+/* =========================================================
+   BOTONES FINALES
+   ========================================================= */
+
+#finishedTestButtons {
+
+    display: none;
+
+    margin-top: 20px;
+
+}
+
+
+/* =========================================================
+   PIE
+   ========================================================= */
+
+footer {
+
+    text-align: center;
+
+    color: #666666;
+
+    padding: 20px;
+
+}
+
+
+/* =========================================================
+   ADAPTACIÓN A MÓVIL
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+    main {
+
+        margin: 20px auto;
+
+        padding: 0 10px;
+
+    }
+
+
+    .welcome-card,
+    .menu-card {
+
+        padding: 20px;
+
+    }
+
+
+    .chart-card {
+
+        height: 300px;
+
+    }
+
+
+    .live-values {
+
+        grid-template-columns: 1fr;
+
+    }
+
+}
