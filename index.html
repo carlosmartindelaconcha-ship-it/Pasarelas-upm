@@ -4,16 +4,8 @@
 
 <head>
 
-    <!-- =====================================================
-         CONFIGURACIÓN GENERAL
-         ===================================================== -->
-
     <meta charset="UTF-8">
 
-    <!--
-        Fundamental para que la interfaz se adapte
-        correctamente a teléfonos móviles.
-    -->
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
@@ -21,31 +13,17 @@
 
     <title>Pasarelas UPM</title>
 
-
     <!-- Nuestro CSS -->
-    <link
-        rel="stylesheet"
-        href="style.css"
-    >
+    <link rel="stylesheet" href="style.css">
 
-
-    <!-- =====================================================
-         MAPLIBRE
-         ===================================================== -->
-
+    <!-- MapLibre -->
     <link
         href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"
         rel="stylesheet"
     >
 
-
-    <!-- =====================================================
-         CHART.JS
-         ===================================================== -->
-
-    <script
-        src="https://cdn.jsdelivr.net/npm/chart.js">
-    </script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 </head>
 
@@ -71,14 +49,14 @@
 
 
     <!-- =====================================================
-         CONTENIDO PRINCIPAL
+         CONTENIDO
          ===================================================== -->
 
     <main>
 
 
         <!-- =================================================
-             1. PANTALLA DE BIENVENIDA
+             1. BIENVENIDA
              ================================================= -->
 
         <section class="welcome-card">
@@ -104,10 +82,7 @@
              2. MENÚ PRINCIPAL
              ================================================= -->
 
-        <section
-            id="mainMenu"
-            class="menu-card"
-        >
+        <section id="mainMenu" class="menu-card">
 
             <h2>
                 ¿Qué quieres hacer?
@@ -132,10 +107,7 @@
              3. REGISTRO DE PASARELA
              ================================================= -->
 
-        <section
-            id="bridgeForm"
-            class="menu-card"
-        >
+        <section id="bridgeForm" class="menu-card">
 
             <h2>
                 Registrar nueva pasarela
@@ -151,7 +123,6 @@
             </button>
 
 
-            <!-- Datos del GPS -->
             <div class="gps-data">
 
                 <p>
@@ -172,7 +143,6 @@
             </div>
 
 
-            <!-- Mapa -->
             <div id="map"></div>
 
 
@@ -187,10 +157,7 @@
              4. FOTOGRAFÍAS
              ================================================= -->
 
-        <section
-            id="photoForm"
-            class="menu-card"
-        >
+        <section id="photoForm" class="menu-card">
 
             <h2>
                 Fotografías de la pasarela
@@ -220,10 +187,7 @@
             </div>
 
 
-            <!-- =================================================
-                 CÁMARA
-                 ================================================= -->
-
+            <!-- Cámara -->
             <button id="openCameraButton">
                 📷 Tomar foto
             </button>
@@ -237,12 +201,7 @@
                     playsinline
                 ></video>
 
-                <!--
-                    Canvas oculto utilizado para convertir
-                    un fotograma de la cámara en una fotografía.
-                -->
                 <canvas id="cameraCanvas"></canvas>
-
 
                 <button id="capturePhotoButton">
                     Capturar foto
@@ -255,10 +214,7 @@
             </div>
 
 
-            <!-- =================================================
-                 GALERÍA
-                 ================================================= -->
-
+            <!-- Galería -->
             <label
                 for="galleryInput"
                 class="photo-button secondary-button"
@@ -295,22 +251,15 @@
              5. ENSAYO DINÁMICO
              ================================================= -->
 
-        <section
-            id="testForm"
-            class="menu-card"
-        >
+        <section id="testForm" class="menu-card">
 
-            <!--
-                Este título seguirá siendo visible
-                durante la adquisición.
-            -->
-            <h2 id="testTitle">
+            <h2>
                 Ensayo dinámico
             </h2>
 
 
             <!-- =================================================
-                 INFORMACIÓN PREVIA AL ENSAYO
+                 CONFIGURACIÓN PREVIA
                  ================================================= -->
 
             <div id="testSetup">
@@ -330,15 +279,29 @@
                 ></textarea>
 
 
-                <div class="test-status">
+                <!-- Información del sensor -->
+                <div class="sensor-panel">
 
-                    <span id="sensorStatus">
-                        Sensor preparado
-                    </span>
+                    <div>
+                        <span>Sensor</span>
+                        <strong id="sensorMode">
+                            Sin iniciar
+                        </strong>
+                    </div>
 
-                    <span id="samplingFrequency">
-                        fs: -- Hz
-                    </span>
+                    <div>
+                        <span>fs objetivo</span>
+                        <strong id="targetFrequency">
+                            --
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>fs real</span>
+                        <strong id="samplingFrequency">
+                            -- Hz
+                        </strong>
+                    </div>
 
                 </div>
 
@@ -358,15 +321,9 @@
 
             <!-- =================================================
                  VALORES INSTANTÁNEOS
-
-                 Se muestran antes/después, pero los ocultaremos
-                 durante la adquisición para ganar espacio.
                  ================================================= -->
 
-            <div
-                id="liveValues"
-                class="live-values"
-            >
+            <div id="liveValues" class="live-values">
 
                 <div class="live-value x-value">
 
@@ -376,9 +333,7 @@
                         0.000
                     </strong>
 
-                    <small>
-                        m/s²
-                    </small>
+                    <small>m/s²</small>
 
                 </div>
 
@@ -391,9 +346,7 @@
                         0.000
                     </strong>
 
-                    <small>
-                        m/s²
-                    </small>
+                    <small>m/s²</small>
 
                 </div>
 
@@ -406,9 +359,7 @@
                         0.000
                     </strong>
 
-                    <small>
-                        m/s²
-                    </small>
+                    <small>m/s²</small>
 
                 </div>
 
@@ -450,7 +401,7 @@
 
 
             <!-- =================================================
-                 BOTÓN PLAY / STOP
+                 PLAY / STOP
                  ================================================= -->
 
             <button
@@ -503,14 +454,12 @@
     </footer>
 
 
-    <!-- =====================================================
-         JAVASCRIPT
-         ===================================================== -->
-
+    <!-- MapLibre -->
     <script
         src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js">
     </script>
 
+    <!-- Nuestro JavaScript -->
     <script src="app.js"></script>
 
 
