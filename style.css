@@ -33,12 +33,16 @@ header {
 
 
 header h1 {
+
     margin: 0;
+
 }
 
 
 header p {
+
     margin-top: 8px;
+
 }
 
 
@@ -78,7 +82,9 @@ main {
 
 
 .menu-card {
+
     display: none;
+
 }
 
 
@@ -108,7 +114,9 @@ button {
 
 
 button:hover {
+
     background-color: #005a94;
+
 }
 
 
@@ -144,7 +152,9 @@ button:hover {
 
 
 .gps-data p {
+
     margin: 5px 0;
+
 }
 
 
@@ -187,7 +197,9 @@ button:hover {
 
 
 .hidden-input {
+
     display: none;
+
 }
 
 
@@ -214,6 +226,17 @@ button:hover {
 }
 
 
+.secondary-button {
+
+    background-color: #555555;
+
+}
+
+
+/* =========================================================
+   CÁMARA
+   ========================================================= */
+
 #cameraSection {
 
     display: none;
@@ -239,9 +262,15 @@ button:hover {
 
 
 #cameraCanvas {
+
     display: none;
+
 }
 
+
+/* =========================================================
+   PREVISUALIZACIÓN DE FOTOGRAFÍAS
+   ========================================================= */
 
 #photoPreview {
 
@@ -270,7 +299,7 @@ button:hover {
 
 
 /* =========================================================
-   FORMULARIO ENSAYO
+   DESCRIPCIÓN DEL ENSAYO
    ========================================================= */
 
 .field-label {
@@ -306,7 +335,7 @@ button:hover {
 
 
 /* =========================================================
-   ESTADO DEL SENSOR
+   ESTADO
    ========================================================= */
 
 .test-status {
@@ -345,11 +374,20 @@ button:hover {
 }
 
 
+/*
+   MUY IMPORTANTE PARA EL PROBLEMA DEL SCROLL
+
+   Permitimos que el gesto vertical del dedo
+   se utilice para desplazarse por la página,
+   aunque el dedo esté encima de la gráfica.
+*/
 #accelerationChart {
 
     width: 100% !important;
 
     height: 100% !important;
+
+    touch-action: pan-y;
 
 }
 
@@ -404,22 +442,30 @@ button:hover {
 
 
 .live-value small {
+
     color: #666666;
+
 }
 
 
 .x-value strong {
+
     color: #1565c0;
+
 }
 
 
 .y-value strong {
+
     color: #c62828;
+
 }
 
 
 .z-value strong {
+
     color: #2e7d32;
+
 }
 
 
@@ -530,7 +576,7 @@ footer {
 
 
 /* =========================================================
-   ADAPTACIÓN A MÓVIL
+   MÓVIL
    ========================================================= */
 
 @media (max-width: 600px) {
