@@ -6,7 +6,6 @@ html,
 body {
 
     margin: 0;
-
     padding: 0;
 
 }
@@ -14,73 +13,58 @@ body {
 
 body {
 
-    font-family:
-        Arial,
-        sans-serif;
+    font-family: Arial, sans-serif;
 
-    background-color:
-        #f4f4f4;
+    background-color: #f4f4f4;
 
-    color:
-        #222222;
+    color: #222222;
 
 }
 
 
 /* =========================================================
-   CABECERA NORMAL
+   CABECERA
    ========================================================= */
 
 header {
 
-    background-color:
-        #0072bc;
+    background-color: #0072bc;
 
-    color:
-        white;
+    color: white;
 
-    padding:
-        25px;
+    padding: 25px;
 
-    text-align:
-        center;
+    text-align: center;
 
 }
 
 
 header h1 {
 
-    margin:
-        0;
+    margin: 0;
 
 }
 
 
 header p {
 
-    margin-top:
-        8px;
-
-    margin-bottom:
-        0;
+    margin-top: 8px;
+    margin-bottom: 0;
 
 }
 
 
 /* =========================================================
-   CONTENIDO PRINCIPAL
+   CONTENIDO
    ========================================================= */
 
 main {
 
-    max-width:
-        900px;
+    max-width: 900px;
 
-    margin:
-        40px auto;
+    margin: 40px auto;
 
-    padding:
-        0 20px;
+    padding: 0 20px;
 
 }
 
@@ -92,29 +76,24 @@ main {
 .welcome-card,
 .menu-card {
 
-    background-color:
-        white;
+    background-color: white;
 
-    padding:
-        30px;
+    padding: 30px;
 
-    border-radius:
-        12px;
+    border-radius: 12px;
 
     box-shadow:
         0 4px 12px
         rgba(0, 0, 0, 0.10);
 
-    text-align:
-        center;
+    text-align: center;
 
 }
 
 
 .menu-card {
 
-    display:
-        none;
+    display: none;
 
 }
 
@@ -125,59 +104,46 @@ main {
 
 button {
 
-    background-color:
-        #0072bc;
+    background-color: #0072bc;
 
-    color:
-        white;
+    color: white;
 
-    font-size:
-        18px;
+    font-size: 18px;
 
-    padding:
-        14px 24px;
+    padding: 14px 24px;
 
-    border:
-        none;
+    border: none;
 
-    border-radius:
-        8px;
+    border-radius: 8px;
 
-    cursor:
-        pointer;
+    cursor: pointer;
 
-    margin-top:
-        15px;
+    margin-top: 15px;
 
 }
 
 
 button:hover {
 
-    background-color:
-        #005a94;
+    background-color: #005a94;
 
 }
 
 
 .menu-card button {
 
-    display:
-        block;
+    display: block;
 
-    width:
-        100%;
+    width: 100%;
 
-    margin:
-        15px 0;
+    margin: 15px 0;
 
 }
 
 
 .secondary-button {
 
-    background-color:
-        #555555;
+    background-color: #555555;
 
 }
 
@@ -188,19 +154,16 @@ button:hover {
 
 .gps-data {
 
-    margin-top:
-        20px;
+    margin-top: 20px;
 
-    margin-bottom:
-        10px;
+    margin-bottom: 10px;
 
 }
 
 
 .gps-data p {
 
-    margin:
-        5px 0;
+    margin: 5px 0;
 
 }
 
@@ -211,20 +174,15 @@ button:hover {
 
 #map {
 
-    width:
-        100%;
+    width: 100%;
 
-    height:
-        400px;
+    height: 400px;
 
-    margin-top:
-        20px;
+    margin-top: 20px;
 
-    border-radius:
-        10px;
+    border-radius: 10px;
 
-    overflow:
-        hidden;
+    overflow: hidden;
 
 }
 
@@ -235,207 +193,198 @@ button:hover {
 
 .photo-instructions {
 
-    background-color:
-        #f5f5f5;
+    background-color: #f5f5f5;
 
-    padding:
-        15px;
+    padding: 15px;
 
-    border-radius:
-        8px;
+    border-radius: 8px;
 
-    text-align:
-        left;
+    text-align: left;
 
-    margin-bottom:
-        20px;
+    margin-bottom: 20px;
 
 }
 
 
 .hidden-input {
 
-    display:
-        none;
+    display: none;
 
 }
 
 
 .photo-button {
 
-    display:
-        block;
+    display: block;
 
-    background-color:
-        #0072bc;
+    background-color: #0072bc;
 
-    color:
-        white;
+    color: white;
 
-    font-size:
-        18px;
+    font-size: 18px;
 
-    padding:
-        14px 24px;
+    padding: 14px 24px;
 
-    border-radius:
-        8px;
+    border-radius: 8px;
 
-    cursor:
-        pointer;
+    cursor: pointer;
 
-    margin:
-        15px 0;
+    margin: 15px 0;
 
-    text-align:
-        center;
+    text-align: center;
 
 }
 
 
+/* =========================================================
+   CÁMARA
+   ========================================================= */
+
 #cameraSection {
 
-    display:
-        none;
+    display: none;
 
-    margin-top:
-        20px;
+    margin-top: 20px;
 
 }
 
 
 #cameraPreview {
 
-    width:
-        100%;
+    width: 100%;
 
-    max-height:
-        500px;
+    max-height: 500px;
 
-    background-color:
-        black;
+    background-color: black;
 
-    border-radius:
-        10px;
+    border-radius: 10px;
 
-    object-fit:
-        cover;
+    object-fit: cover;
 
 }
 
 
 #cameraCanvas {
 
-    display:
-        none;
+    display: none;
 
 }
 
 
+/* =========================================================
+   FOTOS
+   ========================================================= */
+
 #photoPreview {
 
-    display:
-        flex;
+    display: flex;
 
-    flex-wrap:
-        wrap;
+    flex-wrap: wrap;
 
-    gap:
-        10px;
+    gap: 10px;
 
-    margin:
-        20px 0;
+    margin: 20px 0;
 
 }
 
 
 #photoPreview img {
 
-    width:
-        120px;
+    width: 120px;
 
-    height:
-        90px;
+    height: 90px;
 
-    object-fit:
-        cover;
+    object-fit: cover;
 
-    border-radius:
-        8px;
+    border-radius: 8px;
 
 }
 
 
 /* =========================================================
-   ENSAYO
+   DESCRIPCIÓN DEL ENSAYO
    ========================================================= */
 
 .field-label {
 
-    display:
-        block;
+    display: block;
 
-    text-align:
-        left;
+    text-align: left;
 
-    font-weight:
-        bold;
+    font-weight: bold;
 
-    margin-bottom:
-        8px;
+    margin-bottom: 8px;
 
 }
 
 
 #testDescription {
 
-    width:
-        100%;
+    width: 100%;
 
-    box-sizing:
-        border-box;
+    box-sizing: border-box;
 
-    font-size:
-        16px;
+    font-size: 16px;
 
-    padding:
-        12px;
+    padding: 12px;
 
     border:
         1px solid #cccccc;
 
-    border-radius:
-        8px;
+    border-radius: 8px;
 
-    resize:
-        vertical;
+    resize: vertical;
 
 }
 
 
 /* =========================================================
-   ESTADO DEL SENSOR
+   INFORMACIÓN DEL SENSOR
    ========================================================= */
 
-.test-status {
+.sensor-panel {
 
-    display:
-        flex;
+    display: grid;
 
-    justify-content:
-        space-between;
+    grid-template-columns:
+        repeat(3, 1fr);
 
-    gap:
-        20px;
+    gap: 10px;
 
-    margin:
-        20px 0;
+    margin: 20px 0;
 
-    font-size:
-        14px;
+}
 
-    color:
-        #555555;
+
+.sensor-panel div {
+
+    background-color: #f5f5f5;
+
+    padding: 10px;
+
+    border-radius: 8px;
+
+}
+
+
+.sensor-panel span {
+
+    display: block;
+
+    font-size: 12px;
+
+    color: #666666;
+
+}
+
+
+.sensor-panel strong {
+
+    display: block;
+
+    margin-top: 4px;
+
+    font-size: 14px;
 
 }
 
@@ -446,34 +395,27 @@ button:hover {
 
 .chart-card {
 
-    background-color:
-        #ffffff;
+    background-color: white;
 
     border:
         1px solid #dddddd;
 
-    border-radius:
-        10px;
+    border-radius: 10px;
 
-    padding:
-        10px;
+    padding: 10px;
 
-    height:
-        360px;
+    height: 360px;
 
-    box-sizing:
-        border-box;
+    box-sizing: border-box;
 
 }
 
 
 #accelerationChart {
 
-    width:
-        100% !important;
+    width: 100% !important;
 
-    height:
-        100% !important;
+    height: 100% !important;
 
 }
 
@@ -484,88 +426,73 @@ button:hover {
 
 .live-values {
 
-    display:
-        grid;
+    display: grid;
 
     grid-template-columns:
         repeat(3, 1fr);
 
-    gap:
-        10px;
+    gap: 10px;
 
-    margin-top:
-        20px;
+    margin-top: 20px;
 
 }
 
 
 .live-value {
 
-    padding:
-        12px;
+    padding: 12px;
 
-    border-radius:
-        8px;
+    border-radius: 8px;
 
-    background-color:
-        #f5f5f5;
+    background-color: #f5f5f5;
 
 }
 
 
 .live-value span {
 
-    display:
-        block;
+    display: block;
 
-    font-weight:
-        bold;
+    font-weight: bold;
 
 }
 
 
 .live-value strong {
 
-    display:
-        block;
+    display: block;
 
-    font-size:
-        22px;
+    font-size: 22px;
 
-    margin-top:
-        4px;
+    margin-top: 4px;
 
 }
 
 
 .live-value small {
 
-    color:
-        #666666;
+    color: #666666;
 
 }
 
 
 .x-value strong {
 
-    color:
-        #1565c0;
+    color: #1565c0;
 
 }
 
 
 .y-value strong {
 
-    color:
-        #c62828;
+    color: #c62828;
 
 }
 
 
 .z-value strong {
 
-    color:
-        #2e7d32;
+    color: #2e7d32;
 
 }
 
@@ -576,105 +503,87 @@ button:hover {
 
 .test-info {
 
-    display:
-        grid;
+    display: grid;
 
     grid-template-columns:
         1fr 1fr;
 
-    gap:
-        12px;
+    gap: 12px;
 
-    margin-top:
-        15px;
+    margin-top: 15px;
 
 }
 
 
 .test-info div {
 
-    background-color:
-        #f5f5f5;
+    background-color: #f5f5f5;
 
-    padding:
-        12px;
+    padding: 12px;
 
-    border-radius:
-        8px;
+    border-radius: 8px;
 
 }
 
 
 .test-info span {
 
-    display:
-        block;
+    display: block;
 
-    font-size:
-        13px;
+    font-size: 13px;
 
-    color:
-        #666666;
+    color: #666666;
 
 }
 
 
 .test-info strong {
 
-    display:
-        block;
+    display: block;
 
-    margin-top:
-        4px;
+    margin-top: 4px;
 
-    font-size:
-        22px;
+    font-size: 22px;
 
 }
 
 
 /* =========================================================
-   BOTÓN PLAY / STOP
+   BOTÓN DE GRABACIÓN
    ========================================================= */
 
 .record-button {
 
-    font-size:
-        20px;
+    font-size: 20px;
 
-    font-weight:
-        bold;
+    font-weight: bold;
 
 }
 
 
 .recording {
 
-    background-color:
-        #b71c1c;
+    background-color: #b71c1c;
 
 }
 
 
 .recording:hover {
 
-    background-color:
-        #8e0000;
+    background-color: #8e0000;
 
 }
 
 
 /* =========================================================
-   BOTONES POST ENSAYO
+   BOTONES POST-ENSAYO
    ========================================================= */
 
 #finishedTestButtons {
 
-    display:
-        none;
+    display: none;
 
-    margin-top:
-        20px;
+    margin-top: 20px;
 
 }
 
@@ -685,31 +594,26 @@ button:hover {
 
 footer {
 
-    text-align:
-        center;
+    text-align: center;
 
-    color:
-        #666666;
+    color: #666666;
 
-    padding:
-        20px;
+    padding: 20px;
 
 }
 
 
 /* =========================================================
-   MÓVIL NORMAL
+   MÓVIL
    ========================================================= */
 
 @media (max-width: 600px) {
 
     main {
 
-        margin:
-            20px auto;
+        margin: 20px auto;
 
-        padding:
-            0 10px;
+        padding: 0 10px;
 
     }
 
@@ -717,16 +621,24 @@ footer {
     .welcome-card,
     .menu-card {
 
-        padding:
-            20px;
+        padding: 20px;
 
     }
 
 
     .chart-card {
 
-        height:
-            300px;
+        height: 300px;
+
+    }
+
+
+    .sensor-panel {
+
+        grid-template-columns:
+            repeat(3, 1fr);
+
+        gap: 5px;
 
     }
 
@@ -734,7 +646,23 @@ footer {
     .live-values {
 
         grid-template-columns:
-            1fr;
+            repeat(3, 1fr);
+
+        gap: 5px;
+
+    }
+
+
+    .live-value {
+
+        padding: 8px 4px;
+
+    }
+
+
+    .live-value strong {
+
+        font-size: 17px;
 
     }
 
@@ -742,259 +670,200 @@ footer {
 
 
 /* =========================================================
-   =========================================================
    MODO DE ADQUISICIÓN
-   =========================================================
    ========================================================= */
 
-
 /*
-   Mientras se mide:
+   Mientras estamos midiendo bloqueamos
+   completamente el scroll.
 
-   - bloqueamos el scroll;
-   - la pantalla se comporta como un instrumento;
-   - reducimos la cabecera;
-   - ocultamos elementos innecesarios.
+   Esto es especialmente importante en iPhone,
+   donde un gesto de scroll puede interferir
+   con DeviceMotionEvent.
 */
 body.recording-lock {
 
-    overflow:
-        hidden;
+    overflow: hidden;
 
-    overscroll-behavior:
-        none;
+    overscroll-behavior: none;
 
-    touch-action:
-        none;
+    touch-action: none;
 
 }
 
 
 /* =========================================================
-   CABECERA COMPACTA DURANTE LA MEDIDA
+   CABECERA COMPACTA
    ========================================================= */
 
 body.recording-lock header {
 
-    padding:
-        7px 12px;
+    padding: 7px 12px;
 
 }
 
 
 body.recording-lock header h1 {
 
-    font-size:
-        19px;
+    font-size: 19px;
 
-    line-height:
-        1.2;
+    line-height: 1.2;
 
 }
 
 
-/*
-   Ocultamos el subtítulo de la cabecera
-   para ganar espacio vertical.
-*/
 body.recording-lock header p {
 
-    display:
-        none;
+    display: none;
 
 }
 
 
-/*
-   El footer tampoco aporta nada durante la adquisición.
-*/
 body.recording-lock footer {
 
-    display:
-        none;
+    display: none;
 
 }
 
 
 /* =========================================================
-   MAIN DURANTE LA MEDIDA
+   CONTENIDO DURANTE LA MEDIDA
    ========================================================= */
 
 body.recording-lock main {
 
-    margin:
-        0 auto;
+    margin: 0 auto;
 
-    padding:
-        6px 8px;
+    padding: 6px 8px;
 
-    max-width:
-        900px;
+    max-width: 900px;
 
 }
 
 
 /* =========================================================
-   PANTALLA DE ENSAYO EN MODO INSTRUMENTO
+   PANTALLA DE INSTRUMENTO
    ========================================================= */
 
 #testForm.measurement-active {
 
-    /*
-       Toda la zona disponible de la pantalla.
-    */
     height:
         calc(100dvh - 38px);
 
-    box-sizing:
-        border-box;
+    box-sizing: border-box;
 
-    /*
-       Distribuimos verticalmente:
-       título → gráfica → datos → botón.
-    */
-    display:
-        flex !important;
+    display: flex !important;
 
-    flex-direction:
-        column;
+    flex-direction: column;
 
-    padding:
-        8px;
+    padding: 8px;
 
-    border-radius:
-        0;
+    border-radius: 0;
 
-    box-shadow:
-        none;
+    box-shadow: none;
 
-    overflow:
-        hidden;
+    overflow: hidden;
 
 }
 
 
-/* =========================================================
-   TÍTULO DURANTE LA ADQUISICIÓN
-   ========================================================= */
-
+/* Título */
 #testForm.measurement-active h2 {
 
-    margin:
-        2px 0 6px 0;
+    margin: 2px 0 6px 0;
 
-    font-size:
-        20px;
+    font-size: 20px;
 
-    line-height:
-        1.2;
+    line-height: 1.2;
 
-    flex:
-        0 0 auto;
+    flex: 0 0 auto;
 
 }
 
 
-/* =========================================================
-   OCULTAMOS ELEMENTOS QUE NO SON NECESARIOS
-   ========================================================= */
-
+/*
+   Durante la medida ocultamos:
+   - descripción;
+   - información previa;
+   - valores numéricos X/Y/Z;
+   - botones posteriores.
+*/
 #testForm.measurement-active #testSetup {
 
-    display:
-        none;
+    display: none;
 
 }
 
 
 #testForm.measurement-active #liveValues {
 
-    display:
-        none;
+    display: none;
 
 }
 
 
 #testForm.measurement-active #finishedTestButtons {
 
-    display:
-        none !important;
+    display: none !important;
 
 }
 
 
 /* =========================================================
-   GRÁFICA DURANTE LA ADQUISICIÓN
+   GRÁFICA DURANTE LA MEDIDA
    ========================================================= */
 
 #testForm.measurement-active .chart-card {
 
-    /*
-       La gráfica utiliza todo el espacio
-       que queda disponible.
-    */
-    flex:
-        1 1 auto;
+    flex: 1 1 auto;
 
-    min-height:
-        0;
+    min-height: 0;
 
-    height:
-        auto;
+    height: auto;
 
-    margin:
-        0;
+    margin: 0;
 
-    padding:
-        5px;
+    padding: 5px;
 
-    border-radius:
-        6px;
+    border-radius: 6px;
 
 }
 
 
 /* =========================================================
-   TIEMPO Y MUESTRAS DURANTE LA ADQUISICIÓN
+   TIEMPO Y MUESTRAS DURANTE LA MEDIDA
    ========================================================= */
 
 #testForm.measurement-active .test-info {
 
-    flex:
-        0 0 auto;
+    flex: 0 0 auto;
 
-    margin-top:
-        6px;
+    margin-top: 6px;
 
-    gap:
-        6px;
+    gap: 6px;
 
 }
 
 
 #testForm.measurement-active .test-info div {
 
-    padding:
-        6px;
+    padding: 6px;
 
 }
 
 
 #testForm.measurement-active .test-info span {
 
-    font-size:
-        11px;
+    font-size: 11px;
 
 }
 
 
 #testForm.measurement-active .test-info strong {
 
-    font-size:
-        19px;
+    font-size: 19px;
 
-    margin-top:
-        2px;
+    margin-top: 2px;
 
 }
 
@@ -1005,72 +874,60 @@ body.recording-lock main {
 
 #testForm.measurement-active #recordButton {
 
-    flex:
-        0 0 auto;
+    flex: 0 0 auto;
 
-    margin:
-        7px 0 0 0;
+    margin: 7px 0 0 0;
 
-    padding:
-        11px;
+    padding: 11px;
 
-    font-size:
-        18px;
+    font-size: 18px;
 
-    border-radius:
-        7px;
+    border-radius: 7px;
 
 }
 
 
 /* =========================================================
-   AJUSTE PARA MÓVILES MUY PEQUEÑOS
+   MÓVILES DE POCA ALTURA
    ========================================================= */
 
 @media (max-height: 650px) {
 
     #testForm.measurement-active {
 
-        padding:
-            5px;
+        padding: 5px;
 
     }
 
 
     #testForm.measurement-active h2 {
 
-        font-size:
-            17px;
+        font-size: 17px;
 
-        margin-bottom:
-            3px;
+        margin-bottom: 3px;
 
     }
 
 
     #testForm.measurement-active .test-info div {
 
-        padding:
-            4px;
+        padding: 4px;
 
     }
 
 
     #testForm.measurement-active .test-info strong {
 
-        font-size:
-            16px;
+        font-size: 16px;
 
     }
 
 
     #testForm.measurement-active #recordButton {
 
-        padding:
-            8px;
+        padding: 8px;
 
-        font-size:
-            16px;
+        font-size: 16px;
 
     }
 
