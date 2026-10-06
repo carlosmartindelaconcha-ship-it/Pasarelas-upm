@@ -8,32 +8,34 @@
    ========================================================= */
 
 /*
-   Frecuencia solicitada para Generic Sensor API.
+   Frecuencia que pedimos cuando el navegador
+   soporta Generic Sensor API.
 
-   Solo se utiliza si el navegador permite controlar
-   la frecuencia del acelerómetro.
+   IMPORTANTE:
+   250 Hz es una frecuencia SOLICITADA.
+   Después calculamos siempre la frecuencia real.
 */
 const requestedSensorFrequency = 250;
 
 
 /*
-   Segundos visibles en la gráfica.
+   La gráfica muestra únicamente
+   los últimos 5 segundos.
 */
 const visibleWindowSeconds = 5;
 
 
 /*
-   La gráfica se redibuja aproximadamente
-   cada 40 ms = 25 veces por segundo.
+   Redibujamos la gráfica aproximadamente
+   25 veces por segundo.
 
-   IMPORTANTE:
-   esto NO limita la frecuencia de adquisición.
+   Esto NO limita la frecuencia de adquisición.
 */
 const chartUpdateInterval = 40;
 
 
 /* =========================================================
-   2. ELEMENTOS DEL HTML
+   2. ELEMENTOS DE LA INTERFAZ
    ========================================================= */
 
 const startButton =
@@ -155,7 +157,7 @@ let cameraStream = null;
 
 
 /* =========================================================
-   4. GPS
+   4. VARIABLES GPS
    ========================================================= */
 
 let bestPosition = null;
@@ -183,24 +185,19 @@ let lastChartUpdate = 0;
 
 
 /*
-   Objeto Generic Sensor API si está funcionando.
+   Sensor de Generic Sensor API.
+
+   Será null cuando utilicemos DeviceMotionEvent.
 */
 let genericSensor = null;
 
 
 /*
-   Información del sistema utilizado.
+   Información del sistema de adquisición.
 */
 let currentSensorMode = "";
 
 let currentSensorType = "";
-
-
-/*
-   true cuando ya hemos recibido al menos
-   una muestra del sensor del ensayo actual.
-*/
-let receivedFirstSample = false;
 
 
 /* =========================================================
@@ -232,12 +229,17 @@ registerBridgeButton.addEventListener(
             "block";
 
 
+        /*
+           Creamos el mapa solamente
+           la primera vez.
+        */
         if (map === null) {
 
             map =
                 new maplibregl.Map({
 
-                    container: "map",
+                    container:
+                        "map",
 
                     style:
                         "https://tiles.openfreemap.org/styles/liberty",
@@ -247,7 +249,8 @@ registerBridgeButton.addEventListener(
                         40.4168
                     ],
 
-                    zoom: 10
+                    zoom:
+                        10
 
                 });
 
@@ -293,10 +296,14 @@ gpsButton.addEventListener(
 
         stopGPSWatch();
 
-        bestPosition = null;
+
+        bestPosition =
+            null;
+
 
         gpsButton.textContent =
             "Buscando ubicación...";
+
 
         gpsButton.disabled =
             true;
@@ -306,8 +313,16 @@ gpsButton.addEventListener(
             navigator.geolocation.watchPosition(
 
 
+                /* =========================================
+                   NUEVA POSICIÓN
+                   ========================================= */
+
                 function (position) {
 
+                    /*
+                       Nos quedamos únicamente
+                       con posiciones mejores.
+                    */
                     if (
                         bestPosition === null ||
                         position.coords.accuracy <
@@ -317,6 +332,7 @@ gpsButton.addEventListener(
                         bestPosition =
                             position;
 
+
                         updateGPSPosition(
                             position
                         );
@@ -324,6 +340,10 @@ gpsButton.addEventListener(
                     }
 
 
+                    /*
+                       Si conseguimos precisión <= 10 m,
+                       dejamos de buscar.
+                    */
                     if (
                         position.coords.accuracy <= 10
                     ) {
@@ -334,6 +354,10 @@ gpsButton.addEventListener(
 
                 },
 
+
+                /* =========================================
+                   ERROR GPS
+                   ========================================= */
 
                 function (error) {
 
@@ -388,19 +412,30 @@ gpsButton.addEventListener(
                 },
 
 
+                /* =========================================
+                   CONFIGURACIÓN
+                   ========================================= */
+
                 {
 
-                    enableHighAccuracy: true,
+                    enableHighAccuracy:
+                        true,
 
-                    timeout: 30000,
+                    timeout:
+                        30000,
 
-                    maximumAge: 10000
+                    maximumAge:
+                        10000
 
                 }
 
             );
 
 
+        /*
+           Máximo 20 segundos buscando
+           una posición mejor.
+        */
         gpsTimeoutId =
             setTimeout(
                 stopGPSWatch,
@@ -415,7 +450,9 @@ gpsButton.addEventListener(
    8. ACTUALIZAR GPS
    ========================================================= */
 
-function updateGPSPosition(position) {
+function updateGPSPosition(
+    position
+) {
 
     const latitude =
         position.coords.latitude;
@@ -452,12 +489,15 @@ function updateGPSPosition(position) {
             latitude
         ],
 
-        zoom: 17
+        zoom:
+            17
 
     });
 
 
-    if (bridgeMarker !== null) {
+    if (
+        bridgeMarker !== null
+    ) {
 
         bridgeMarker.remove();
 
@@ -472,7 +512,23 @@ function updateGPSPosition(position) {
                 latitude
             ])
 
-            .addTo(map);
+            .setPopup(
+
+                new maplibregl.Popup()
+                    .setHTML(
+
+                        "<strong>Ubicación de la pasarela</strong><br>" +
+                        "Precisión: " +
+                        accuracy.toFixed(1) +
+                        " m"
+
+                    )
+
+            )
+
+            .addTo(
+                map
+            );
 
 }
 
@@ -483,11 +539,16 @@ function updateGPSPosition(position) {
 
 function stopGPSWatch() {
 
-    if (gpsWatchId !== null) {
+    if (
+        gpsWatchId !== null
+    ) {
 
-        navigator.geolocation.clearWatch(
-            gpsWatchId
-        );
+        navigator
+            .geolocation
+            .clearWatch(
+                gpsWatchId
+            );
+
 
         gpsWatchId =
             null;
@@ -495,11 +556,14 @@ function stopGPSWatch() {
     }
 
 
-    if (gpsTimeoutId !== null) {
+    if (
+        gpsTimeoutId !== null
+    ) {
 
         clearTimeout(
             gpsTimeoutId
         );
+
 
         gpsTimeoutId =
             null;
@@ -509,6 +573,7 @@ function stopGPSWatch() {
 
     gpsButton.textContent =
         "Obtener ubicación";
+
 
     gpsButton.disabled =
         false;
@@ -526,8 +591,10 @@ continueToPhotosButton.addEventListener(
 
         stopGPSWatch();
 
+
         bridgeForm.style.display =
             "none";
+
 
         photoForm.style.display =
             "block";
@@ -537,7 +604,7 @@ continueToPhotosButton.addEventListener(
 
 
 /* =========================================================
-   11. CÁMARA
+   11. ABRIR CÁMARA
    ========================================================= */
 
 openCameraButton.addEventListener(
@@ -560,7 +627,8 @@ openCameraButton.addEventListener(
 
                         },
 
-                        audio: false
+                        audio:
+                            false
 
                     });
 
@@ -568,8 +636,10 @@ openCameraButton.addEventListener(
             cameraPreview.srcObject =
                 cameraStream;
 
+
             cameraSection.style.display =
                 "block";
+
 
             openCameraButton.style.display =
                 "none";
@@ -582,7 +652,10 @@ openCameraButton.addEventListener(
                 "No se pudo acceder a la cámara."
             );
 
-            console.log(error);
+
+            console.log(
+                error
+            );
 
         }
 
@@ -680,7 +753,9 @@ closeCameraButton.addEventListener(
 
 function stopCamera() {
 
-    if (cameraStream === null) {
+    if (
+        cameraStream === null
+    ) {
 
         return;
 
@@ -703,11 +778,14 @@ function stopCamera() {
     cameraPreview.srcObject =
         null;
 
+
     cameraStream =
         null;
 
+
     cameraSection.style.display =
         "none";
+
 
     openCameraButton.style.display =
         "block";
@@ -719,7 +797,9 @@ function stopCamera() {
    14. AÑADIR FOTO
    ========================================================= */
 
-function addPhotoFile(file) {
+function addPhotoFile(
+    file
+) {
 
     if (
         !file.type.startsWith(
@@ -751,6 +831,10 @@ function addPhotoFile(file) {
 
     image.src =
         imageURL;
+
+
+    image.alt =
+        "Fotografía de la pasarela";
 
 
     photoPreview.appendChild(
@@ -796,14 +880,31 @@ galleryInput.addEventListener(
 
 
 /* =========================================================
-   16. CONTADOR FOTOS
+   16. CONTADOR DE FOTOS
    ========================================================= */
 
 function updatePhotoCounter() {
 
-    photoCounter.textContent =
-        selectedPhotos.length +
-        " fotografías añadidas";
+    const numberOfPhotos =
+        selectedPhotos.length;
+
+
+    if (
+        numberOfPhotos === 1
+    ) {
+
+        photoCounter.textContent =
+            "1 fotografía añadida";
+
+    }
+
+    else {
+
+        photoCounter.textContent =
+            numberOfPhotos +
+            " fotografías añadidas";
+
+    }
 
 }
 
@@ -818,8 +919,10 @@ continueToTestsButton.addEventListener(
 
         stopCamera();
 
+
         photoForm.style.display =
             "none";
+
 
         testForm.style.display =
             "block";
@@ -860,7 +963,8 @@ function createAccelerationChart() {
 
             {
 
-                type: "line",
+                type:
+                    "line",
 
 
                 data: {
@@ -868,30 +972,54 @@ function createAccelerationChart() {
                     datasets: [
 
                         {
-                            label: "X",
-                            data: [],
+                            label:
+                                "X",
+
+                            data:
+                                [],
+
                             borderColor:
                                 "#1565c0",
-                            borderWidth: 2,
-                            pointRadius: 0
+
+                            borderWidth:
+                                2,
+
+                            pointRadius:
+                                0
                         },
 
                         {
-                            label: "Y",
-                            data: [],
+                            label:
+                                "Y",
+
+                            data:
+                                [],
+
                             borderColor:
                                 "#c62828",
-                            borderWidth: 2,
-                            pointRadius: 0
+
+                            borderWidth:
+                                2,
+
+                            pointRadius:
+                                0
                         },
 
                         {
-                            label: "Z",
-                            data: [],
+                            label:
+                                "Z",
+
+                            data:
+                                [],
+
                             borderColor:
                                 "#2e7d32",
-                            borderWidth: 2,
-                            pointRadius: 0
+
+                            borderWidth:
+                                2,
+
+                            pointRadius:
+                                0
                         }
 
                     ]
@@ -901,24 +1029,35 @@ function createAccelerationChart() {
 
                 options: {
 
-                    responsive: true,
+                    responsive:
+                        true,
 
-                    maintainAspectRatio: false,
+                    maintainAspectRatio:
+                        false,
 
-                    animation: false,
+                    animation:
+                        false,
 
-                    events: [],
+
+                    /*
+                       Chart.js no necesita recibir
+                       toques o gestos.
+                    */
+                    events:
+                        [],
 
 
                     scales: {
 
                         x: {
 
-                            type: "linear",
+                            type:
+                                "linear",
 
                             title: {
 
-                                display: true,
+                                display:
+                                    true,
 
                                 text:
                                     "Tiempo (s)"
@@ -939,7 +1078,8 @@ function createAccelerationChart() {
 
                             title: {
 
-                                display: true,
+                                display:
+                                    true,
 
                                 text:
                                     "Aceleración (m/s²)"
@@ -967,7 +1107,7 @@ function createAccelerationChart() {
 
 
 /* =========================================================
-   19. PLAY / STOP
+   19. BOTÓN PLAY / STOP
    ========================================================= */
 
 recordButton.addEventListener(
@@ -975,10 +1115,12 @@ recordButton.addEventListener(
     async function () {
 
         /*
-           Si estamos grabando,
-           este clic significa STOP.
+           Si ya estamos grabando,
+           el botón funciona como STOP.
         */
-        if (isRecording) {
+        if (
+            isRecording
+        ) {
 
             stopRecording();
 
@@ -989,7 +1131,7 @@ recordButton.addEventListener(
 
         /*
            Si no estamos grabando,
-           este clic significa PLAY.
+           iniciamos un nuevo ensayo.
         */
         await startRecording();
 
@@ -1003,6 +1145,9 @@ recordButton.addEventListener(
 
 async function startRecording() {
 
+    /*
+       La descripción es obligatoria.
+    */
     if (
         testDescription
             .value
@@ -1019,18 +1164,22 @@ async function startRecording() {
 
 
     /*
-       Primero pedimos permisos en iPhone.
+       =====================================================
+       IPHONE / IPAD
 
-       IMPORTANTE:
-       esto se hace directamente como consecuencia
-       del clic del usuario.
+       Pedimos primero el permiso de movimiento.
+
+       Debe hacerse directamente después
+       de pulsar el botón.
+       =====================================================
     */
-    const motionPermissionOK =
+
+    const permissionOK =
         await requestIOSMotionPermissionIfNeeded();
 
 
     if (
-        !motionPermissionOK
+        !permissionOK
     ) {
 
         alert(
@@ -1049,7 +1198,7 @@ async function startRecording() {
 
 
     /*
-       Limpiamos datos.
+       Limpiamos datos anteriores.
     */
     currentTestData =
         [];
@@ -1076,7 +1225,7 @@ async function startRecording() {
 
 
     /*
-       Reiniciamos interfaz.
+       Reiniciamos indicadores.
     */
     elapsedTimeElement.textContent =
         "00:00.00";
@@ -1091,7 +1240,7 @@ async function startRecording() {
 
 
     sensorModeElement.textContent =
-        "Detectando...";
+        "Inicializando sensor...";
 
 
     targetFrequencyElement.textContent =
@@ -1099,9 +1248,10 @@ async function startRecording() {
 
 
     /*
-       Todavía NO activamos isRecording.
+       Elegimos el sensor.
 
-       Primero comprobamos qué sensor podemos utilizar.
+       IMPORTANTE:
+       todavía NO estamos oficialmente grabando.
     */
     const sensorStarted =
         await startBestAvailableSensor();
@@ -1126,9 +1276,11 @@ async function startRecording() {
 
 
     /*
-       AHORA sabemos que tenemos un sensor.
-       Comienza oficialmente el ensayo.
+       =====================================================
+       AQUÍ COMIENZA OFICIALMENTE EL ENSAYO
+       =====================================================
     */
+
     recordingStartTime =
         performance.now();
 
@@ -1137,16 +1289,13 @@ async function startRecording() {
         recordingStartTime;
 
 
-    receivedFirstSample =
-        false;
-
-
     isRecording =
         true;
 
 
     /*
-       Pantalla compacta.
+       Bloqueamos scroll y activamos
+       pantalla compacta.
     */
     document.body.classList.add(
         "recording-lock"
@@ -1188,11 +1337,14 @@ async function startRecording() {
 
 
 /* =========================================================
-   21. PERMISO IPHONE
+   21. PERMISO DE MOVIMIENTO EN IOS
    ========================================================= */
 
 async function requestIOSMotionPermissionIfNeeded() {
 
+    /*
+       Safari iPhone requiere permiso explícito.
+    */
     if (
 
         typeof DeviceMotionEvent !==
@@ -1221,7 +1373,7 @@ async function requestIOSMotionPermissionIfNeeded() {
         catch (error) {
 
             console.log(
-                "Error permiso iOS:",
+                "Error solicitando permiso de movimiento:",
                 error
             );
 
@@ -1234,8 +1386,8 @@ async function requestIOSMotionPermissionIfNeeded() {
 
 
     /*
-       En dispositivos donde este permiso
-       no existe no hace falta pedirlo.
+       Android / ordenador:
+       este permiso específico no existe.
     */
     return true;
 
@@ -1243,45 +1395,96 @@ async function requestIOSMotionPermissionIfNeeded() {
 
 
 /* =========================================================
-   22. ELEGIR SENSOR
+   22. DETECTAR IOS
+   ========================================================= */
+
+function isIOSDevice() {
+
+    /*
+       iPhone / iPad / iPod tradicionales.
+    */
+    const classicIOS =
+        /iPhone|iPad|iPod/i.test(
+            navigator.userAgent
+        );
+
+
+    /*
+       Algunos iPad modernos se identifican
+       como Macintosh.
+    */
+    const modernIPad =
+        navigator.platform ===
+            "MacIntel" &&
+        navigator.maxTouchPoints >
+            1;
+
+
+    return (
+        classicIOS ||
+        modernIPad
+    );
+
+}
+
+
+/* =========================================================
+   23. ELEGIR EL MEJOR SENSOR
    ========================================================= */
 
 async function startBestAvailableSensor() {
 
     /*
-       Primero intentamos Generic Sensor API.
+       =====================================================
+       IOS
+
+       Aquí NO intentamos Generic Sensor API.
+
+       Vamos directamente al sistema que ya sabemos
+       que funciona en Safari/iPhone.
+       =====================================================
     */
 
     if (
-        "LinearAccelerationSensor" in window
+        isIOSDevice()
     ) {
 
-        const worked =
-            await tryGenericSensor(
-                "LinearAccelerationSensor"
-            );
+        console.log(
+            "iOS detectado → DeviceMotionEvent"
+        );
 
 
-        if (worked) {
-
-            return true;
-
-        }
+        return startDeviceMotionSensor();
 
     }
 
+
+    /*
+       =====================================================
+       ANDROID / CHROME
+
+       Intentamos Generic Sensor API.
+       =====================================================
+    */
 
     if (
         "Accelerometer" in window
     ) {
 
+        console.log(
+            "Accelerometer disponible → intentando " +
+            requestedSensorFrequency +
+            " Hz"
+        );
+
+
         const worked =
-            await tryGenericSensor(
-                "Accelerometer"
-            );
+            await tryGenericAccelerometer();
 
 
-        if (worked) {
+        if (
+            worked
+        ) {
 
             return true;
 
@@ -1291,21 +1494,29 @@ async function startBestAvailableSensor() {
 
 
     /*
-       Si no funciona Generic Sensor,
-       utilizamos DeviceMotionEvent.
+       =====================================================
+       FALLBACK
+
+       Si Generic Sensor API no existe o falla,
+       usamos DeviceMotionEvent.
+       =====================================================
     */
+
+    console.log(
+        "Fallback → DeviceMotionEvent"
+    );
+
+
     return startDeviceMotionSensor();
 
 }
 
 
 /* =========================================================
-   23. GENERIC SENSOR API
+   24. GENERIC SENSOR API
    ========================================================= */
 
-function tryGenericSensor(
-    sensorClassName
-) {
+function tryGenericAccelerometer() {
 
     return new Promise(
 
@@ -1313,14 +1524,12 @@ function tryGenericSensor(
 
             try {
 
-                const SensorClass =
-                    window[
-                        sensorClassName
-                    ];
-
-
+                /*
+                   Creamos el acelerómetro solicitando
+                   250 Hz.
+                */
                 const sensor =
-                    new SensorClass({
+                    new Accelerometer({
 
                         frequency:
                             requestedSensorFrequency
@@ -1328,21 +1537,21 @@ function tryGenericSensor(
                     });
 
 
-                let firstReadingReceived =
+                let confirmed =
                     false;
 
 
                 /*
-                   Si no llega ninguna muestra
-                   en 1 segundo, hacemos fallback.
+                   Si en 1 segundo no obtenemos
+                   ninguna lectura, hacemos fallback.
                 */
-                const fallbackTimer =
+                const timeout =
                     setTimeout(
 
                         function () {
 
                             if (
-                                firstReadingReceived
+                                confirmed
                             ) {
 
                                 return;
@@ -1372,28 +1581,30 @@ function tryGenericSensor(
                         },
 
                         1000
-
                     );
 
 
+                /*
+                   Lectura del sensor.
+                */
                 sensor.addEventListener(
                     "reading",
                     function () {
 
                         /*
-                           Primera lectura:
-                           confirmamos sensor.
+                           La primera lectura solo
+                           confirma que funciona.
                         */
                         if (
-                            !firstReadingReceived
+                            !confirmed
                         ) {
 
-                            firstReadingReceived =
+                            confirmed =
                                 true;
 
 
                             clearTimeout(
-                                fallbackTimer
+                                timeout
                             );
 
 
@@ -1406,11 +1617,11 @@ function tryGenericSensor(
 
 
                             currentSensorType =
-                                sensorClassName;
+                                "Accelerometer";
 
 
                             sensorModeElement.textContent =
-                                sensorClassName;
+                                "Accelerometer";
 
 
                             targetFrequencyElement.textContent =
@@ -1424,14 +1635,8 @@ function tryGenericSensor(
 
 
                             /*
-                               IMPORTANTE:
-
-                               Esta primera lectura sucede ANTES
-                               de que isRecording sea true.
-
-                               No la guardamos.
-                               La adquisición oficial comenzará
-                               justo después.
+                               Esta primera lectura ocurre
+                               antes del comienzo oficial.
                             */
                             return;
 
@@ -1439,7 +1644,8 @@ function tryGenericSensor(
 
 
                         /*
-                           A partir de aquí ya estamos grabando.
+                           Después del inicio oficial
+                           procesamos muestras.
                         */
                         processAccelerationSample(
 
@@ -1455,6 +1661,9 @@ function tryGenericSensor(
                 );
 
 
+                /*
+                   Error del sensor.
+                */
                 sensor.addEventListener(
                     "error",
                     function (event) {
@@ -1466,11 +1675,11 @@ function tryGenericSensor(
 
 
                         if (
-                            !firstReadingReceived
+                            !confirmed
                         ) {
 
                             clearTimeout(
-                                fallbackTimer
+                                timeout
                             );
 
 
@@ -1491,8 +1700,7 @@ function tryGenericSensor(
             catch (error) {
 
                 console.log(
-                    sensorClassName +
-                    " no disponible:",
+                    "Generic Sensor API no disponible:",
                     error
                 );
 
@@ -1511,7 +1719,7 @@ function tryGenericSensor(
 
 
 /* =========================================================
-   24. DEVICEMOTION
+   25. DEVICEMOTION
    ========================================================= */
 
 function startDeviceMotionSensor() {
@@ -1538,6 +1746,10 @@ function startDeviceMotionSensor() {
         "DeviceMotionEvent";
 
 
+    /*
+       DeviceMotionEvent no permite seleccionar
+       manualmente la frecuencia.
+    */
     targetFrequencyElement.textContent =
         "Automática";
 
@@ -1554,7 +1766,7 @@ function startDeviceMotionSensor() {
 
 
 /* =========================================================
-   25. EVENTO DEVICEMOTION
+   26. RECIBIR DEVICEMOTION
    ========================================================= */
 
 function handleDeviceMotion(
@@ -1570,10 +1782,17 @@ function handleDeviceMotion(
     }
 
 
+    /*
+       Preferimos aceleración sin gravedad.
+    */
     let acceleration =
         event.acceleration;
 
 
+    /*
+       Algunos dispositivos solo proporcionan
+       accelerationIncludingGravity.
+    */
     if (
 
         !acceleration ||
@@ -1611,7 +1830,7 @@ function handleDeviceMotion(
 
 
 /* =========================================================
-   26. PROCESAR MUESTRA
+   27. PROCESAR MUESTRA
    ========================================================= */
 
 function processAccelerationSample(
@@ -1629,10 +1848,9 @@ function processAccelerationSample(
     }
 
 
-    receivedFirstSample =
-        true;
-
-
+    /*
+       Tiempo desde el inicio.
+    */
     const time =
         (
             performance.now() -
@@ -1640,12 +1858,16 @@ function processAccelerationSample(
         ) / 1000;
 
 
+    /*
+       Diferencia temporal con la muestra anterior.
+    */
     let dt =
         null;
 
 
     if (
-        currentTestData.length > 0
+        currentTestData.length >
+        0
     ) {
 
         const previousSample =
@@ -1662,25 +1884,32 @@ function processAccelerationSample(
 
 
     /*
-       Guardamos SIEMPRE la muestra.
+       IMPORTANTE:
+
+       Guardamos TODAS las muestras.
     */
     currentTestData.push({
 
-        time: time,
+        time:
+            time,
 
-        dt: dt,
+        dt:
+            dt,
 
-        ax: ax,
+        ax:
+            ax,
 
-        ay: ay,
+        ay:
+            ay,
 
-        az: az
+        az:
+            az
 
     });
 
 
     /*
-       Valores numéricos.
+       Valores instantáneos.
     */
     axValue.textContent =
         ax.toFixed(3);
@@ -1694,22 +1923,31 @@ function processAccelerationSample(
         az.toFixed(3);
 
 
+    /*
+       Tiempo.
+    */
     elapsedTimeElement.textContent =
         formatTime(
             time
         );
 
 
+    /*
+       Nº de muestras.
+    */
     sampleCountElement.textContent =
         currentTestData.length;
 
 
+    /*
+       Frecuencia real.
+    */
     updateRealSamplingFrequency();
 
 
     /*
-       La gráfica se repinta aproximadamente
-       a 25 FPS.
+       Repintamos la gráfica más lentamente
+       que la adquisición.
     */
     const now =
         performance.now();
@@ -1735,7 +1973,7 @@ function processAccelerationSample(
 
 
 /* =========================================================
-   27. FRECUENCIA REAL
+   28. FRECUENCIA REAL
    ========================================================= */
 
 function updateRealSamplingFrequency() {
@@ -1751,8 +1989,8 @@ function updateRealSamplingFrequency() {
 
 
     /*
-       Utilizamos aproximadamente
-       el último segundo de datos.
+       Calculamos fs aproximadamente
+       sobre el último segundo.
     */
     const finalIndex =
         currentTestData.length - 1;
@@ -1826,13 +2064,16 @@ function updateRealSamplingFrequency() {
 
 
 /* =========================================================
-   28. ACTUALIZAR GRÁFICA
+   29. ACTUALIZAR GRÁFICA
    ========================================================= */
 
 function updateChart(
     currentTime
 ) {
 
+    /*
+       Inicio de la ventana visible.
+    */
     const minimumTime =
         Math.max(
 
@@ -1844,6 +2085,10 @@ function updateChart(
         );
 
 
+    /*
+       Solo enviamos a Chart.js
+       los últimos 5 segundos.
+    */
     const visibleData =
         currentTestData.filter(
 
@@ -1859,6 +2104,7 @@ function updateChart(
         );
 
 
+    /* X */
     accelerationChart
         .data
         .datasets[0]
@@ -1883,6 +2129,7 @@ function updateChart(
         );
 
 
+    /* Y */
     accelerationChart
         .data
         .datasets[1]
@@ -1907,6 +2154,7 @@ function updateChart(
         );
 
 
+    /* Z */
     accelerationChart
         .data
         .datasets[2]
@@ -1932,7 +2180,7 @@ function updateChart(
 
 
     /*
-       Eje temporal.
+       Ventana temporal.
     */
     accelerationChart
         .options
@@ -1991,6 +2239,9 @@ function updateChart(
     );
 
 
+    /*
+       15 % de margen.
+    */
     const yLimit =
         maximumAcceleration *
         1.15;
@@ -2020,13 +2271,13 @@ function updateChart(
 
 
 /* =========================================================
-   29. DETENER SENSOR
+   30. DETENER SENSOR
    ========================================================= */
 
 function stopSensor() {
 
     /*
-       DeviceMotion.
+       DeviceMotionEvent.
     */
     window.removeEventListener(
         "devicemotion",
@@ -2035,7 +2286,7 @@ function stopSensor() {
 
 
     /*
-       Generic Sensor.
+       Generic Sensor API.
     */
     if (
         genericSensor !== null
@@ -2050,6 +2301,7 @@ function stopSensor() {
         catch (error) {
 
             console.log(
+                "Error al detener sensor:",
                 error
             );
 
@@ -2065,7 +2317,7 @@ function stopSensor() {
 
 
 /* =========================================================
-   30. DETENER ENSAYO
+   31. DETENER ENSAYO
    ========================================================= */
 
 function stopRecording() {
@@ -2080,26 +2332,30 @@ function stopRecording() {
 
 
     /*
-       Primero marcamos que ya no grabamos.
+       Marcamos inmediatamente
+       que la adquisición termina.
     */
     isRecording =
         false;
 
 
     /*
-       Después detenemos físicamente el sensor.
+       Detenemos sensor.
     */
     stopSensor();
 
 
     /*
-       Salimos de la pantalla cerrada.
+       Recuperamos scroll.
     */
     document.body.classList.remove(
         "recording-lock"
     );
 
 
+    /*
+       Recuperamos pantalla normal.
+    */
     testForm.classList.remove(
         "measurement-active"
     );
@@ -2116,7 +2372,7 @@ function stopRecording() {
 
 
     /*
-       Recuperamos interfaz normal.
+       Botón vuelve a estado Play.
     */
     recordButton.textContent =
         "▶ Iniciar ensayo";
@@ -2132,8 +2388,7 @@ function stopRecording() {
 
 
     /*
-       Guardamos únicamente si realmente
-       hemos recibido datos.
+       Si hay datos, guardamos el ensayo.
     */
     if (
         currentTestData.length >
@@ -2177,6 +2432,12 @@ function stopRecording() {
         });
 
 
+        /*
+           Mostramos:
+           otro ensayo,
+           CSV,
+           terminar.
+        */
         finishedTestButtons.style.display =
             "block";
 
@@ -2185,11 +2446,11 @@ function stopRecording() {
     else {
 
         /*
-           Si no hubo ninguna muestra,
-           avisamos porque eso es un fallo real.
+           Esto nos ayudará a diagnosticar
+           cualquier dispositivo problemático.
         */
         alert(
-            "El ensayo se ha detenido, pero no se recibió ninguna muestra del acelerómetro."
+            "El ensayo se detuvo, pero no se recibió ninguna muestra del acelerómetro."
         );
 
     }
@@ -2198,7 +2459,7 @@ function stopRecording() {
 
 
 /* =========================================================
-   31. FRECUENCIA MEDIA
+   32. FRECUENCIA MEDIA DEL ENSAYO
    ========================================================= */
 
 function calculateAverageFrequency(
@@ -2239,7 +2500,7 @@ function calculateAverageFrequency(
 
 
 /* =========================================================
-   32. OTRO ENSAYO
+   33. HACER OTRO ENSAYO
    ========================================================= */
 
 newTestButton.addEventListener(
@@ -2286,6 +2547,9 @@ newTestButton.addEventListener(
             "0.000";
 
 
+        /*
+           Limpiamos gráfica.
+        */
         accelerationChart
             .data
             .datasets
@@ -2301,6 +2565,9 @@ newTestButton.addEventListener(
             );
 
 
+        /*
+           Eliminamos escalas anteriores.
+        */
         delete accelerationChart
             .options
             .scales
@@ -2345,7 +2612,7 @@ newTestButton.addEventListener(
 
 
 /* =========================================================
-   33. DESCARGAR CSV
+   34. DESCARGAR / COMPARTIR CSV
    ========================================================= */
 
 downloadCsvButton.addEventListener(
@@ -2366,6 +2633,9 @@ downloadCsvButton.addEventListener(
         }
 
 
+        /*
+           Cabecera CSV.
+        */
         let csv =
             "test_id,description,sensor_mode,sensor_type," +
             "requested_frequency_hz,average_frequency_hz," +
@@ -2396,13 +2666,17 @@ downloadCsvButton.addEventListener(
 
                 const requestedFrequency =
                     test.requestedFrequency === null
+
                         ? ""
+
                         : test.requestedFrequency;
 
 
                 const averageFrequency =
                     test.averageFrequency === null
+
                         ? ""
+
                         : test.averageFrequency.toFixed(3);
 
 
@@ -2412,7 +2686,9 @@ downloadCsvButton.addEventListener(
 
                         const dtValue =
                             sample.dt === null
+
                                 ? ""
+
                                 : sample.dt.toFixed(6);
 
 
@@ -2460,6 +2736,9 @@ downloadCsvButton.addEventListener(
         );
 
 
+        /*
+           Nombre del fichero.
+        */
         const timestamp =
             new Date()
                 .toISOString()
@@ -2479,6 +2758,9 @@ downloadCsvButton.addEventListener(
             ".csv";
 
 
+        /*
+           Creamos archivo.
+        */
         const csvFile =
             new File(
 
@@ -2495,9 +2777,14 @@ downloadCsvButton.addEventListener(
 
 
         /*
-           En iPhone intentamos compartir
-           el archivo mediante el menú nativo.
+           =================================================
+           IPHONE / MÓVIL
+
+           Utilizamos el menú de compartir
+           si el navegador lo permite.
+           =================================================
         */
+
         if (
 
             navigator.share &&
@@ -2523,7 +2810,10 @@ downloadCsvButton.addEventListener(
                     ],
 
                     title:
-                        "Ensayos de pasarela"
+                        "Ensayos de pasarela",
+
+                    text:
+                        "Datos de aceleración"
 
                 });
 
@@ -2545,6 +2835,7 @@ downloadCsvButton.addEventListener(
 
 
                 console.log(
+                    "Error al compartir CSV:",
                     error
                 );
 
@@ -2554,8 +2845,11 @@ downloadCsvButton.addEventListener(
 
 
         /*
-           Descarga tradicional.
+           =================================================
+           DESCARGA TRADICIONAL
+           =================================================
         */
+
         const blob =
             new Blob(
 
@@ -2621,7 +2915,7 @@ downloadCsvButton.addEventListener(
 
 
 /* =========================================================
-   34. TERMINAR
+   35. TERMINAR
    ========================================================= */
 
 finishTestsButton.addEventListener(
@@ -2641,7 +2935,7 @@ finishTestsButton.addEventListener(
 
 
 /* =========================================================
-   35. FORMATEAR TIEMPO
+   36. FORMATEAR TIEMPO
    ========================================================= */
 
 function formatTime(
@@ -2650,15 +2944,13 @@ function formatTime(
 
     const minutes =
         Math.floor(
-            seconds /
-            60
+            seconds / 60
         );
 
 
     const remainingSeconds =
         seconds -
-        minutes *
-        60;
+        minutes * 60;
 
 
     return (
@@ -2666,10 +2958,10 @@ function formatTime(
         String(
             minutes
         )
-        .padStart(
-            2,
-            "0"
-        )
+            .padStart(
+                2,
+                "0"
+            )
 
         +
 
