@@ -13,22 +13,34 @@
 
     <title>Pasarelas UPM</title>
 
-    <!-- Nuestro CSS -->
+
+    <!-- =====================================================
+         NUESTRO CSS
+         ===================================================== -->
     <link rel="stylesheet" href="style.css">
 
-    <!-- MapLibre -->
+
+    <!-- =====================================================
+         MAPLIBRE
+         ===================================================== -->
     <link
         href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"
         rel="stylesheet"
     >
 
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- =====================================================
+         CHART.JS
+         ===================================================== -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/chart.js">
+    </script>
 
 </head>
 
 
 <body>
+
 
     <!-- =====================================================
          CABECERA
@@ -46,7 +58,11 @@
     </header>
 
 
+    <!-- =====================================================
+         CONTENIDO PRINCIPAL
+         ===================================================== -->
     <main>
+
 
         <!-- =================================================
              1. PANTALLA INICIAL
@@ -108,9 +124,11 @@
                 la pasarela en el mapa.
             </p>
 
+
             <button id="gpsButton">
                 Obtener ubicación
             </button>
+
 
             <div class="gps-data">
 
@@ -131,7 +149,9 @@
 
             </div>
 
+
             <div id="map"></div>
+
 
             <button id="continueToPhotosButton">
                 Continuar
@@ -155,6 +175,7 @@
                 la pasarela.
             </p>
 
+
             <div class="photo-instructions">
 
                 <p>
@@ -162,19 +183,23 @@
                 </p>
 
                 <ul>
+
                     <li>Vista general de la pasarela</li>
                     <li>Vista lateral</li>
                     <li>Tablero y pavimento</li>
                     <li>Apoyos o pilas</li>
                     <li>Daños o elementos relevantes</li>
+
                 </ul>
 
             </div>
+
 
             <!-- Cámara -->
             <button id="openCameraButton">
                 📷 Tomar foto
             </button>
+
 
             <div id="cameraSection">
 
@@ -196,6 +221,7 @@
 
             </div>
 
+
             <!-- Galería -->
             <label
                 for="galleryInput"
@@ -203,6 +229,7 @@
             >
                 🖼 Elegir de la galería
             </label>
+
 
             <input
                 type="file"
@@ -212,11 +239,14 @@
                 class="hidden-input"
             >
 
+
             <p id="photoCounter">
                 0 fotografías añadidas
             </p>
 
+
             <div id="photoPreview"></div>
+
 
             <button id="continueToTestsButton">
                 Continuar a los ensayos
@@ -234,13 +264,15 @@
                 Ensayo dinámico
             </h2>
 
-            <!-- Descripción obligatoria del ensayo -->
+
+            <!-- Descripción -->
             <label
                 for="testDescription"
                 class="field-label"
             >
                 Descripción del ensayo
             </label>
+
 
             <textarea
                 id="testDescription"
@@ -279,21 +311,47 @@
             <div class="live-values">
 
                 <div class="live-value x-value">
+
                     <span>X</span>
-                    <strong id="axValue">0.000</strong>
-                    <small>m/s²</small>
+
+                    <strong id="axValue">
+                        0.000
+                    </strong>
+
+                    <small>
+                        m/s²
+                    </small>
+
                 </div>
+
 
                 <div class="live-value y-value">
+
                     <span>Y</span>
-                    <strong id="ayValue">0.000</strong>
-                    <small>m/s²</small>
+
+                    <strong id="ayValue">
+                        0.000
+                    </strong>
+
+                    <small>
+                        m/s²
+                    </small>
+
                 </div>
 
+
                 <div class="live-value z-value">
+
                     <span>Z</span>
-                    <strong id="azValue">0.000</strong>
-                    <small>m/s²</small>
+
+                    <strong id="azValue">
+                        0.000
+                    </strong>
+
+                    <small>
+                        m/s²
+                    </small>
+
                 </div>
 
             </div>
@@ -305,17 +363,28 @@
             <div class="test-info">
 
                 <div>
-                    <span>Tiempo</span>
+
+                    <span>
+                        Tiempo
+                    </span>
+
                     <strong id="elapsedTime">
                         00:00.00
                     </strong>
+
                 </div>
 
+
                 <div>
-                    <span>Muestras</span>
+
+                    <span>
+                        Muestras
+                    </span>
+
                     <strong id="sampleCount">
                         0
                     </strong>
+
                 </div>
 
             </div>
@@ -333,12 +402,16 @@
 
 
             <!-- =================================================
-                 OPCIONES DESPUÉS DE DETENER
+                 BOTONES DESPUÉS DEL ENSAYO
                  ================================================= -->
             <div id="finishedTestButtons">
 
                 <button id="newTestButton">
                     Hacer otro ensayo
+                </button>
+
+                <button id="downloadCsvButton">
+                    Descargar CSV
                 </button>
 
                 <button
@@ -352,9 +425,13 @@
 
         </section>
 
+
     </main>
 
 
+    <!-- =====================================================
+         PIE
+         ===================================================== -->
     <footer>
 
         <p>
@@ -364,13 +441,16 @@
     </footer>
 
 
-    <!-- MapLibre -->
+    <!-- =====================================================
+         JAVASCRIPT
+         ===================================================== -->
+
     <script
         src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js">
     </script>
 
-    <!-- Nuestro JavaScript -->
     <script src="app.js"></script>
+
 
 </body>
 
