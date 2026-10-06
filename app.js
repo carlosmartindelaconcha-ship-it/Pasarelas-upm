@@ -113,55 +113,61 @@ const azValue =
    2. VARIABLES GENERALES
    ========================================================= */
 
-let map = null;
+let map =
+    null;
 
-let bridgeMarker = null;
+let bridgeMarker =
+    null;
 
-let selectedPhotos = [];
+let selectedPhotos =
+    [];
 
-let cameraStream = null;
-
-
-/* =========================================================
-   GPS
-   ========================================================= */
-
-let bestPosition = null;
-
-let gpsWatchId = null;
-
-let gpsTimeoutId = null;
+let cameraStream =
+    null;
 
 
 /* =========================================================
-   ENSAYOS
+   VARIABLES GPS
    ========================================================= */
 
-let isRecording = false;
+let bestPosition =
+    null;
 
-let recordingStartTime = null;
+let gpsWatchId =
+    null;
 
-let currentTestData = [];
+let gpsTimeoutId =
+    null;
 
-let tests = [];
 
-let accelerationChart = null;
+/* =========================================================
+   VARIABLES DEL ENSAYO
+   ========================================================= */
+
+let isRecording =
+    false;
+
+let recordingStartTime =
+    null;
+
+let currentTestData =
+    [];
+
+let tests =
+    [];
+
+let accelerationChart =
+    null;
+
+let lastChartUpdate =
+    0;
 
 
 /*
-   Momento del último repintado de la gráfica.
-
-   IMPORTANTE:
-   Esto solo afecta a la representación,
-   NO al guardado de muestras.
+   Ventana temporal visible en la gráfica.
 */
-let lastChartUpdate = 0;
-
-
-/*
-   Mostramos siempre los últimos 5 segundos.
-*/
-const visibleWindowSeconds = 5;
+const visibleWindowSeconds =
+    5;
 
 
 /* =========================================================
@@ -198,7 +204,8 @@ registerBridgeButton.addEventListener(
             map =
                 new maplibregl.Map({
 
-                    container: "map",
+                    container:
+                        "map",
 
                     style:
                         "https://tiles.openfreemap.org/styles/liberty",
@@ -208,7 +215,8 @@ registerBridgeButton.addEventListener(
                         40.4168
                     ],
 
-                    zoom: 10
+                    zoom:
+                        10
 
                 });
 
@@ -267,15 +275,24 @@ gpsButton.addEventListener(
             true;
 
 
+        /*
+           watchPosition permite que el móvil vaya
+           refinando progresivamente la posición.
+        */
         gpsWatchId =
             navigator.geolocation.watchPosition(
 
 
                 /* =========================================
-                   POSICIÓN RECIBIDA
+                   NUEVA POSICIÓN
                    ========================================= */
+
                 function (position) {
 
+                    /*
+                       Solo conservamos la nueva posición
+                       cuando mejora la precisión anterior.
+                    */
                     if (
                         bestPosition === null ||
                         position.coords.accuracy <
@@ -294,8 +311,8 @@ gpsButton.addEventListener(
 
 
                     /*
-                       Si conseguimos 10 m o mejor,
-                       dejamos de buscar.
+                       10 m de precisión nos parece
+                       suficientemente bueno.
                     */
                     if (
                         position.coords.accuracy <= 10
@@ -309,8 +326,9 @@ gpsButton.addEventListener(
 
 
                 /* =========================================
-                   ERROR
+                   ERROR GPS
                    ========================================= */
+
                 function (error) {
 
                     stopGPSWatch();
@@ -323,28 +341,28 @@ gpsButton.addEventListener(
                     if (error.code === 1) {
 
                         message =
-                            "ERROR 1: permiso de ubicación denegado.";
+                            "Permiso de ubicación denegado.";
 
                     }
 
                     else if (error.code === 2) {
 
                         message =
-                            "ERROR 2: posición no disponible.";
+                            "La posición no está disponible.";
 
                     }
 
                     else if (error.code === 3) {
 
                         message =
-                            "ERROR 3: tiempo de espera agotado.";
+                            "Tiempo de espera agotado.";
 
                     }
 
                     else {
 
                         message =
-                            "Error desconocido de geolocalización.";
+                            "Error desconocido de ubicación.";
 
                     }
 
@@ -352,7 +370,6 @@ gpsButton.addEventListener(
                     alert(
                         message +
                         "\n\n" +
-                        "Mensaje del navegador: " +
                         error.message
                     );
 
@@ -367,15 +384,19 @@ gpsButton.addEventListener(
 
 
                 /* =========================================
-                   OPCIONES
+                   CONFIGURACIÓN
                    ========================================= */
+
                 {
 
-                    enableHighAccuracy: true,
+                    enableHighAccuracy:
+                        true,
 
-                    timeout: 30000,
+                    timeout:
+                        30000,
 
-                    maximumAge: 10000
+                    maximumAge:
+                        10000
 
                 }
 
@@ -383,7 +404,8 @@ gpsButton.addEventListener(
 
 
         /*
-           Máximo 20 s buscando una posición mejor.
+           Máximo 20 segundos buscando
+           una posición mejor.
         */
         gpsTimeoutId =
             setTimeout(
@@ -403,7 +425,9 @@ gpsButton.addEventListener(
    ACTUALIZAR GPS
    ========================================================= */
 
-function updateGPSPosition(position) {
+function updateGPSPosition(
+    position
+) {
 
     const latitude =
         position.coords.latitude;
@@ -440,12 +464,15 @@ function updateGPSPosition(position) {
             latitude
         ],
 
-        zoom: 17
+        zoom:
+            17
 
     });
 
 
-    if (bridgeMarker !== null) {
+    if (
+        bridgeMarker !== null
+    ) {
 
         bridgeMarker.remove();
 
@@ -454,37 +481,49 @@ function updateGPSPosition(position) {
 
     bridgeMarker =
         new maplibregl.Marker()
+
             .setLngLat([
                 longitude,
                 latitude
             ])
+
             .setPopup(
 
                 new maplibregl.Popup()
                     .setHTML(
+
                         "<strong>Ubicación de la pasarela</strong><br>" +
                         "Precisión: " +
                         accuracy.toFixed(1) +
                         " m"
+
                     )
 
             )
-            .addTo(map);
+
+            .addTo(
+                map
+            );
 
 }
 
 
 /* =========================================================
-   DETENER GPS
+   DETENER BÚSQUEDA GPS
    ========================================================= */
 
 function stopGPSWatch() {
 
-    if (gpsWatchId !== null) {
+    if (
+        gpsWatchId !== null
+    ) {
 
-        navigator.geolocation.clearWatch(
-            gpsWatchId
-        );
+        navigator
+            .geolocation
+            .clearWatch(
+                gpsWatchId
+            );
+
 
         gpsWatchId =
             null;
@@ -492,11 +531,14 @@ function stopGPSWatch() {
     }
 
 
-    if (gpsTimeoutId !== null) {
+    if (
+        gpsTimeoutId !== null
+    ) {
 
         clearTimeout(
             gpsTimeoutId
         );
+
 
         gpsTimeoutId =
             null;
@@ -515,7 +557,7 @@ function stopGPSWatch() {
 
 
 /* =========================================================
-   5. PASAR A FOTOS
+   5. PASAR A FOTOGRAFÍAS
    ========================================================= */
 
 continueToPhotosButton.addEventListener(
@@ -537,7 +579,7 @@ continueToPhotosButton.addEventListener(
 
 
 /* =========================================================
-   6. CÁMARA
+   6. ABRIR CÁMARA
    ========================================================= */
 
 openCameraButton.addEventListener(
@@ -554,12 +596,14 @@ openCameraButton.addEventListener(
                         video: {
 
                             facingMode: {
-                                ideal: "environment"
+                                ideal:
+                                    "environment"
                             }
 
                         },
 
-                        audio: false
+                        audio:
+                            false
 
                     });
 
@@ -583,7 +627,10 @@ openCameraButton.addEventListener(
                 "No se pudo acceder a la cámara."
             );
 
-            console.log(error);
+
+            console.log(
+                error
+            );
 
         }
 
@@ -592,7 +639,7 @@ openCameraButton.addEventListener(
 
 
 /* =========================================================
-   CAPTURAR FOTO
+   7. CAPTURAR FOTO
    ========================================================= */
 
 capturePhotoButton.addEventListener(
@@ -614,7 +661,9 @@ capturePhotoButton.addEventListener(
 
 
         const context =
-            cameraCanvas.getContext("2d");
+            cameraCanvas.getContext(
+                "2d"
+            );
 
 
         context.drawImage(
@@ -644,7 +693,8 @@ capturePhotoButton.addEventListener(
                         ".jpg",
 
                         {
-                            type: "image/jpeg"
+                            type:
+                                "image/jpeg"
                         }
 
                     );
@@ -667,7 +717,7 @@ capturePhotoButton.addEventListener(
 
 
 /* =========================================================
-   CERRAR CÁMARA
+   8. CERRAR CÁMARA
    ========================================================= */
 
 closeCameraButton.addEventListener(
@@ -678,7 +728,9 @@ closeCameraButton.addEventListener(
 
 function stopCamera() {
 
-    if (cameraStream === null) {
+    if (
+        cameraStream === null
+    ) {
 
         return;
 
@@ -688,11 +740,13 @@ function stopCamera() {
     cameraStream
         .getTracks()
         .forEach(
+
             function (track) {
 
                 track.stop();
 
             }
+
         );
 
 
@@ -715,12 +769,18 @@ function stopCamera() {
 
 
 /* =========================================================
-   AÑADIR FOTO
+   9. AÑADIR FOTO
    ========================================================= */
 
-function addPhotoFile(file) {
+function addPhotoFile(
+    file
+) {
 
-    if (!file.type.startsWith("image/")) {
+    if (
+        !file.type.startsWith(
+            "image/"
+        )
+    ) {
 
         return;
 
@@ -748,6 +808,10 @@ function addPhotoFile(file) {
         imageURL;
 
 
+    image.alt =
+        "Fotografía de la pasarela";
+
+
     photoPreview.appendChild(
         image
     );
@@ -759,7 +823,7 @@ function addPhotoFile(file) {
 
 
 /* =========================================================
-   GALERÍA
+   10. GALERÍA
    ========================================================= */
 
 galleryInput.addEventListener(
@@ -791,20 +855,37 @@ galleryInput.addEventListener(
 
 
 /* =========================================================
-   CONTADOR FOTOS
+   CONTADOR DE FOTOS
    ========================================================= */
 
 function updatePhotoCounter() {
 
-    photoCounter.textContent =
-        selectedPhotos.length +
-        " fotografías añadidas";
+    const numberOfPhotos =
+        selectedPhotos.length;
+
+
+    if (
+        numberOfPhotos === 1
+    ) {
+
+        photoCounter.textContent =
+            "1 fotografía añadida";
+
+    }
+
+    else {
+
+        photoCounter.textContent =
+            numberOfPhotos +
+            " fotografías añadidas";
+
+    }
 
 }
 
 
 /* =========================================================
-   7. PASAR A ENSAYOS
+   11. PASAR A ENSAYOS
    ========================================================= */
 
 continueToTestsButton.addEventListener(
@@ -822,7 +903,9 @@ continueToTestsButton.addEventListener(
             "block";
 
 
-        if (accelerationChart === null) {
+        if (
+            accelerationChart === null
+        ) {
 
             createAccelerationChart();
 
@@ -833,7 +916,7 @@ continueToTestsButton.addEventListener(
 
 
 /* =========================================================
-   8. CREAR GRÁFICA
+   12. CREAR GRÁFICA
    ========================================================= */
 
 function createAccelerationChart() {
@@ -843,45 +926,75 @@ function createAccelerationChart() {
             .getElementById(
                 "accelerationChart"
             )
-            .getContext("2d");
+            .getContext(
+                "2d"
+            );
 
 
     accelerationChart =
         new Chart(
+
             context,
+
             {
 
-                type: "line",
+                type:
+                    "line",
+
 
                 data: {
 
                     datasets: [
 
                         {
-                            label: "X",
-                            data: [],
+                            label:
+                                "X",
+
+                            data:
+                                [],
+
                             borderColor:
                                 "#1565c0",
-                            borderWidth: 2,
-                            pointRadius: 0
+
+                            borderWidth:
+                                2,
+
+                            pointRadius:
+                                0
                         },
 
                         {
-                            label: "Y",
-                            data: [],
+                            label:
+                                "Y",
+
+                            data:
+                                [],
+
                             borderColor:
                                 "#c62828",
-                            borderWidth: 2,
-                            pointRadius: 0
+
+                            borderWidth:
+                                2,
+
+                            pointRadius:
+                                0
                         },
 
                         {
-                            label: "Z",
-                            data: [],
+                            label:
+                                "Z",
+
+                            data:
+                                [],
+
                             borderColor:
                                 "#2e7d32",
-                            borderWidth: 2,
-                            pointRadius: 0
+
+                            borderWidth:
+                                2,
+
+                            pointRadius:
+                                0
                         }
 
                     ]
@@ -891,27 +1004,32 @@ function createAccelerationChart() {
 
                 options: {
 
-                    responsive: true,
+                    responsive:
+                        true,
 
-                    maintainAspectRatio: false,
+                    maintainAspectRatio:
+                        false,
 
-                    animation: false,
+                    animation:
+                        false,
 
 
                     /*
-                       IMPORTANTE PARA EL SCROLL:
-
-                       Desactivamos eventos internos de Chart.js.
-
-                       Así la gráfica no intenta interpretar
-                       toques, movimientos o clics.
+                       No queremos que Chart.js
+                       capture gestos táctiles.
                     */
-                    events: [],
+                    events:
+                        [],
 
 
-                    interaction: {
+                    plugins: {
 
-                        intersect: false
+                        legend: {
+
+                            display:
+                                true
+
+                        }
 
                     },
 
@@ -920,13 +1038,16 @@ function createAccelerationChart() {
 
                         x: {
 
-                            type: "linear",
+                            type:
+                                "linear",
 
                             title: {
 
-                                display: true,
+                                display:
+                                    true,
 
-                                text: "Tiempo (s)"
+                                text:
+                                    "Tiempo (s)"
 
                             },
 
@@ -944,7 +1065,8 @@ function createAccelerationChart() {
 
                             title: {
 
-                                display: true,
+                                display:
+                                    true,
 
                                 text:
                                     "Aceleración (m/s²)"
@@ -965,20 +1087,23 @@ function createAccelerationChart() {
                 }
 
             }
+
         );
 
 }
 
 
 /* =========================================================
-   9. BOTÓN PLAY / STOP
+   13. PLAY / STOP
    ========================================================= */
 
 recordButton.addEventListener(
     "click",
     async function () {
 
-        if (!isRecording) {
+        if (
+            !isRecording
+        ) {
 
             await startRecording();
 
@@ -995,11 +1120,14 @@ recordButton.addEventListener(
 
 
 /* =========================================================
-   10. COMENZAR ENSAYO
+   14. COMENZAR ENSAYO
    ========================================================= */
 
 async function startRecording() {
 
+    /*
+       La descripción es obligatoria.
+    */
     if (
         testDescription
             .value
@@ -1016,15 +1144,18 @@ async function startRecording() {
 
 
     /*
-       En iPhone hay que pedir permiso
-       explícitamente al acelerómetro.
+       iOS exige permiso explícito
+       para acceder a DeviceMotionEvent.
     */
     if (
+
         typeof DeviceMotionEvent !==
             "undefined" &&
+
         typeof DeviceMotionEvent
             .requestPermission ===
             "function"
+
     ) {
 
         const permission =
@@ -1048,9 +1179,10 @@ async function startRecording() {
     }
 
 
-    /*
-       Limpiamos datos del ensayo anterior.
-    */
+    /* =====================================================
+       LIMPIAR ENSAYO ANTERIOR
+       ===================================================== */
+
     currentTestData =
         [];
 
@@ -1059,17 +1191,25 @@ async function startRecording() {
         .data
         .datasets
         .forEach(
+
             function (dataset) {
 
                 dataset.data =
                     [];
 
             }
+
         );
 
 
-    accelerationChart.update();
+    accelerationChart.update(
+        "none"
+    );
 
+
+    /* =====================================================
+       INICIO TEMPORAL
+       ===================================================== */
 
     recordingStartTime =
         performance.now();
@@ -1083,14 +1223,57 @@ async function startRecording() {
         true;
 
 
+    /* =====================================================
+       ENTRAR EN MODO DE ADQUISICIÓN
+       ===================================================== */
+
+    /*
+       Bloqueamos el scroll de toda la página.
+    */
+    document.body.classList.add(
+        "recording-lock"
+    );
+
+
+    /*
+       Convertimos la pantalla de ensayo
+       en la interfaz compacta de adquisición.
+    */
+    testForm.classList.add(
+        "measurement-active"
+    );
+
+
+    /*
+       Safari puede necesitar un instante para recalcular
+       el tamaño del canvas después de cambiar el layout.
+    */
+    setTimeout(
+        function () {
+
+            accelerationChart.resize();
+
+        },
+        50
+    );
+
+
+    /* =====================================================
+       BOTÓN STOP
+       ===================================================== */
+
     recordButton.textContent =
-        "■ Detener";
+        "■ Detener ensayo";
 
 
     recordButton.classList.add(
         "recording"
     );
 
+
+    /* =====================================================
+       RESTO DE LA INTERFAZ
+       ===================================================== */
 
     finishedTestButtons.style.display =
         "none";
@@ -1105,10 +1288,8 @@ async function startRecording() {
 
 
     /*
-       Aquí se reciben las muestras.
-
-       IMPORTANTE:
-       La adquisición NO depende de la gráfica.
+       Comenzamos a recibir muestras
+       del acelerómetro.
     */
     window.addEventListener(
         "devicemotion",
@@ -1119,12 +1300,16 @@ async function startRecording() {
 
 
 /* =========================================================
-   11. PROCESAR CADA MUESTRA
+   15. RECIBIR MUESTRA DEL ACELERÓMETRO
    ========================================================= */
 
-function handleMotion(event) {
+function handleMotion(
+    event
+) {
 
-    if (!isRecording) {
+    if (
+        !isRecording
+    ) {
 
         return;
 
@@ -1133,19 +1318,23 @@ function handleMotion(event) {
 
     /*
        Intentamos utilizar aceleración
-       sin gravedad.
+       sin componente gravitatoria.
     */
     let acceleration =
         event.acceleration;
 
 
     /*
-       Si el teléfono no la proporciona,
-       usamos accelerationIncludingGravity.
+       Algunos dispositivos no proporcionan
+       acceleration y debemos recurrir a
+       accelerationIncludingGravity.
     */
     if (
+
         acceleration === null ||
+
         acceleration.x === null
+
     ) {
 
         acceleration =
@@ -1154,7 +1343,9 @@ function handleMotion(event) {
     }
 
 
-    if (!acceleration) {
+    if (
+        !acceleration
+    ) {
 
         return;
 
@@ -1172,7 +1363,7 @@ function handleMotion(event) {
 
 
     /*
-       Tiempo real desde el inicio.
+       Tiempo transcurrido desde Play.
     */
     const time =
         (
@@ -1182,11 +1373,8 @@ function handleMotion(event) {
 
 
     /*
-       Calculamos dt respecto
+       Diferencia temporal respecto
        de la muestra anterior.
-
-       Esto nos permitirá comprobar
-       si hubo huecos durante el scroll.
     */
     let dt =
         null;
@@ -1209,32 +1397,37 @@ function handleMotion(event) {
     }
 
 
-    /*
-       IMPORTANTE:
+    /* =====================================================
+       GUARDADO DE LA MUESTRA
+       =====================================================
 
-       Guardamos SIEMPRE la muestra.
-
-       Esto ocurre antes de cualquier actualización
-       de la gráfica.
+       Esto ocurre ANTES de actualizar la gráfica.
     */
+
     currentTestData.push({
 
-        time: time,
+        time:
+            time,
 
-        dt: dt,
+        dt:
+            dt,
 
-        ax: ax,
+        ax:
+            ax,
 
-        ay: ay,
+        ay:
+            ay,
 
-        az: az
+        az:
+            az
 
     });
 
 
-    /*
-       Actualizamos valores numéricos.
-    */
+    /* =====================================================
+       VALORES NUMÉRICOS
+       ===================================================== */
+
     axValue.textContent =
         ax.toFixed(3);
 
@@ -1245,22 +1438,28 @@ function handleMotion(event) {
         az.toFixed(3);
 
 
-    /*
-       Tiempo y nº de muestras.
-    */
+    /* =====================================================
+       TIEMPO
+       ===================================================== */
+
     elapsedTimeElement.textContent =
         formatTime(
             time
         );
 
 
+    /* =====================================================
+       Nº DE MUESTRAS
+       ===================================================== */
+
     sampleCountElement.textContent =
         currentTestData.length;
 
 
-    /*
-       Estimación de fs media.
-    */
+    /* =====================================================
+       FRECUENCIA MEDIA DE MUESTREO
+       ===================================================== */
+
     if (
         currentTestData.length > 1
     ) {
@@ -1275,37 +1474,50 @@ function handleMotion(event) {
             ].time;
 
 
-        const fs =
-            (
-                currentTestData.length - 1
-            ) /
-            (
-                lastTime -
-                firstTime
-            );
+        const duration =
+            lastTime -
+            firstTime;
 
 
-        samplingFrequencyElement.textContent =
-            "fs: " +
-            fs.toFixed(1) +
-            " Hz";
+        if (
+            duration > 0
+        ) {
+
+            const fs =
+                (
+                    currentTestData.length - 1
+                ) /
+                duration;
+
+
+            samplingFrequencyElement.textContent =
+                "fs: " +
+                fs.toFixed(1) +
+                " Hz";
+
+        }
 
     }
 
 
-    /*
-       La gráfica se actualiza más despacio
-       que la adquisición.
+    /* =====================================================
+       ACTUALIZACIÓN DE GRÁFICA
+       ===================================================== */
 
-       Aunque Safari tarde en repintar,
-       las muestras ya están guardadas.
+    /*
+       Las muestras pueden llegar más rápido
+       de lo que necesitamos redibujar.
+
+       Guardamos TODAS las muestras,
+       pero dibujamos aproximadamente a 25 FPS.
     */
     const now =
         performance.now();
 
 
     if (
-        now - lastChartUpdate >
+        now -
+        lastChartUpdate >=
         40
     ) {
 
@@ -1323,32 +1535,36 @@ function handleMotion(event) {
 
 
 /* =========================================================
-   12. ACTUALIZAR GRÁFICA
+   16. ACTUALIZAR GRÁFICA
    ========================================================= */
 
-function updateChart(currentTime) {
+function updateChart(
+    currentTime
+) {
 
     /*
-       Solo mostramos últimos 5 segundos.
+       Inicio de la ventana visible.
     */
     const minimumTime =
         Math.max(
+
             0,
+
             currentTime -
             visibleWindowSeconds
+
         );
 
 
     /*
-       IMPORTANTE:
+       Solo seleccionamos los datos
+       de los últimos 5 segundos.
 
-       La gráfica usa solo una vista de los datos.
-
-       currentTestData sigue conteniendo
-       TODO el ensayo.
+       currentTestData sigue conservando TODO.
     */
     const visibleData =
         currentTestData.filter(
+
             function (sample) {
 
                 return (
@@ -1357,72 +1573,98 @@ function updateChart(currentTime) {
                 );
 
             }
+
         );
 
 
-    /* X */
+    /* =====================================================
+       SERIE X
+       ===================================================== */
+
     accelerationChart
         .data
         .datasets[0]
         .data =
+
         visibleData.map(
+
             function (sample) {
 
                 return {
 
-                    x: sample.time,
+                    x:
+                        sample.time,
 
-                    y: sample.ax
+                    y:
+                        sample.ax
 
                 };
 
             }
+
         );
 
 
-    /* Y */
+    /* =====================================================
+       SERIE Y
+       ===================================================== */
+
     accelerationChart
         .data
         .datasets[1]
         .data =
+
         visibleData.map(
+
             function (sample) {
 
                 return {
 
-                    x: sample.time,
+                    x:
+                        sample.time,
 
-                    y: sample.ay
+                    y:
+                        sample.ay
 
                 };
 
             }
+
         );
 
 
-    /* Z */
+    /* =====================================================
+       SERIE Z
+       ===================================================== */
+
     accelerationChart
         .data
         .datasets[2]
         .data =
+
         visibleData.map(
+
             function (sample) {
 
                 return {
 
-                    x: sample.time,
+                    x:
+                        sample.time,
 
-                    y: sample.az
+                    y:
+                        sample.az
 
                 };
 
             }
+
         );
 
 
-    /*
-       Ventana móvil X.
-    */
+    /* =====================================================
+       VENTANA TEMPORAL
+       ===================================================== */
+
     accelerationChart
         .options
         .scales
@@ -1437,35 +1679,52 @@ function updateChart(currentTime) {
         .x
         .max =
         Math.max(
+
             visibleWindowSeconds,
+
             currentTime
+
         );
 
 
-    /*
-       AUTOESCALA Y.
-    */
+    /* =====================================================
+       AUTOESCALA Y
+       ===================================================== */
+
     let maximumAcceleration =
         0.1;
 
 
     visibleData.forEach(
+
         function (sample) {
 
             maximumAcceleration =
                 Math.max(
+
                     maximumAcceleration,
-                    Math.abs(sample.ax),
-                    Math.abs(sample.ay),
-                    Math.abs(sample.az)
+
+                    Math.abs(
+                        sample.ax
+                    ),
+
+                    Math.abs(
+                        sample.ay
+                    ),
+
+                    Math.abs(
+                        sample.az
+                    )
+
                 );
 
         }
+
     );
 
 
     /*
-       Margen del 15 %.
+       Dejamos un margen del 15 %.
     */
     const yLimit =
         maximumAcceleration *
@@ -1489,7 +1748,7 @@ function updateChart(currentTime) {
 
 
     /*
-       Repintado sin animación.
+       Repintamos sin animación.
     */
     accelerationChart.update(
         "none"
@@ -1499,20 +1758,64 @@ function updateChart(currentTime) {
 
 
 /* =========================================================
-   13. DETENER ENSAYO
+   17. DETENER ENSAYO
    ========================================================= */
 
 function stopRecording() {
+
+    if (
+        !isRecording
+    ) {
+
+        return;
+
+    }
+
 
     isRecording =
         false;
 
 
+    /*
+       Dejamos de escuchar el acelerómetro.
+    */
     window.removeEventListener(
         "devicemotion",
         handleMotion
     );
 
+
+    /* =====================================================
+       SALIR DEL MODO DE ADQUISICIÓN
+       ===================================================== */
+
+    document.body.classList.remove(
+        "recording-lock"
+    );
+
+
+    testForm.classList.remove(
+        "measurement-active"
+    );
+
+
+    /*
+       Recalculamos el tamaño de la gráfica
+       una vez recuperada la pantalla normal.
+    */
+    setTimeout(
+        function () {
+
+            accelerationChart.resize();
+
+        },
+        50
+    );
+
+
+    /* =====================================================
+       INTERFAZ
+       ===================================================== */
 
     recordButton.textContent =
         "▶ Iniciar ensayo";
@@ -1531,16 +1834,16 @@ function stopRecording() {
         "Ensayo finalizado";
 
 
-    /*
-       Guardamos el ensayo completo.
+    /* =====================================================
+       GUARDAR ENSAYO
+       ===================================================== */
 
-       Incluye TODOS los datos,
-       no solo los 5 s visibles.
-    */
     tests.push({
 
         description:
-            testDescription.value.trim(),
+            testDescription
+                .value
+                .trim(),
 
         data:
             [...currentTestData]
@@ -1548,6 +1851,10 @@ function stopRecording() {
     });
 
 
+    /*
+       Ahora sí mostramos las opciones:
+       otro ensayo / CSV / terminar.
+    */
     finishedTestButtons.style.display =
         "block";
 
@@ -1555,13 +1862,16 @@ function stopRecording() {
 
 
 /* =========================================================
-   14. HACER OTRO ENSAYO
+   18. HACER OTRO ENSAYO
    ========================================================= */
 
 newTestButton.addEventListener(
     "click",
     function () {
 
+        /*
+           Nueva descripción.
+        */
         testDescription.value =
             "";
 
@@ -1569,6 +1879,10 @@ newTestButton.addEventListener(
         currentTestData =
             [];
 
+
+        /* =================================================
+           REINICIAR INDICADORES
+           ================================================= */
 
         elapsedTimeElement.textContent =
             "00:00.00";
@@ -1589,27 +1903,69 @@ newTestButton.addEventListener(
         axValue.textContent =
             "0.000";
 
+
         ayValue.textContent =
             "0.000";
+
 
         azValue.textContent =
             "0.000";
 
 
+        /* =================================================
+           LIMPIAR GRÁFICA
+           ================================================= */
+
         accelerationChart
             .data
             .datasets
             .forEach(
+
                 function (dataset) {
 
                     dataset.data =
                         [];
 
                 }
+
             );
 
 
-        accelerationChart.update();
+        /*
+           Quitamos límites antiguos
+           de los ejes.
+        */
+        delete accelerationChart
+            .options
+            .scales
+            .x
+            .min;
+
+
+        delete accelerationChart
+            .options
+            .scales
+            .x
+            .max;
+
+
+        delete accelerationChart
+            .options
+            .scales
+            .y
+            .min;
+
+
+        delete accelerationChart
+            .options
+            .scales
+            .y
+            .max;
+
+
+        accelerationChart.update(
+            "none"
+        );
 
 
         finishedTestButtons.style.display =
@@ -1623,16 +1979,13 @@ newTestButton.addEventListener(
 
 
 /* =========================================================
-   15. DESCARGAR CSV
+   19. DESCARGAR / COMPARTIR CSV
    ========================================================= */
 
 downloadCsvButton.addEventListener(
     "click",
-    function () {
+    async function () {
 
-        /*
-           Comprobamos que haya ensayos.
-        */
         if (
             tests.length === 0
         ) {
@@ -1646,19 +1999,16 @@ downloadCsvButton.addEventListener(
         }
 
 
-        /*
-           Cabecera CSV.
+        /* =================================================
+           CREAR CSV
+           ================================================= */
 
-           dt se expresa en segundos.
-        */
         let csv =
             "test_id,description,time,dt,ax,ay,az\n";
 
 
-        /*
-           Recorremos todos los ensayos.
-        */
         tests.forEach(
+
             function (
                 test,
                 testIndex
@@ -1669,28 +2019,26 @@ downloadCsvButton.addEventListener(
 
 
                 /*
-                   Escapamos comillas
-                   de la descripción.
+                   Protegemos posibles comillas
+                   dentro de la descripción.
                 */
                 const description =
                     '"' +
-                    test.description
-                        .replaceAll(
-                            '"',
-                            '""'
-                        ) +
+
+                    test.description.replaceAll(
+                        '"',
+                        '""'
+                    ) +
+
                     '"';
 
 
-                /*
-                   Recorremos todas las muestras.
-                */
                 test.data.forEach(
+
                     function (sample) {
 
                         /*
-                           La primera muestra
-                           no tiene dt.
+                           La primera muestra no tiene dt.
                         */
                         const dtValue =
                             sample.dt === null
@@ -1699,48 +2047,174 @@ downloadCsvButton.addEventListener(
 
 
                         csv +=
-                            testId + "," +
-                            description + "," +
-                            sample.time.toFixed(6) + "," +
-                            dtValue + "," +
-                            sample.ax.toFixed(6) + "," +
-                            sample.ay.toFixed(6) + "," +
+
+                            testId +
+                            "," +
+
+                            description +
+                            "," +
+
+                            sample.time.toFixed(6) +
+                            "," +
+
+                            dtValue +
+                            "," +
+
+                            sample.ax.toFixed(6) +
+                            "," +
+
+                            sample.ay.toFixed(6) +
+                            "," +
+
                             sample.az.toFixed(6) +
                             "\n";
 
                     }
+
                 );
 
             }
+
         );
 
 
-        /*
-           Creamos un archivo CSV
-           en memoria.
-        */
-        const blob =
-            new Blob(
+        /* =================================================
+           NOMBRE DEL ARCHIVO
+           ================================================= */
+
+        const timestamp =
+            new Date()
+                .toISOString()
+                .replaceAll(
+                    ":",
+                    "-"
+                )
+                .replaceAll(
+                    ".",
+                    "-"
+                );
+
+
+        const fileName =
+            "ensayos_pasarela_" +
+            timestamp +
+            ".csv";
+
+
+        /* =================================================
+           CREAR ARCHIVO REAL
+           ================================================= */
+
+        const csvFile =
+            new File(
+
                 [csv],
+
+                fileName,
+
                 {
                     type:
-                        "text/csv;charset=utf-8;"
+                        "text/csv;charset=utf-8"
                 }
+
             );
 
 
-        /*
-           URL temporal.
+        /* =================================================
+           IPHONE / IOS
+           =================================================
+
+           Si podemos compartir archivos,
+           utilizamos el menú nativo de compartir.
+
+           Desde ahí el alumno puede elegir:
+           "Guardar en Archivos".
         */
+
+        if (
+
+            navigator.share &&
+
+            navigator.canShare &&
+
+            navigator.canShare({
+                files: [
+                    csvFile
+                ]
+            })
+
+        ) {
+
+            try {
+
+                await navigator.share({
+
+                    files: [
+                        csvFile
+                    ],
+
+                    title:
+                        "Ensayos de pasarela",
+
+                    text:
+                        "Datos de aceleración de los ensayos"
+
+                });
+
+
+                return;
+
+            }
+
+            catch (error) {
+
+                /*
+                   Si simplemente ha cerrado
+                   el menú de compartir, no es un error.
+                */
+                if (
+                    error.name ===
+                    "AbortError"
+                ) {
+
+                    return;
+
+                }
+
+
+                console.log(
+                    "Error al compartir CSV:",
+                    error
+                );
+
+            }
+
+        }
+
+
+        /* =================================================
+           DESCARGA NORMAL
+           ================================================= */
+
+        const blob =
+            new Blob(
+
+                [csv],
+
+                {
+                    type:
+                        "text/csv;charset=utf-8"
+                }
+
+            );
+
+
         const url =
             URL.createObjectURL(
                 blob
             );
 
 
-        /*
-           Creamos un enlace invisible.
-        */
         const link =
             document.createElement(
                 "a"
@@ -1751,39 +2225,42 @@ downloadCsvButton.addEventListener(
             url;
 
 
-        /*
-           Nombre de archivo.
-
-           Date.now() evita sobreescribir
-           fácilmente archivos anteriores.
-        */
         link.download =
-            "ensayos_pasarela_" +
-            Date.now() +
-            ".csv";
+            fileName;
 
 
+        /*
+           Algunos navegadores necesitan
+           que el enlace esté físicamente en el DOM.
+        */
         document.body.appendChild(
             link
         );
 
 
-        /*
-           Iniciamos descarga.
-        */
         link.click();
 
 
-        /*
-           Limpiamos.
-        */
         document.body.removeChild(
             link
         );
 
 
-        URL.revokeObjectURL(
-            url
+        /*
+           Esperamos antes de liberar la URL.
+        */
+        setTimeout(
+
+            function () {
+
+                URL.revokeObjectURL(
+                    url
+                );
+
+            },
+
+            1500
+
         );
 
     }
@@ -1791,7 +2268,7 @@ downloadCsvButton.addEventListener(
 
 
 /* =========================================================
-   16. TERMINAR
+   20. TERMINAR
    ========================================================= */
 
 finishTestsButton.addEventListener(
@@ -1799,9 +2276,11 @@ finishTestsButton.addEventListener(
     function () {
 
         alert(
+
             "Ensayos terminados. " +
             tests.length +
             " ensayo(s) guardado(s) temporalmente."
+
         );
 
     }
@@ -1809,29 +2288,49 @@ finishTestsButton.addEventListener(
 
 
 /* =========================================================
-   17. FORMATEAR TIEMPO
+   21. FORMATEAR TIEMPO
    ========================================================= */
 
-function formatTime(seconds) {
+function formatTime(
+    seconds
+) {
 
     const minutes =
         Math.floor(
-            seconds / 60
+            seconds /
+            60
         );
 
 
     const remainingSeconds =
         seconds -
-        minutes * 60;
+        minutes *
+        60;
 
 
     return (
-        String(minutes)
-            .padStart(2, "0") +
-        ":" +
+
+        String(
+            minutes
+        )
+        .padStart(
+            2,
+            "0"
+        )
+
+        +
+
+        ":"
+
+        +
+
         remainingSeconds
             .toFixed(2)
-            .padStart(5, "0")
+            .padStart(
+                5,
+                "0"
+            )
+
     );
 
 }
