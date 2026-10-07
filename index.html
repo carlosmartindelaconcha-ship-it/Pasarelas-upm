@@ -13,17 +13,47 @@
 
     <title>Pasarelas UPM</title>
 
-    <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css">
 
-    <!-- MapLibre -->
+    <!-- =====================================================
+         NUESTRO CSS
+         ===================================================== -->
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+
+    <!-- =====================================================
+         MAPLIBRE
+         ===================================================== -->
+
     <link
         href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"
         rel="stylesheet"
     >
 
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- =====================================================
+         CHART.JS
+         ===================================================== -->
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js">
+    </script>
+
+
+    <!-- =====================================================
+         PLUGIN DE ZOOM / PAN PARA CHART.JS
+         ===================================================== -->
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js">
+    </script>
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js">
+    </script>
 
 </head>
 
@@ -47,10 +77,6 @@
 
     </header>
 
-
-    <!-- =====================================================
-         CONTENIDO
-         ===================================================== -->
 
     <main>
 
@@ -82,7 +108,10 @@
              2. MENÚ PRINCIPAL
              ================================================= -->
 
-        <section id="mainMenu" class="menu-card">
+        <section
+            id="mainMenu"
+            class="menu-card"
+        >
 
             <h2>
                 ¿Qué quieres hacer?
@@ -107,7 +136,10 @@
              3. REGISTRO DE PASARELA
              ================================================= -->
 
-        <section id="bridgeForm" class="menu-card">
+        <section
+            id="bridgeForm"
+            class="menu-card"
+        >
 
             <h2>
                 Registrar nueva pasarela
@@ -157,7 +189,10 @@
              4. FOTOGRAFÍAS
              ================================================= -->
 
-        <section id="photoForm" class="menu-card">
+        <section
+            id="photoForm"
+            class="menu-card"
+        >
 
             <h2>
                 Fotografías de la pasarela
@@ -251,7 +286,10 @@
              5. ENSAYO DINÁMICO
              ================================================= -->
 
-        <section id="testForm" class="menu-card">
+        <section
+            id="testForm"
+            class="menu-card"
+        >
 
             <h2>
                 Ensayo dinámico
@@ -279,28 +317,44 @@
                 ></textarea>
 
 
-                <!-- Información del sensor -->
                 <div class="sensor-panel">
 
                     <div>
-                        <span>Sensor</span>
+
+                        <span>
+                            Sensor
+                        </span>
+
                         <strong id="sensorMode">
                             Sin iniciar
                         </strong>
+
                     </div>
 
+
                     <div>
-                        <span>fs objetivo</span>
+
+                        <span>
+                            fs objetivo
+                        </span>
+
                         <strong id="targetFrequency">
                             --
                         </strong>
+
                     </div>
 
+
                     <div>
-                        <span>fs real</span>
+
+                        <span>
+                            fs real
+                        </span>
+
                         <strong id="samplingFrequency">
                             -- Hz
                         </strong>
+
                     </div>
 
                 </div>
@@ -309,10 +363,13 @@
 
 
             <!-- =================================================
-                 GRÁFICA
+                 GRÁFICA DURANTE LA ADQUISICIÓN
                  ================================================= -->
 
-            <div class="chart-card">
+            <div
+                id="acquisitionChartCard"
+                class="chart-card"
+            >
 
                 <canvas id="accelerationChart"></canvas>
 
@@ -323,7 +380,10 @@
                  VALORES INSTANTÁNEOS
                  ================================================= -->
 
-            <div id="liveValues" class="live-values">
+            <div
+                id="liveValues"
+                class="live-values"
+            >
 
                 <div class="live-value x-value">
 
@@ -333,7 +393,9 @@
                         0.000
                     </strong>
 
-                    <small>m/s²</small>
+                    <small>
+                        m/s²
+                    </small>
 
                 </div>
 
@@ -346,7 +408,9 @@
                         0.000
                     </strong>
 
-                    <small>m/s²</small>
+                    <small>
+                        m/s²
+                    </small>
 
                 </div>
 
@@ -359,7 +423,9 @@
                         0.000
                     </strong>
 
-                    <small>m/s²</small>
+                    <small>
+                        m/s²
+                    </small>
 
                 </div>
 
@@ -367,10 +433,13 @@
 
 
             <!-- =================================================
-                 TIEMPO Y MUESTRAS
+                 INFORMACIÓN DEL ENSAYO
                  ================================================= -->
 
-            <div class="test-info">
+            <div
+                id="testInfo"
+                class="test-info"
+            >
 
                 <div>
 
@@ -413,37 +482,345 @@
 
 
             <!-- =================================================
-                 BOTONES POST-ENSAYO
+                 RESULTADOS
                  ================================================= -->
 
-            <div id="finishedTestButtons">
+            <section id="resultsSection">
 
-                <button id="newTestButton">
-                    Hacer otro ensayo
-                </button>
+                <div class="results-header">
 
-                <button id="downloadCsvButton">
-                    Descargar CSV
-                </button>
+                    <div>
 
-                <button
-                    id="finishTestsButton"
-                    class="secondary-button"
-                >
-                    Terminar
-                </button>
+                        <h2>
+                            Resultados del ensayo
+                        </h2>
 
-            </div>
+                        <p id="resultsDescription"></p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =============================================
+                     GRÁFICA TEMPORAL
+                     ============================================= -->
+
+                <div class="results-card">
+
+                    <div class="results-card-header">
+
+                        <div>
+
+                            <h3>
+                                Aceleraciones en el tiempo
+                            </h3>
+
+                            <p>
+                                Pellizca o utiliza la rueda para hacer zoom.
+                                Arrastra horizontalmente para desplazarte.
+                                Toca la señal para consultar valores.
+                            </p>
+
+                        </div>
+
+
+                        <button
+                            id="resetTimeZoomButton"
+                            class="small-button"
+                        >
+                            Restablecer zoom
+                        </button>
+
+                    </div>
+
+
+                    <div class="results-chart">
+
+                        <canvas id="resultsTimeChart"></canvas>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =============================================
+                     ESPECTRO / PSD
+                     ============================================= -->
+
+                <div class="results-card">
+
+                    <div class="results-card-header">
+
+                        <div>
+
+                            <h3>
+                                Densidad espectral de potencia
+                            </h3>
+
+                            <p>
+                                PSD mediante Welch sobre las señales
+                                reamostradas y detrendidas.
+                            </p>
+
+                        </div>
+
+
+                        <button
+                            id="resetSpectrumZoomButton"
+                            class="small-button"
+                        >
+                            Restablecer zoom
+                        </button>
+
+                    </div>
+
+
+                    <div class="results-chart">
+
+                        <canvas id="resultsSpectrumChart"></canvas>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =============================================
+                     MÉTRICAS DE SERVICIO
+                     ============================================= -->
+
+                <div class="results-card">
+
+                    <h3>
+                        Parámetros de servicio
+                    </h3>
+
+                    <p class="results-note">
+                        RMS móvil calculado con una ventana de 1 s.
+                        El MTVV mostrado es no ponderado y no debe
+                        interpretarse todavía como MTVV ISO 2631.
+                    </p>
+
+
+                    <div class="metrics-table-wrapper">
+
+                        <table class="metrics-table">
+
+                            <thead>
+
+                                <tr>
+
+                                    <th>
+                                        Parámetro
+                                    </th>
+
+                                    <th class="x-text">
+                                        X
+                                    </th>
+
+                                    <th class="y-text">
+                                        Y
+                                    </th>
+
+                                    <th class="z-text">
+                                        Z
+                                    </th>
+
+                                </tr>
+
+                            </thead>
+
+
+                            <tbody>
+
+                                <tr>
+
+                                    <td>
+                                        Pico |a|
+                                    </td>
+
+                                    <td id="peakX">--</td>
+                                    <td id="peakY">--</td>
+                                    <td id="peakZ">--</td>
+
+                                </tr>
+
+
+                                <tr>
+
+                                    <td>
+                                        RMS global
+                                    </td>
+
+                                    <td id="rmsX">--</td>
+                                    <td id="rmsY">--</td>
+                                    <td id="rmsZ">--</td>
+
+                                </tr>
+
+
+                                <tr>
+
+                                    <td>
+                                        Máx. RMS móvil 1 s
+                                    </td>
+
+                                    <td id="movingRmsX">--</td>
+                                    <td id="movingRmsY">--</td>
+                                    <td id="movingRmsZ">--</td>
+
+                                </tr>
+
+
+                                <tr>
+
+                                    <td>
+                                        MTVV no ponderado
+                                    </td>
+
+                                    <td id="mtvvX">--</td>
+                                    <td id="mtvvY">--</td>
+                                    <td id="mtvvZ">--</td>
+
+                                </tr>
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                    <p class="units-note">
+                        Aceleraciones en m/s².
+                    </p>
+
+                </div>
+
+
+                <!-- =============================================
+                     CALIDAD DE LA ADQUISICIÓN
+                     ============================================= -->
+
+                <div class="results-card">
+
+                    <h3>
+                        Calidad de la adquisición
+                    </h3>
+
+
+                    <div class="quality-grid">
+
+                        <div>
+
+                            <span>
+                                fs media
+                            </span>
+
+                            <strong id="qualityFs">
+                                --
+                            </strong>
+
+                        </div>
+
+
+                        <div>
+
+                            <span>
+                                Δt medio
+                            </span>
+
+                            <strong id="qualityDtMean">
+                                --
+                            </strong>
+
+                        </div>
+
+
+                        <div>
+
+                            <span>
+                                Δt mediano
+                            </span>
+
+                            <strong id="qualityDtMedian">
+                                --
+                            </strong>
+
+                        </div>
+
+
+                        <div>
+
+                            <span>
+                                Δt máximo
+                            </span>
+
+                            <strong id="qualityDtMax">
+                                --
+                            </strong>
+
+                        </div>
+
+
+                        <div>
+
+                            <span>
+                                Muestras
+                            </span>
+
+                            <strong id="qualitySamples">
+                                --
+                            </strong>
+
+                        </div>
+
+
+                        <div>
+
+                            <span>
+                                Huecos > 2·Δt mediano
+                            </span>
+
+                            <strong id="qualityGaps">
+                                --
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =============================================
+                     BOTONES FINALES
+                     ============================================= -->
+
+                <div class="results-actions">
+
+                    <button id="downloadCsvButton">
+                        Descargar CSV
+                    </button>
+
+                    <button id="newTestButton">
+                        Hacer otro ensayo
+                    </button>
+
+                    <button
+                        id="finishTestsButton"
+                        class="secondary-button"
+                    >
+                        Terminar
+                    </button>
+
+                </div>
+
+            </section>
 
         </section>
 
-
     </main>
 
-
-    <!-- =====================================================
-         PIE
-         ===================================================== -->
 
     <footer>
 
@@ -454,14 +831,20 @@
     </footer>
 
 
-    <!-- MapLibre -->
+    <!-- =====================================================
+         MAPLIBRE JS
+         ===================================================== -->
+
     <script
         src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js">
     </script>
 
-    <!-- Nuestro JavaScript -->
-    <script src="app.js"></script>
 
+    <!-- =====================================================
+         NUESTRO JAVASCRIPT
+         ===================================================== -->
+
+    <script src="app.js"></script>
 
 </body>
 
