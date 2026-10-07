@@ -8,34 +8,55 @@
    ========================================================= */
 
 /*
-   Frecuencia que pedimos cuando el navegador
-   soporta Generic Sensor API.
-
-   IMPORTANTE:
-   250 Hz es una frecuencia SOLICITADA.
-   Después calculamos siempre la frecuencia real.
+   Frecuencia solicitada en navegadores compatibles
+   con Generic Sensor API.
 */
 const requestedSensorFrequency = 250;
 
 
 /*
-   La gráfica muestra únicamente
-   los últimos 5 segundos.
+   Ventana visible durante la adquisición.
 */
 const visibleWindowSeconds = 5;
 
 
 /*
-   Redibujamos la gráfica aproximadamente
-   25 veces por segundo.
+   Actualización gráfica durante la medida.
 
-   Esto NO limita la frecuencia de adquisición.
+   40 ms -> aproximadamente 25 FPS.
+   Esto NO es la frecuencia de adquisición.
 */
 const chartUpdateInterval = 40;
 
 
+/*
+   Ventana del RMS móvil.
+
+   Se ha fijado en 1 segundo.
+*/
+const movingRmsWindowSeconds = 1;
+
+
+/*
+   Duración de las ventanas utilizadas
+   para Welch.
+
+   Si el ensayo es más corto,
+   se reducirá automáticamente.
+*/
+const welchWindowSeconds = 4;
+
+
+/*
+   Colores de los canales.
+*/
+const COLOR_X = "#1565c0";
+const COLOR_Y = "#d00000";
+const COLOR_Z = "#198754";
+
+
 /* =========================================================
-   2. ELEMENTOS DE LA INTERFAZ
+   2. ELEMENTOS HTML
    ========================================================= */
 
 const startButton =
@@ -100,23 +121,14 @@ const continueToTestsButton =
 const testForm =
     document.getElementById("testForm");
 
+const testSetup =
+    document.getElementById("testSetup");
+
 const testDescription =
     document.getElementById("testDescription");
 
 const recordButton =
     document.getElementById("recordButton");
-
-const newTestButton =
-    document.getElementById("newTestButton");
-
-const downloadCsvButton =
-    document.getElementById("downloadCsvButton");
-
-const finishTestsButton =
-    document.getElementById("finishTestsButton");
-
-const finishedTestButtons =
-    document.getElementById("finishedTestButtons");
 
 const elapsedTimeElement =
     document.getElementById("elapsedTime");
@@ -144,6 +156,96 @@ const azValue =
 
 
 /* =========================================================
+   RESULTADOS
+   ========================================================= */
+
+const resultsSection =
+    document.getElementById("resultsSection");
+
+const resultsDescription =
+    document.getElementById("resultsDescription");
+
+const downloadCsvButton =
+    document.getElementById("downloadCsvButton");
+
+const newTestButton =
+    document.getElementById("newTestButton");
+
+const finishTestsButton =
+    document.getElementById("finishTestsButton");
+
+const resetTimeZoomButton =
+    document.getElementById("resetTimeZoomButton");
+
+const resetSpectrumZoomButton =
+    document.getElementById("resetSpectrumZoomButton");
+
+
+/* =========================================================
+   MÉTRICAS
+   ========================================================= */
+
+const peakX =
+    document.getElementById("peakX");
+
+const peakY =
+    document.getElementById("peakY");
+
+const peakZ =
+    document.getElementById("peakZ");
+
+const rmsX =
+    document.getElementById("rmsX");
+
+const rmsY =
+    document.getElementById("rmsY");
+
+const rmsZ =
+    document.getElementById("rmsZ");
+
+const movingRmsX =
+    document.getElementById("movingRmsX");
+
+const movingRmsY =
+    document.getElementById("movingRmsY");
+
+const movingRmsZ =
+    document.getElementById("movingRmsZ");
+
+const mtvvX =
+    document.getElementById("mtvvX");
+
+const mtvvY =
+    document.getElementById("mtvvY");
+
+const mtvvZ =
+    document.getElementById("mtvvZ");
+
+
+/* =========================================================
+   CALIDAD
+   ========================================================= */
+
+const qualityFs =
+    document.getElementById("qualityFs");
+
+const qualityDtMean =
+    document.getElementById("qualityDtMean");
+
+const qualityDtMedian =
+    document.getElementById("qualityDtMedian");
+
+const qualityDtMax =
+    document.getElementById("qualityDtMax");
+
+const qualitySamples =
+    document.getElementById("qualitySamples");
+
+const qualityGaps =
+    document.getElementById("qualityGaps");
+
+
+/* =========================================================
    3. VARIABLES GENERALES
    ========================================================= */
 
@@ -157,7 +259,7 @@ let cameraStream = null;
 
 
 /* =========================================================
-   4. VARIABLES GPS
+   GPS
    ========================================================= */
 
 let bestPosition = null;
@@ -168,7 +270,7 @@ let gpsTimeoutId = null;
 
 
 /* =========================================================
-   5. VARIABLES DEL ENSAYO
+   ADQUISICIÓN
    ========================================================= */
 
 let isRecording = false;
@@ -181,27 +283,21 @@ let tests = [];
 
 let accelerationChart = null;
 
+let resultsTimeChart = null;
+
+let resultsSpectrumChart = null;
+
 let lastChartUpdate = 0;
 
-
-/*
-   Sensor de Generic Sensor API.
-
-   Será null cuando utilicemos DeviceMotionEvent.
-*/
 let genericSensor = null;
 
-
-/*
-   Información del sistema de adquisición.
-*/
 let currentSensorMode = "";
 
 let currentSensorType = "";
 
 
 /* =========================================================
-   6. NAVEGACIÓN
+   4. NAVEGACIÓN
    ========================================================= */
 
 startButton.addEventListener(
@@ -229,10 +325,6 @@ registerBridgeButton.addEventListener(
             "block";
 
 
-        /*
-           Creamos el mapa solamente
-           la primera vez.
-        */
         if (map === null) {
 
             map =
@@ -276,7 +368,7 @@ registerBridgeButton.addEventListener(
 
 
 /* =========================================================
-   7. GPS
+   5. GPS
    ========================================================= */
 
 gpsButton.addEventListener(
@@ -296,14 +388,10 @@ gpsButton.addEventListener(
 
         stopGPSWatch();
 
-
-        bestPosition =
-            null;
-
+        bestPosition = null;
 
         gpsButton.textContent =
             "Buscando ubicación...";
-
 
         gpsButton.disabled =
             true;
@@ -312,17 +400,8 @@ gpsButton.addEventListener(
         gpsWatchId =
             navigator.geolocation.watchPosition(
 
-
-                /* =========================================
-                   NUEVA POSICIÓN
-                   ========================================= */
-
                 function (position) {
 
-                    /*
-                       Nos quedamos únicamente
-                       con posiciones mejores.
-                    */
                     if (
                         bestPosition === null ||
                         position.coords.accuracy <
@@ -332,7 +411,6 @@ gpsButton.addEventListener(
                         bestPosition =
                             position;
 
-
                         updateGPSPosition(
                             position
                         );
@@ -340,10 +418,6 @@ gpsButton.addEventListener(
                     }
 
 
-                    /*
-                       Si conseguimos precisión <= 10 m,
-                       dejamos de buscar.
-                    */
                     if (
                         position.coords.accuracy <= 10
                     ) {
@@ -355,17 +429,13 @@ gpsButton.addEventListener(
                 },
 
 
-                /* =========================================
-                   ERROR GPS
-                   ========================================= */
-
                 function (error) {
 
                     stopGPSWatch();
 
 
                     let message =
-                        "";
+                        "Error de ubicación.";
 
 
                     if (error.code === 1) {
@@ -389,13 +459,6 @@ gpsButton.addEventListener(
 
                     }
 
-                    else {
-
-                        message =
-                            "Error desconocido de ubicación.";
-
-                    }
-
 
                     alert(
                         message +
@@ -403,18 +466,8 @@ gpsButton.addEventListener(
                         error.message
                     );
 
-
-                    console.log(
-                        "Error GPS:",
-                        error
-                    );
-
                 },
 
-
-                /* =========================================
-                   CONFIGURACIÓN
-                   ========================================= */
 
                 {
 
@@ -432,10 +485,6 @@ gpsButton.addEventListener(
             );
 
 
-        /*
-           Máximo 20 segundos buscando
-           una posición mejor.
-        */
         gpsTimeoutId =
             setTimeout(
                 stopGPSWatch,
@@ -446,13 +495,7 @@ gpsButton.addEventListener(
 );
 
 
-/* =========================================================
-   8. ACTUALIZAR GPS
-   ========================================================= */
-
-function updateGPSPosition(
-    position
-) {
+function updateGPSPosition(position) {
 
     const latitude =
         position.coords.latitude;
@@ -495,9 +538,7 @@ function updateGPSPosition(
     });
 
 
-    if (
-        bridgeMarker !== null
-    ) {
+    if (bridgeMarker !== null) {
 
         bridgeMarker.remove();
 
@@ -512,43 +553,18 @@ function updateGPSPosition(
                 latitude
             ])
 
-            .setPopup(
-
-                new maplibregl.Popup()
-                    .setHTML(
-
-                        "<strong>Ubicación de la pasarela</strong><br>" +
-                        "Precisión: " +
-                        accuracy.toFixed(1) +
-                        " m"
-
-                    )
-
-            )
-
-            .addTo(
-                map
-            );
+            .addTo(map);
 
 }
 
 
-/* =========================================================
-   9. DETENER GPS
-   ========================================================= */
-
 function stopGPSWatch() {
 
-    if (
-        gpsWatchId !== null
-    ) {
+    if (gpsWatchId !== null) {
 
-        navigator
-            .geolocation
-            .clearWatch(
-                gpsWatchId
-            );
-
+        navigator.geolocation.clearWatch(
+            gpsWatchId
+        );
 
         gpsWatchId =
             null;
@@ -556,14 +572,11 @@ function stopGPSWatch() {
     }
 
 
-    if (
-        gpsTimeoutId !== null
-    ) {
+    if (gpsTimeoutId !== null) {
 
         clearTimeout(
             gpsTimeoutId
         );
-
 
         gpsTimeoutId =
             null;
@@ -574,7 +587,6 @@ function stopGPSWatch() {
     gpsButton.textContent =
         "Obtener ubicación";
 
-
     gpsButton.disabled =
         false;
 
@@ -582,7 +594,7 @@ function stopGPSWatch() {
 
 
 /* =========================================================
-   10. PASAR A FOTOGRAFÍAS
+   6. FOTOGRAFÍAS
    ========================================================= */
 
 continueToPhotosButton.addEventListener(
@@ -591,10 +603,8 @@ continueToPhotosButton.addEventListener(
 
         stopGPSWatch();
 
-
         bridgeForm.style.display =
             "none";
-
 
         photoForm.style.display =
             "block";
@@ -602,10 +612,6 @@ continueToPhotosButton.addEventListener(
     }
 );
 
-
-/* =========================================================
-   11. ABRIR CÁMARA
-   ========================================================= */
 
 openCameraButton.addEventListener(
     "click",
@@ -636,10 +642,8 @@ openCameraButton.addEventListener(
             cameraPreview.srcObject =
                 cameraStream;
 
-
             cameraSection.style.display =
                 "block";
-
 
             openCameraButton.style.display =
                 "none";
@@ -652,20 +656,11 @@ openCameraButton.addEventListener(
                 "No se pudo acceder a la cámara."
             );
 
-
-            console.log(
-                error
-            );
-
         }
 
     }
 );
 
-
-/* =========================================================
-   12. CAPTURAR FOTO
-   ========================================================= */
 
 capturePhotoButton.addEventListener(
     "click",
@@ -741,10 +736,6 @@ capturePhotoButton.addEventListener(
 );
 
 
-/* =========================================================
-   13. CERRAR CÁMARA
-   ========================================================= */
-
 closeCameraButton.addEventListener(
     "click",
     stopCamera
@@ -753,9 +744,7 @@ closeCameraButton.addEventListener(
 
 function stopCamera() {
 
-    if (
-        cameraStream === null
-    ) {
+    if (cameraStream === null) {
 
         return;
 
@@ -778,14 +767,11 @@ function stopCamera() {
     cameraPreview.srcObject =
         null;
 
-
     cameraStream =
         null;
 
-
     cameraSection.style.display =
         "none";
-
 
     openCameraButton.style.display =
         "block";
@@ -793,13 +779,7 @@ function stopCamera() {
 }
 
 
-/* =========================================================
-   14. AÑADIR FOTO
-   ========================================================= */
-
-function addPhotoFile(
-    file
-) {
+function addPhotoFile(file) {
 
     if (
         !file.type.startsWith(
@@ -817,12 +797,6 @@ function addPhotoFile(
     );
 
 
-    const imageURL =
-        URL.createObjectURL(
-            file
-        );
-
-
     const image =
         document.createElement(
             "img"
@@ -830,11 +804,9 @@ function addPhotoFile(
 
 
     image.src =
-        imageURL;
-
-
-    image.alt =
-        "Fotografía de la pasarela";
+        URL.createObjectURL(
+            file
+        );
 
 
     photoPreview.appendChild(
@@ -842,14 +814,12 @@ function addPhotoFile(
     );
 
 
-    updatePhotoCounter();
+    photoCounter.textContent =
+        selectedPhotos.length +
+        " fotografías añadidas";
 
 }
 
-
-/* =========================================================
-   15. GALERÍA
-   ========================================================= */
 
 galleryInput.addEventListener(
     "change",
@@ -880,37 +850,7 @@ galleryInput.addEventListener(
 
 
 /* =========================================================
-   16. CONTADOR DE FOTOS
-   ========================================================= */
-
-function updatePhotoCounter() {
-
-    const numberOfPhotos =
-        selectedPhotos.length;
-
-
-    if (
-        numberOfPhotos === 1
-    ) {
-
-        photoCounter.textContent =
-            "1 fotografía añadida";
-
-    }
-
-    else {
-
-        photoCounter.textContent =
-            numberOfPhotos +
-            " fotografías añadidas";
-
-    }
-
-}
-
-
-/* =========================================================
-   17. PASAR A ENSAYOS
+   7. IR A ENSAYOS
    ========================================================= */
 
 continueToTestsButton.addEventListener(
@@ -919,10 +859,8 @@ continueToTestsButton.addEventListener(
 
         stopCamera();
 
-
         photoForm.style.display =
             "none";
-
 
         testForm.style.display =
             "block";
@@ -941,7 +879,7 @@ continueToTestsButton.addEventListener(
 
 
 /* =========================================================
-   18. CREAR GRÁFICA
+   8. GRÁFICA DE ADQUISICIÓN
    ========================================================= */
 
 function createAccelerationChart() {
@@ -979,7 +917,7 @@ function createAccelerationChart() {
                                 [],
 
                             borderColor:
-                                "#1565c0",
+                                COLOR_X,
 
                             borderWidth:
                                 2,
@@ -996,7 +934,7 @@ function createAccelerationChart() {
                                 [],
 
                             borderColor:
-                                "#c62828",
+                                COLOR_Y,
 
                             borderWidth:
                                 2,
@@ -1013,7 +951,7 @@ function createAccelerationChart() {
                                 [],
 
                             borderColor:
-                                "#2e7d32",
+                                COLOR_Z,
 
                             borderWidth:
                                 2,
@@ -1038,11 +976,6 @@ function createAccelerationChart() {
                     animation:
                         false,
 
-
-                    /*
-                       Chart.js no necesita recibir
-                       toques o gestos.
-                    */
                     events:
                         [],
 
@@ -1062,13 +995,6 @@ function createAccelerationChart() {
                                 text:
                                     "Tiempo (s)"
 
-                            },
-
-                            grid: {
-
-                                color:
-                                    "rgba(0,0,0,0.08)"
-
                             }
 
                         },
@@ -1083,13 +1009,6 @@ function createAccelerationChart() {
 
                                 text:
                                     "Aceleración (m/s²)"
-
-                            },
-
-                            grid: {
-
-                                color:
-                                    "rgba(0,0,0,0.08)"
 
                             }
 
@@ -1107,20 +1026,14 @@ function createAccelerationChart() {
 
 
 /* =========================================================
-   19. BOTÓN PLAY / STOP
+   9. PLAY / STOP
    ========================================================= */
 
 recordButton.addEventListener(
     "click",
     async function () {
 
-        /*
-           Si ya estamos grabando,
-           el botón funciona como STOP.
-        */
-        if (
-            isRecording
-        ) {
+        if (isRecording) {
 
             stopRecording();
 
@@ -1129,10 +1042,6 @@ recordButton.addEventListener(
         }
 
 
-        /*
-           Si no estamos grabando,
-           iniciamos un nuevo ensayo.
-        */
         await startRecording();
 
     }
@@ -1140,14 +1049,11 @@ recordButton.addEventListener(
 
 
 /* =========================================================
-   20. COMENZAR ENSAYO
+   10. INICIAR ENSAYO
    ========================================================= */
 
 async function startRecording() {
 
-    /*
-       La descripción es obligatoria.
-    */
     if (
         testDescription
             .value
@@ -1163,24 +1069,11 @@ async function startRecording() {
     }
 
 
-    /*
-       =====================================================
-       IPHONE / IPAD
-
-       Pedimos primero el permiso de movimiento.
-
-       Debe hacerse directamente después
-       de pulsar el botón.
-       =====================================================
-    */
-
     const permissionOK =
         await requestIOSMotionPermissionIfNeeded();
 
 
-    if (
-        !permissionOK
-    ) {
+    if (!permissionOK) {
 
         alert(
             "No se concedió permiso para utilizar el acelerómetro."
@@ -1191,15 +1084,9 @@ async function startRecording() {
     }
 
 
-    /*
-       Detenemos cualquier sensor anterior.
-    */
     stopSensor();
 
 
-    /*
-       Limpiamos datos anteriores.
-    */
     currentTestData =
         [];
 
@@ -1224,62 +1111,37 @@ async function startRecording() {
     );
 
 
-    /*
-       Reiniciamos indicadores.
-    */
     elapsedTimeElement.textContent =
         "00:00.00";
 
-
     sampleCountElement.textContent =
         "0";
-
 
     samplingFrequencyElement.textContent =
         "-- Hz";
 
 
     sensorModeElement.textContent =
-        "Inicializando sensor...";
-
+        "Inicializando...";
 
     targetFrequencyElement.textContent =
         "--";
 
 
-    /*
-       Elegimos el sensor.
-
-       IMPORTANTE:
-       todavía NO estamos oficialmente grabando.
-    */
     const sensorStarted =
         await startBestAvailableSensor();
 
 
-    if (
-        !sensorStarted
-    ) {
-
-        sensorModeElement.textContent =
-            "No disponible";
-
+    if (!sensorStarted) {
 
         alert(
             "No se ha podido acceder al acelerómetro."
         );
 
-
         return;
 
     }
 
-
-    /*
-       =====================================================
-       AQUÍ COMIENZA OFICIALMENTE EL ENSAYO
-       =====================================================
-    */
 
     recordingStartTime =
         performance.now();
@@ -1293,10 +1155,6 @@ async function startRecording() {
         true;
 
 
-    /*
-       Bloqueamos scroll y activamos
-       pantalla compacta.
-    */
     document.body.classList.add(
         "recording-lock"
     );
@@ -1305,14 +1163,6 @@ async function startRecording() {
     testForm.classList.add(
         "measurement-active"
     );
-
-
-    testDescription.disabled =
-        true;
-
-
-    finishedTestButtons.style.display =
-        "none";
 
 
     recordButton.textContent =
@@ -1337,14 +1187,11 @@ async function startRecording() {
 
 
 /* =========================================================
-   21. PERMISO DE MOVIMIENTO EN IOS
+   11. PERMISO IOS
    ========================================================= */
 
 async function requestIOSMotionPermissionIfNeeded() {
 
-    /*
-       Safari iPhone requiere permiso explícito.
-    */
     if (
 
         typeof DeviceMotionEvent !==
@@ -1370,13 +1217,7 @@ async function requestIOSMotionPermissionIfNeeded() {
 
         }
 
-        catch (error) {
-
-            console.log(
-                "Error solicitando permiso de movimiento:",
-                error
-            );
-
+        catch {
 
             return false;
 
@@ -1385,74 +1226,50 @@ async function requestIOSMotionPermissionIfNeeded() {
     }
 
 
-    /*
-       Android / ordenador:
-       este permiso específico no existe.
-    */
     return true;
 
 }
 
 
 /* =========================================================
-   22. DETECTAR IOS
+   12. DETECTAR IOS
    ========================================================= */
 
 function isIOSDevice() {
 
-    /*
-       iPhone / iPad / iPod tradicionales.
-    */
-    const classicIOS =
+    return (
+
         /iPhone|iPad|iPod/i.test(
             navigator.userAgent
-        );
+        )
 
+        ||
 
-    /*
-       Algunos iPad modernos se identifican
-       como Macintosh.
-    */
-    const modernIPad =
-        navigator.platform ===
-            "MacIntel" &&
-        navigator.maxTouchPoints >
-            1;
+        (
+            navigator.platform ===
+                "MacIntel"
 
+            &&
 
-    return (
-        classicIOS ||
-        modernIPad
+            navigator.maxTouchPoints >
+                1
+        )
+
     );
 
 }
 
 
 /* =========================================================
-   23. ELEGIR EL MEJOR SENSOR
+   13. SELECCIONAR SENSOR
    ========================================================= */
 
 async function startBestAvailableSensor() {
 
     /*
-       =====================================================
-       IOS
-
-       Aquí NO intentamos Generic Sensor API.
-
-       Vamos directamente al sistema que ya sabemos
-       que funciona en Safari/iPhone.
-       =====================================================
+       En iOS usamos DeviceMotion directamente.
     */
-
-    if (
-        isIOSDevice()
-    ) {
-
-        console.log(
-            "iOS detectado → DeviceMotionEvent"
-        );
-
+    if (isIOSDevice()) {
 
         return startDeviceMotionSensor();
 
@@ -1460,31 +1277,18 @@ async function startBestAvailableSensor() {
 
 
     /*
-       =====================================================
-       ANDROID / CHROME
-
-       Intentamos Generic Sensor API.
-       =====================================================
+       En Android / Chromium intentamos
+       Generic Sensor API.
     */
-
     if (
         "Accelerometer" in window
     ) {
-
-        console.log(
-            "Accelerometer disponible → intentando " +
-            requestedSensorFrequency +
-            " Hz"
-        );
-
 
         const worked =
             await tryGenericAccelerometer();
 
 
-        if (
-            worked
-        ) {
+        if (worked) {
 
             return true;
 
@@ -1494,26 +1298,15 @@ async function startBestAvailableSensor() {
 
 
     /*
-       =====================================================
-       FALLBACK
-
-       Si Generic Sensor API no existe o falla,
-       usamos DeviceMotionEvent.
-       =====================================================
+       Fallback.
     */
-
-    console.log(
-        "Fallback → DeviceMotionEvent"
-    );
-
-
     return startDeviceMotionSensor();
 
 }
 
 
 /* =========================================================
-   24. GENERIC SENSOR API
+   14. GENERIC SENSOR
    ========================================================= */
 
 function tryGenericAccelerometer() {
@@ -1524,10 +1317,6 @@ function tryGenericAccelerometer() {
 
             try {
 
-                /*
-                   Creamos el acelerómetro solicitando
-                   250 Hz.
-                */
                 const sensor =
                     new Accelerometer({
 
@@ -1541,18 +1330,12 @@ function tryGenericAccelerometer() {
                     false;
 
 
-                /*
-                   Si en 1 segundo no obtenemos
-                   ninguna lectura, hacemos fallback.
-                */
                 const timeout =
                     setTimeout(
 
                         function () {
 
-                            if (
-                                confirmed
-                            ) {
+                            if (confirmed) {
 
                                 return;
 
@@ -1565,18 +1348,10 @@ function tryGenericAccelerometer() {
 
                             }
 
-                            catch (error) {
-
-                                console.log(
-                                    error
-                                );
-
-                            }
+                            catch {}
 
 
-                            resolve(
-                                false
-                            );
+                            resolve(false);
 
                         },
 
@@ -1584,20 +1359,11 @@ function tryGenericAccelerometer() {
                     );
 
 
-                /*
-                   Lectura del sensor.
-                */
                 sensor.addEventListener(
                     "reading",
                     function () {
 
-                        /*
-                           La primera lectura solo
-                           confirma que funciona.
-                        */
-                        if (
-                            !confirmed
-                        ) {
+                        if (!confirmed) {
 
                             confirmed =
                                 true;
@@ -1629,24 +1395,13 @@ function tryGenericAccelerometer() {
                                 " Hz";
 
 
-                            resolve(
-                                true
-                            );
+                            resolve(true);
 
-
-                            /*
-                               Esta primera lectura ocurre
-                               antes del comienzo oficial.
-                            */
                             return;
 
                         }
 
 
-                        /*
-                           Después del inicio oficial
-                           procesamos muestras.
-                        */
                         processAccelerationSample(
 
                             sensor.x ?? 0,
@@ -1661,31 +1416,18 @@ function tryGenericAccelerometer() {
                 );
 
 
-                /*
-                   Error del sensor.
-                */
                 sensor.addEventListener(
                     "error",
-                    function (event) {
+                    function () {
 
-                        console.log(
-                            "Error Generic Sensor:",
-                            event.error
-                        );
-
-
-                        if (
-                            !confirmed
-                        ) {
+                        if (!confirmed) {
 
                             clearTimeout(
                                 timeout
                             );
 
 
-                            resolve(
-                                false
-                            );
+                            resolve(false);
 
                         }
 
@@ -1697,17 +1439,9 @@ function tryGenericAccelerometer() {
 
             }
 
-            catch (error) {
+            catch {
 
-                console.log(
-                    "Generic Sensor API no disponible:",
-                    error
-                );
-
-
-                resolve(
-                    false
-                );
+                resolve(false);
 
             }
 
@@ -1719,7 +1453,7 @@ function tryGenericAccelerometer() {
 
 
 /* =========================================================
-   25. DEVICEMOTION
+   15. DEVICEMOTION
    ========================================================= */
 
 function startDeviceMotionSensor() {
@@ -1746,10 +1480,6 @@ function startDeviceMotionSensor() {
         "DeviceMotionEvent";
 
 
-    /*
-       DeviceMotionEvent no permite seleccionar
-       manualmente la frecuencia.
-    */
     targetFrequencyElement.textContent =
         "Automática";
 
@@ -1765,34 +1495,19 @@ function startDeviceMotionSensor() {
 }
 
 
-/* =========================================================
-   26. RECIBIR DEVICEMOTION
-   ========================================================= */
+function handleDeviceMotion(event) {
 
-function handleDeviceMotion(
-    event
-) {
-
-    if (
-        !isRecording
-    ) {
+    if (!isRecording) {
 
         return;
 
     }
 
 
-    /*
-       Preferimos aceleración sin gravedad.
-    */
     let acceleration =
         event.acceleration;
 
 
-    /*
-       Algunos dispositivos solo proporcionan
-       accelerationIncludingGravity.
-    */
     if (
 
         !acceleration ||
@@ -1807,9 +1522,7 @@ function handleDeviceMotion(
     }
 
 
-    if (
-        !acceleration
-    ) {
+    if (!acceleration) {
 
         return;
 
@@ -1830,7 +1543,7 @@ function handleDeviceMotion(
 
 
 /* =========================================================
-   27. PROCESAR MUESTRA
+   16. PROCESAR MUESTRA
    ========================================================= */
 
 function processAccelerationSample(
@@ -1839,18 +1552,13 @@ function processAccelerationSample(
     az
 ) {
 
-    if (
-        !isRecording
-    ) {
+    if (!isRecording) {
 
         return;
 
     }
 
 
-    /*
-       Tiempo desde el inicio.
-    */
     const time =
         (
             performance.now() -
@@ -1858,9 +1566,6 @@ function processAccelerationSample(
         ) / 1000;
 
 
-    /*
-       Diferencia temporal con la muestra anterior.
-    */
     let dt =
         null;
 
@@ -1870,24 +1575,15 @@ function processAccelerationSample(
         0
     ) {
 
-        const previousSample =
-            currentTestData[
-                currentTestData.length - 1
-            ];
-
-
         dt =
             time -
-            previousSample.time;
+            currentTestData[
+                currentTestData.length - 1
+            ].time;
 
     }
 
 
-    /*
-       IMPORTANTE:
-
-       Guardamos TODAS las muestras.
-    */
     currentTestData.push({
 
         time:
@@ -1908,47 +1604,27 @@ function processAccelerationSample(
     });
 
 
-    /*
-       Valores instantáneos.
-    */
     axValue.textContent =
         ax.toFixed(3);
 
-
     ayValue.textContent =
         ay.toFixed(3);
-
 
     azValue.textContent =
         az.toFixed(3);
 
 
-    /*
-       Tiempo.
-    */
     elapsedTimeElement.textContent =
-        formatTime(
-            time
-        );
+        formatTime(time);
 
 
-    /*
-       Nº de muestras.
-    */
     sampleCountElement.textContent =
         currentTestData.length;
 
 
-    /*
-       Frecuencia real.
-    */
     updateRealSamplingFrequency();
 
 
-    /*
-       Repintamos la gráfica más lentamente
-       que la adquisición.
-    */
     const now =
         performance.now();
 
@@ -1959,7 +1635,7 @@ function processAccelerationSample(
         chartUpdateInterval
     ) {
 
-        updateChart(
+        updateAcquisitionChart(
             time
         );
 
@@ -1973,7 +1649,7 @@ function processAccelerationSample(
 
 
 /* =========================================================
-   28. FRECUENCIA REAL
+   17. FS REAL
    ========================================================= */
 
 function updateRealSamplingFrequency() {
@@ -1988,18 +1664,12 @@ function updateRealSamplingFrequency() {
     }
 
 
-    /*
-       Calculamos fs aproximadamente
-       sobre el último segundo.
-    */
-    const finalIndex =
+    const end =
         currentTestData.length - 1;
 
 
     const finalTime =
-        currentTestData[
-            finalIndex
-        ].time;
+        currentTestData[end].time;
 
 
     const minimumTime =
@@ -2009,36 +1679,33 @@ function updateRealSamplingFrequency() {
         );
 
 
-    let firstIndex =
-        finalIndex;
+    let first =
+        end;
 
 
     while (
 
-        firstIndex > 0 &&
+        first > 0 &&
 
         currentTestData[
-            firstIndex - 1
+            first - 1
         ].time >=
         minimumTime
 
     ) {
 
-        firstIndex--;
+        first--;
 
     }
 
 
     const duration =
-        finalTime -
-        currentTestData[
-            firstIndex
-        ].time;
+        currentTestData[end].time -
+        currentTestData[first].time;
 
 
     const intervals =
-        finalIndex -
-        firstIndex;
+        end - first;
 
 
     if (
@@ -2064,16 +1731,13 @@ function updateRealSamplingFrequency() {
 
 
 /* =========================================================
-   29. ACTUALIZAR GRÁFICA
+   18. GRÁFICA DURANTE ADQUISICIÓN
    ========================================================= */
 
-function updateChart(
+function updateAcquisitionChart(
     currentTime
 ) {
 
-    /*
-       Inicio de la ventana visible.
-    */
     const minimumTime =
         Math.max(
 
@@ -2085,11 +1749,7 @@ function updateChart(
         );
 
 
-    /*
-       Solo enviamos a Chart.js
-       los últimos 5 segundos.
-    */
-    const visibleData =
+    const visible =
         currentTestData.filter(
 
             function (sample) {
@@ -2104,84 +1764,42 @@ function updateChart(
         );
 
 
-    /* X */
     accelerationChart
         .data
         .datasets[0]
         .data =
-
-        visibleData.map(
-
-            function (sample) {
-
-                return {
-
-                    x:
-                        sample.time,
-
-                    y:
-                        sample.ax
-
-                };
-
-            }
-
+        visible.map(
+            sample => ({
+                x: sample.time,
+                y: sample.ax
+            })
         );
 
 
-    /* Y */
     accelerationChart
         .data
         .datasets[1]
         .data =
-
-        visibleData.map(
-
-            function (sample) {
-
-                return {
-
-                    x:
-                        sample.time,
-
-                    y:
-                        sample.ay
-
-                };
-
-            }
-
+        visible.map(
+            sample => ({
+                x: sample.time,
+                y: sample.ay
+            })
         );
 
 
-    /* Z */
     accelerationChart
         .data
         .datasets[2]
         .data =
-
-        visibleData.map(
-
-            function (sample) {
-
-                return {
-
-                    x:
-                        sample.time,
-
-                    y:
-                        sample.az
-
-                };
-
-            }
-
+        visible.map(
+            sample => ({
+                x: sample.time,
+                y: sample.az
+            })
         );
 
 
-    /*
-       Ventana temporal.
-    */
     accelerationChart
         .options
         .scales
@@ -2196,54 +1814,37 @@ function updateChart(
         .x
         .max =
         Math.max(
-
             visibleWindowSeconds,
-
             currentTime
-
         );
 
 
-    /*
-       Autoescala vertical.
-    */
-    let maximumAcceleration =
+    let maximum =
         0.1;
 
 
-    visibleData.forEach(
-
+    visible.forEach(
         function (sample) {
 
-            maximumAcceleration =
+            maximum =
                 Math.max(
 
-                    maximumAcceleration,
+                    maximum,
 
-                    Math.abs(
-                        sample.ax
-                    ),
+                    Math.abs(sample.ax),
 
-                    Math.abs(
-                        sample.ay
-                    ),
+                    Math.abs(sample.ay),
 
-                    Math.abs(
-                        sample.az
-                    )
+                    Math.abs(sample.az)
 
                 );
 
         }
-
     );
 
 
-    /*
-       15 % de margen.
-    */
-    const yLimit =
-        maximumAcceleration *
+    const limit =
+        maximum *
         1.15;
 
 
@@ -2252,7 +1853,7 @@ function updateChart(
         .scales
         .y
         .min =
-        -yLimit;
+        -limit;
 
 
     accelerationChart
@@ -2260,7 +1861,7 @@ function updateChart(
         .scales
         .y
         .max =
-        yLimit;
+        limit;
 
 
     accelerationChart.update(
@@ -2271,23 +1872,17 @@ function updateChart(
 
 
 /* =========================================================
-   30. DETENER SENSOR
+   19. DETENER SENSOR
    ========================================================= */
 
 function stopSensor() {
 
-    /*
-       DeviceMotionEvent.
-    */
     window.removeEventListener(
         "devicemotion",
         handleDeviceMotion
     );
 
 
-    /*
-       Generic Sensor API.
-    */
     if (
         genericSensor !== null
     ) {
@@ -2298,14 +1893,7 @@ function stopSensor() {
 
         }
 
-        catch (error) {
-
-            console.log(
-                "Error al detener sensor:",
-                error
-            );
-
-        }
+        catch {}
 
 
         genericSensor =
@@ -2317,47 +1905,41 @@ function stopSensor() {
 
 
 /* =========================================================
-   31. DETENER ENSAYO
+   20. DETENER ENSAYO
    ========================================================= */
 
 function stopRecording() {
 
-    if (
-        !isRecording
-    ) {
+    if (!isRecording) {
 
         return;
 
     }
 
 
-    /*
-       Marcamos inmediatamente
-       que la adquisición termina.
-    */
     isRecording =
         false;
 
 
-    /*
-       Detenemos sensor.
-    */
     stopSensor();
 
 
-    /*
-       Recuperamos scroll.
-    */
     document.body.classList.remove(
         "recording-lock"
     );
 
 
-    /*
-       Recuperamos pantalla normal.
-    */
     testForm.classList.remove(
         "measurement-active"
+    );
+
+
+    recordButton.textContent =
+        "▶ Iniciar ensayo";
+
+
+    recordButton.classList.remove(
+        "recording"
     );
 
 
@@ -2371,109 +1953,987 @@ function stopRecording() {
     );
 
 
-    /*
-       Botón vuelve a estado Play.
-    */
-    recordButton.textContent =
-        "▶ Iniciar ensayo";
+    if (
+        currentTestData.length <
+        2
+    ) {
+
+        alert(
+            "No se han recibido suficientes muestras."
+        );
+
+        return;
+
+    }
 
 
-    recordButton.classList.remove(
-        "recording"
+    const averageFrequency =
+        calculateAverageFrequency(
+            currentTestData
+        );
+
+
+    const test = {
+
+        description:
+            testDescription
+                .value
+                .trim(),
+
+        sensorMode:
+            currentSensorMode,
+
+        sensorType:
+            currentSensorType,
+
+        requestedFrequency:
+
+            currentSensorMode ===
+                "Generic Sensor API"
+
+                ? requestedSensorFrequency
+
+                : null,
+
+        averageFrequency:
+            averageFrequency,
+
+        data:
+            currentTestData.map(
+                sample => ({
+                    ...sample
+                })
+            )
+
+    };
+
+
+    tests.push(
+        test
     );
 
 
-    testDescription.disabled =
-        false;
-
-
     /*
-       Si hay datos, guardamos el ensayo.
+       Procesamos y mostramos los resultados.
     */
-    if (
-        currentTestData.length >
-        0
-    ) {
-
-        const averageFrequency =
-            calculateAverageFrequency(
-                currentTestData
-            );
-
-
-        tests.push({
-
-            description:
-                testDescription
-                    .value
-                    .trim(),
-
-            sensorMode:
-                currentSensorMode,
-
-            sensorType:
-                currentSensorType,
-
-            requestedFrequency:
-
-                currentSensorMode ===
-                    "Generic Sensor API"
-
-                    ? requestedSensorFrequency
-
-                    : null,
-
-            averageFrequency:
-                averageFrequency,
-
-            data:
-                [...currentTestData]
-
-        });
-
-
-        /*
-           Mostramos:
-           otro ensayo,
-           CSV,
-           terminar.
-        */
-        finishedTestButtons.style.display =
-            "block";
-
-    }
-
-    else {
-
-        /*
-           Esto nos ayudará a diagnosticar
-           cualquier dispositivo problemático.
-        */
-        alert(
-            "El ensayo se detuvo, pero no se recibió ninguna muestra del acelerómetro."
-        );
-
-    }
+    showResults(
+        test
+    );
 
 }
 
 
 /* =========================================================
-   32. FRECUENCIA MEDIA DEL ENSAYO
+   21. MOSTRAR RESULTADOS
    ========================================================= */
 
-function calculateAverageFrequency(
+function showResults(test) {
+
+    /*
+       Ocultamos elementos de adquisición.
+    */
+    testSetup.style.display =
+        "none";
+
+
+    document
+        .getElementById(
+            "acquisitionChartCard"
+        )
+        .style
+        .display =
+        "none";
+
+
+    document
+        .getElementById(
+            "liveValues"
+        )
+        .style
+        .display =
+        "none";
+
+
+    document
+        .getElementById(
+            "testInfo"
+        )
+        .style
+        .display =
+        "none";
+
+
+    recordButton.style.display =
+        "none";
+
+
+    resultsSection.style.display =
+        "block";
+
+
+    resultsDescription.textContent =
+        test.description +
+        " · " +
+        test.data.length +
+        " muestras · fs media " +
+        test.averageFrequency.toFixed(2) +
+        " Hz";
+
+
+    /*
+       Preprocesado.
+    */
+    const processed =
+        preprocessSignal(
+            test.data
+        );
+
+
+    /*
+       Métricas.
+    */
+    const metrics =
+        calculateServiceMetrics(
+            processed
+        );
+
+
+    updateMetricsUI(
+        metrics
+    );
+
+
+    /*
+       Calidad.
+    */
+    const quality =
+        calculateAcquisitionQuality(
+            test.data
+        );
+
+
+    updateQualityUI(
+        quality
+    );
+
+
+    /*
+       Gráfica temporal.
+    */
+    createResultsTimeChart(
+        processed
+    );
+
+
+    /*
+       PSD.
+    */
+    const psd =
+        calculateWelchPSD(
+            processed
+        );
+
+
+    createResultsSpectrumChart(
+        psd
+    );
+
+
+    /*
+       Dejamos la pantalla arriba de resultados.
+    */
+    window.scrollTo({
+
+        top:
+            testForm.offsetTop,
+
+        behavior:
+            "smooth"
+
+    });
+
+}
+
+
+/* =========================================================
+   22. PREPROCESADO
+   ========================================================= */
+
+function preprocessSignal(data) {
+
+    /*
+       Eliminamos tiempos repetidos agrupando
+       las muestras que tengan exactamente
+       el mismo timestamp.
+    */
+    const grouped =
+        new Map();
+
+
+    data.forEach(
+        function (sample) {
+
+            const key =
+                sample.time;
+
+
+            if (!grouped.has(key)) {
+
+                grouped.set(
+                    key,
+                    {
+                        time:
+                            sample.time,
+
+                        axSum:
+                            0,
+
+                        aySum:
+                            0,
+
+                        azSum:
+                            0,
+
+                        count:
+                            0
+                    }
+                );
+
+            }
+
+
+            const item =
+                grouped.get(key);
+
+
+            item.axSum +=
+                sample.ax;
+
+            item.aySum +=
+                sample.ay;
+
+            item.azSum +=
+                sample.az;
+
+            item.count++;
+
+        }
+    );
+
+
+    const uniqueData =
+        Array.from(
+            grouped.values()
+        )
+        .map(
+            item => ({
+
+                time:
+                    item.time,
+
+                ax:
+                    item.axSum /
+                    item.count,
+
+                ay:
+                    item.aySum /
+                    item.count,
+
+                az:
+                    item.azSum /
+                    item.count
+
+            })
+        )
+        .sort(
+            (a, b) =>
+                a.time -
+                b.time
+        );
+
+
+    /*
+       Normalizamos t=0.
+    */
+    const t0 =
+        uniqueData[0].time;
+
+
+    uniqueData.forEach(
+        sample => {
+
+            sample.time -=
+                t0;
+
+        }
+    );
+
+
+    /*
+       Calculamos dt positivos.
+    */
+    const dts =
+        [];
+
+
+    for (
+        let i = 1;
+        i < uniqueData.length;
+        i++
+    ) {
+
+        const dt =
+            uniqueData[i].time -
+            uniqueData[i - 1].time;
+
+
+        if (
+            Number.isFinite(dt) &&
+            dt > 0
+        ) {
+
+            dts.push(dt);
+
+        }
+
+    }
+
+
+    const dtMedian =
+        median(dts);
+
+
+    const fs =
+        1 /
+        dtMedian;
+
+
+    /*
+       Reamostrado uniforme.
+    */
+    const endTime =
+        uniqueData[
+            uniqueData.length - 1
+        ].time;
+
+
+    const uniformTime =
+        [];
+
+
+    for (
+        let t = 0;
+        t <= endTime;
+        t += dtMedian
+    ) {
+
+        uniformTime.push(t);
+
+    }
+
+
+    const originalTime =
+        uniqueData.map(
+            s => s.time
+        );
+
+
+    const originalX =
+        uniqueData.map(
+            s => s.ax
+        );
+
+
+    const originalY =
+        uniqueData.map(
+            s => s.ay
+        );
+
+
+    const originalZ =
+        uniqueData.map(
+            s => s.az
+        );
+
+
+    const axUniform =
+        linearInterpolateSeries(
+            originalTime,
+            originalX,
+            uniformTime
+        );
+
+
+    const ayUniform =
+        linearInterpolateSeries(
+            originalTime,
+            originalY,
+            uniformTime
+        );
+
+
+    const azUniform =
+        linearInterpolateSeries(
+            originalTime,
+            originalZ,
+            uniformTime
+        );
+
+
+    /*
+       Detrend lineal.
+    */
+    const ax =
+        detrendLinear(
+            axUniform
+        );
+
+
+    const ay =
+        detrendLinear(
+            ayUniform
+        );
+
+
+    const az =
+        detrendLinear(
+            azUniform
+        );
+
+
+    return {
+
+        time:
+            uniformTime,
+
+        ax:
+            ax,
+
+        ay:
+            ay,
+
+        az:
+            az,
+
+        fs:
+            fs,
+
+        dt:
+            dtMedian
+
+    };
+
+}
+
+
+/* =========================================================
+   23. INTERPOLACIÓN LINEAL
+   ========================================================= */
+
+function linearInterpolateSeries(
+    x,
+    y,
+    xNew
+) {
+
+    const result =
+        [];
+
+
+    let j =
+        0;
+
+
+    for (
+        let i = 0;
+        i < xNew.length;
+        i++
+    ) {
+
+        const target =
+            xNew[i];
+
+
+        while (
+
+            j <
+            x.length - 2 &&
+
+            x[j + 1] <
+            target
+
+        ) {
+
+            j++;
+
+        }
+
+
+        if (
+            target <=
+            x[0]
+        ) {
+
+            result.push(
+                y[0]
+            );
+
+            continue;
+
+        }
+
+
+        if (
+            target >=
+            x[
+                x.length - 1
+            ]
+        ) {
+
+            result.push(
+                y[
+                    y.length - 1
+                ]
+            );
+
+            continue;
+
+        }
+
+
+        const x1 =
+            x[j];
+
+        const x2 =
+            x[j + 1];
+
+        const y1 =
+            y[j];
+
+        const y2 =
+            y[j + 1];
+
+
+        const alpha =
+            (
+                target -
+                x1
+            )
+            /
+            (
+                x2 -
+                x1
+            );
+
+
+        result.push(
+
+            y1 +
+            alpha *
+            (
+                y2 -
+                y1
+            )
+
+        );
+
+    }
+
+
+    return result;
+
+}
+
+
+/* =========================================================
+   24. DETREND LINEAL
+   ========================================================= */
+
+function detrendLinear(values) {
+
+    const n =
+        values.length;
+
+
+    if (n < 2) {
+
+        return [
+            ...values
+        ];
+
+    }
+
+
+    let sumX =
+        0;
+
+    let sumY =
+        0;
+
+    let sumXX =
+        0;
+
+    let sumXY =
+        0;
+
+
+    for (
+        let i = 0;
+        i < n;
+        i++
+    ) {
+
+        sumX +=
+            i;
+
+        sumY +=
+            values[i];
+
+        sumXX +=
+            i * i;
+
+        sumXY +=
+            i *
+            values[i];
+
+    }
+
+
+    const denominator =
+        n *
+        sumXX -
+        sumX *
+        sumX;
+
+
+    const slope =
+        (
+            n *
+            sumXY -
+            sumX *
+            sumY
+        )
+        /
+        denominator;
+
+
+    const intercept =
+        (
+            sumY -
+            slope *
+            sumX
+        )
+        /
+        n;
+
+
+    return values.map(
+
+        function (
+            value,
+            i
+        ) {
+
+            return (
+                value -
+                (
+                    slope *
+                    i +
+                    intercept
+                )
+            );
+
+        }
+
+    );
+
+}
+
+
+/* =========================================================
+   25. MÉTRICAS DE SERVICIO
+   ========================================================= */
+
+function calculateServiceMetrics(
+    processed
+) {
+
+    const windowSamples =
+        Math.max(
+
+            1,
+
+            Math.round(
+                movingRmsWindowSeconds *
+                processed.fs
+            )
+
+        );
+
+
+    function metricsForChannel(
+        values
+    ) {
+
+        /*
+           Pico absoluto.
+        */
+        let peak =
+            0;
+
+
+        values.forEach(
+            function (value) {
+
+                peak =
+                    Math.max(
+                        peak,
+                        Math.abs(value)
+                    );
+
+            }
+        );
+
+
+        /*
+           RMS global.
+        */
+        const rms =
+            Math.sqrt(
+
+                values.reduce(
+
+                    (
+                        sum,
+                        value
+                    ) =>
+                        sum +
+                        value *
+                        value,
+
+                    0
+
+                )
+
+                /
+
+                values.length
+
+            );
+
+
+        /*
+           RMS móvil eficiente usando
+           suma acumulativa de cuadrados.
+        */
+        let runningSumSquares =
+            0;
+
+
+        let maximumMovingRms =
+            0;
+
+
+        for (
+            let i = 0;
+            i < values.length;
+            i++
+        ) {
+
+            runningSumSquares +=
+                values[i] *
+                values[i];
+
+
+            if (
+                i >=
+                windowSamples
+            ) {
+
+                const oldValue =
+                    values[
+                        i -
+                        windowSamples
+                    ];
+
+
+                runningSumSquares -=
+                    oldValue *
+                    oldValue;
+
+            }
+
+
+            const currentWindowLength =
+                Math.min(
+                    i + 1,
+                    windowSamples
+                );
+
+
+            const movingRms =
+                Math.sqrt(
+                    runningSumSquares /
+                    currentWindowLength
+                );
+
+
+            maximumMovingRms =
+                Math.max(
+                    maximumMovingRms,
+                    movingRms
+                );
+
+        }
+
+
+        return {
+
+            peak:
+                peak,
+
+            rms:
+                rms,
+
+            maximumMovingRms:
+                maximumMovingRms,
+
+            /*
+               Por ahora MTVV no ponderado.
+            */
+            mtvv:
+                maximumMovingRms
+
+        };
+
+    }
+
+
+    return {
+
+        x:
+            metricsForChannel(
+                processed.ax
+            ),
+
+        y:
+            metricsForChannel(
+                processed.ay
+            ),
+
+        z:
+            metricsForChannel(
+                processed.az
+            )
+
+    };
+
+}
+
+
+/* =========================================================
+   26. MOSTRAR MÉTRICAS
+   ========================================================= */
+
+function updateMetricsUI(
+    metrics
+) {
+
+    peakX.textContent =
+        metrics.x.peak.toFixed(4);
+
+    peakY.textContent =
+        metrics.y.peak.toFixed(4);
+
+    peakZ.textContent =
+        metrics.z.peak.toFixed(4);
+
+
+    rmsX.textContent =
+        metrics.x.rms.toFixed(4);
+
+    rmsY.textContent =
+        metrics.y.rms.toFixed(4);
+
+    rmsZ.textContent =
+        metrics.z.rms.toFixed(4);
+
+
+    movingRmsX.textContent =
+        metrics.x
+            .maximumMovingRms
+            .toFixed(4);
+
+    movingRmsY.textContent =
+        metrics.y
+            .maximumMovingRms
+            .toFixed(4);
+
+    movingRmsZ.textContent =
+        metrics.z
+            .maximumMovingRms
+            .toFixed(4);
+
+
+    mtvvX.textContent =
+        metrics.x.mtvv.toFixed(4);
+
+    mtvvY.textContent =
+        metrics.y.mtvv.toFixed(4);
+
+    mtvvZ.textContent =
+        metrics.z.mtvv.toFixed(4);
+
+}
+
+
+/* =========================================================
+   27. CALIDAD DE ADQUISICIÓN
+   ========================================================= */
+
+function calculateAcquisitionQuality(
     data
 ) {
 
-    if (
-        data.length <
-        2
+    const dts =
+        [];
+
+
+    for (
+        let i = 1;
+        i < data.length;
+        i++
     ) {
 
-        return null;
+        const dt =
+            data[i].time -
+            data[i - 1].time;
+
+
+        if (
+            Number.isFinite(dt) &&
+            dt > 0
+        ) {
+
+            dts.push(dt);
+
+        }
 
     }
+
+
+    const dtMean =
+        mean(dts);
+
+
+    const dtMedian =
+        median(dts);
+
+
+    const dtMax =
+        Math.max(
+            ...dts
+        );
 
 
     const duration =
@@ -2483,29 +2943,1391 @@ function calculateAverageFrequency(
         data[0].time;
 
 
-    if (
-        duration <= 0
-    ) {
+    const fs =
+        (
+            data.length - 1
+        )
+        /
+        duration;
 
-        return null;
 
-    }
+    const gaps =
+        dts.filter(
+
+            dt =>
+                dt >
+                2 *
+                dtMedian
+
+        ).length;
 
 
-    return (
-        data.length - 1
-    ) / duration;
+    return {
+
+        fs:
+            fs,
+
+        dtMean:
+            dtMean,
+
+        dtMedian:
+            dtMedian,
+
+        dtMax:
+            dtMax,
+
+        samples:
+            data.length,
+
+        gaps:
+            gaps
+
+    };
 
 }
 
 
 /* =========================================================
-   33. HACER OTRO ENSAYO
+   28. MOSTRAR CALIDAD
+   ========================================================= */
+
+function updateQualityUI(
+    quality
+) {
+
+    qualityFs.textContent =
+        quality.fs.toFixed(2) +
+        " Hz";
+
+
+    qualityDtMean.textContent =
+        (
+            quality.dtMean *
+            1000
+        )
+        .toFixed(2) +
+        " ms";
+
+
+    qualityDtMedian.textContent =
+        (
+            quality.dtMedian *
+            1000
+        )
+        .toFixed(2) +
+        " ms";
+
+
+    qualityDtMax.textContent =
+        (
+            quality.dtMax *
+            1000
+        )
+        .toFixed(2) +
+        " ms";
+
+
+    qualitySamples.textContent =
+        quality.samples;
+
+
+    qualityGaps.textContent =
+        quality.gaps;
+
+}
+
+
+/* =========================================================
+   29. GRÁFICA TEMPORAL DE RESULTADOS
+   ========================================================= */
+
+function createResultsTimeChart(
+    processed
+) {
+
+    if (
+        resultsTimeChart !== null
+    ) {
+
+        resultsTimeChart.destroy();
+
+    }
+
+
+    const context =
+        document
+            .getElementById(
+                "resultsTimeChart"
+            )
+            .getContext(
+                "2d"
+            );
+
+
+    resultsTimeChart =
+        new Chart(
+
+            context,
+
+            {
+
+                type:
+                    "line",
+
+
+                data: {
+
+                    datasets: [
+
+                        {
+                            label:
+                                "X",
+
+                            data:
+                                processed.time.map(
+                                    (
+                                        t,
+                                        i
+                                    ) => ({
+                                        x: t,
+                                        y: processed.ax[i]
+                                    })
+                                ),
+
+                            borderColor:
+                                COLOR_X,
+
+                            borderWidth:
+                                1.5,
+
+                            pointRadius:
+                                0,
+
+                            pointHitRadius:
+                                8
+                        },
+
+                        {
+                            label:
+                                "Y",
+
+                            data:
+                                processed.time.map(
+                                    (
+                                        t,
+                                        i
+                                    ) => ({
+                                        x: t,
+                                        y: processed.ay[i]
+                                    })
+                                ),
+
+                            borderColor:
+                                COLOR_Y,
+
+                            borderWidth:
+                                1.5,
+
+                            pointRadius:
+                                0,
+
+                            pointHitRadius:
+                                8
+                        },
+
+                        {
+                            label:
+                                "Z",
+
+                            data:
+                                processed.time.map(
+                                    (
+                                        t,
+                                        i
+                                    ) => ({
+                                        x: t,
+                                        y: processed.az[i]
+                                    })
+                                ),
+
+                            borderColor:
+                                COLOR_Z,
+
+                            borderWidth:
+                                1.5,
+
+                            pointRadius:
+                                0,
+
+                            pointHitRadius:
+                                8
+                        }
+
+                    ]
+
+                },
+
+
+                options: {
+
+                    responsive:
+                        true,
+
+                    maintainAspectRatio:
+                        false,
+
+                    animation:
+                        false,
+
+
+                    interaction: {
+
+                        mode:
+                            "nearest",
+
+                        intersect:
+                            false
+
+                    },
+
+
+                    plugins: {
+
+                        tooltip: {
+
+                            enabled:
+                                true,
+
+                            callbacks: {
+
+                                title:
+                                    function (
+                                        items
+                                    ) {
+
+                                        if (
+                                            items.length === 0
+                                        ) {
+
+                                            return "";
+
+                                        }
+
+
+                                        return (
+                                            "t = " +
+                                            Number(
+                                                items[0]
+                                                    .parsed
+                                                    .x
+                                            )
+                                            .toFixed(4) +
+                                            " s"
+                                        );
+
+                                    },
+
+
+                                label:
+                                    function (
+                                        context
+                                    ) {
+
+                                        return (
+                                            context.dataset.label +
+                                            " = " +
+                                            context.parsed.y.toFixed(5) +
+                                            " m/s²"
+                                        );
+
+                                    }
+
+                            }
+
+                        },
+
+
+                        zoom: {
+
+                            pan: {
+
+                                enabled:
+                                    true,
+
+                                mode:
+                                    "x"
+
+                            },
+
+
+                            zoom: {
+
+                                wheel: {
+
+                                    enabled:
+                                        true
+
+                                },
+
+                                pinch: {
+
+                                    enabled:
+                                        true
+
+                                },
+
+                                mode:
+                                    "x"
+
+                            }
+
+                        }
+
+                    },
+
+
+                    scales: {
+
+                        x: {
+
+                            type:
+                                "linear",
+
+                            title: {
+
+                                display:
+                                    true,
+
+                                text:
+                                    "Tiempo (s)"
+
+                            }
+
+                        },
+
+
+                        y: {
+
+                            title: {
+
+                                display:
+                                    true,
+
+                                text:
+                                    "Aceleración (m/s²)"
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        );
+
+}
+
+
+/* =========================================================
+   30. PSD WELCH
+   ========================================================= */
+
+function calculateWelchPSD(
+    processed
+) {
+
+    /*
+       Ventana de Welch aproximada.
+    */
+    let segmentLength =
+        Math.round(
+            welchWindowSeconds *
+            processed.fs
+        );
+
+
+    /*
+       Limitamos a la longitud disponible.
+    */
+    segmentLength =
+        Math.min(
+
+            segmentLength,
+
+            processed.ax.length
+
+        );
+
+
+    /*
+       FFT radix-2:
+       usamos la potencia de 2 inferior
+       para evitar rellenar ventanas enormes.
+    */
+    segmentLength =
+        previousPowerOfTwo(
+            segmentLength
+        );
+
+
+    segmentLength =
+        Math.max(
+            16,
+            segmentLength
+        );
+
+
+    /*
+       Si la señal es muy corta.
+    */
+    if (
+        segmentLength >
+        processed.ax.length
+    ) {
+
+        segmentLength =
+            previousPowerOfTwo(
+                processed.ax.length
+            );
+
+    }
+
+
+    const overlap =
+        Math.floor(
+            segmentLength /
+            2
+        );
+
+
+    const step =
+        segmentLength -
+        overlap;
+
+
+    const window =
+        hannWindow(
+            segmentLength
+        );
+
+
+    /*
+       Normalización energética de la ventana.
+    */
+    const windowPower =
+        window.reduce(
+
+            (
+                sum,
+                value
+            ) =>
+                sum +
+                value *
+                value,
+
+            0
+
+        );
+
+
+    function welchForChannel(
+        values
+    ) {
+
+        const half =
+            Math.floor(
+                segmentLength /
+                2
+            ) +
+            1;
+
+
+        const accumulated =
+            new Array(
+                half
+            )
+            .fill(0);
+
+
+        let segments =
+            0;
+
+
+        for (
+
+            let start = 0;
+
+            start +
+            segmentLength <=
+            values.length;
+
+            start +=
+            step
+
+        ) {
+
+            const segment =
+                new Array(
+                    segmentLength
+                );
+
+
+            for (
+                let i = 0;
+                i < segmentLength;
+                i++
+            ) {
+
+                segment[i] =
+                    values[
+                        start + i
+                    ]
+                    *
+                    window[i];
+
+            }
+
+
+            const spectrum =
+                fftReal(
+                    segment
+                );
+
+
+            for (
+                let k = 0;
+                k < half;
+                k++
+            ) {
+
+                const re =
+                    spectrum.real[k];
+
+                const im =
+                    spectrum.imag[k];
+
+
+                let power =
+                    (
+                        re *
+                        re +
+                        im *
+                        im
+                    )
+                    /
+                    (
+                        processed.fs *
+                        windowPower
+                    );
+
+
+                /*
+                   PSD unilateral.
+                */
+                if (
+                    k > 0 &&
+                    k <
+                    half - 1
+                ) {
+
+                    power *=
+                        2;
+
+                }
+
+
+                accumulated[k] +=
+                    power;
+
+            }
+
+
+            segments++;
+
+        }
+
+
+        if (
+            segments === 0
+        ) {
+
+            return accumulated;
+
+        }
+
+
+        return accumulated.map(
+
+            value =>
+                value /
+                segments
+
+        );
+
+    }
+
+
+    const px =
+        welchForChannel(
+            processed.ax
+        );
+
+
+    const py =
+        welchForChannel(
+            processed.ay
+        );
+
+
+    const pz =
+        welchForChannel(
+            processed.az
+        );
+
+
+    const frequency =
+        px.map(
+
+            (
+                _,
+                index
+            ) =>
+
+                index *
+                processed.fs /
+                segmentLength
+
+        );
+
+
+    return {
+
+        frequency:
+            frequency,
+
+        px:
+            px,
+
+        py:
+            py,
+
+        pz:
+            pz
+
+    };
+
+}
+
+
+/* =========================================================
+   31. GRÁFICA PSD
+   ========================================================= */
+
+function createResultsSpectrumChart(
+    psd
+) {
+
+    if (
+        resultsSpectrumChart !== null
+    ) {
+
+        resultsSpectrumChart.destroy();
+
+    }
+
+
+    const context =
+        document
+            .getElementById(
+                "resultsSpectrumChart"
+            )
+            .getContext(
+                "2d"
+            );
+
+
+    /*
+       Para escala logarítmica evitamos
+       valores exactamente cero.
+    */
+    const epsilon =
+        1e-20;
+
+
+    resultsSpectrumChart =
+        new Chart(
+
+            context,
+
+            {
+
+                type:
+                    "line",
+
+
+                data: {
+
+                    datasets: [
+
+                        {
+                            label:
+                                "X",
+
+                            data:
+                                psd.frequency.map(
+                                    (
+                                        f,
+                                        i
+                                    ) => ({
+                                        x: f,
+                                        y: Math.max(
+                                            psd.px[i],
+                                            epsilon
+                                        )
+                                    })
+                                ),
+
+                            borderColor:
+                                COLOR_X,
+
+                            borderWidth:
+                                1.5,
+
+                            pointRadius:
+                                0,
+
+                            pointHitRadius:
+                                8
+                        },
+
+                        {
+                            label:
+                                "Y",
+
+                            data:
+                                psd.frequency.map(
+                                    (
+                                        f,
+                                        i
+                                    ) => ({
+                                        x: f,
+                                        y: Math.max(
+                                            psd.py[i],
+                                            epsilon
+                                        )
+                                    })
+                                ),
+
+                            borderColor:
+                                COLOR_Y,
+
+                            borderWidth:
+                                1.5,
+
+                            pointRadius:
+                                0,
+
+                            pointHitRadius:
+                                8
+                        },
+
+                        {
+                            label:
+                                "Z",
+
+                            data:
+                                psd.frequency.map(
+                                    (
+                                        f,
+                                        i
+                                    ) => ({
+                                        x: f,
+                                        y: Math.max(
+                                            psd.pz[i],
+                                            epsilon
+                                        )
+                                    })
+                                ),
+
+                            borderColor:
+                                COLOR_Z,
+
+                            borderWidth:
+                                1.5,
+
+                            pointRadius:
+                                0,
+
+                            pointHitRadius:
+                                8
+                        }
+
+                    ]
+
+                },
+
+
+                options: {
+
+                    responsive:
+                        true,
+
+                    maintainAspectRatio:
+                        false,
+
+                    animation:
+                        false,
+
+
+                    interaction: {
+
+                        mode:
+                            "nearest",
+
+                        intersect:
+                            false
+
+                    },
+
+
+                    plugins: {
+
+                        tooltip: {
+
+                            callbacks: {
+
+                                title:
+                                    function (
+                                        items
+                                    ) {
+
+                                        if (
+                                            items.length === 0
+                                        ) {
+
+                                            return "";
+
+                                        }
+
+
+                                        return (
+                                            "f = " +
+                                            items[0]
+                                                .parsed
+                                                .x
+                                                .toFixed(3) +
+                                            " Hz"
+                                        );
+
+                                    },
+
+
+                                label:
+                                    function (
+                                        context
+                                    ) {
+
+                                        return (
+                                            context.dataset.label +
+                                            " = " +
+                                            context.parsed.y.toExponential(3) +
+                                            " (m/s²)²/Hz"
+                                        );
+
+                                    }
+
+                            }
+
+                        },
+
+
+                        zoom: {
+
+                            pan: {
+
+                                enabled:
+                                    true,
+
+                                mode:
+                                    "x"
+
+                            },
+
+
+                            zoom: {
+
+                                wheel: {
+
+                                    enabled:
+                                        true
+
+                                },
+
+                                pinch: {
+
+                                    enabled:
+                                        true
+
+                                },
+
+                                mode:
+                                    "x"
+
+                            }
+
+                        }
+
+                    },
+
+
+                    scales: {
+
+                        x: {
+
+                            type:
+                                "linear",
+
+                            title: {
+
+                                display:
+                                    true,
+
+                                text:
+                                    "Frecuencia (Hz)"
+
+                            }
+
+                        },
+
+
+                        y: {
+
+                            type:
+                                "logarithmic",
+
+                            title: {
+
+                                display:
+                                    true,
+
+                                text:
+                                    "PSD ((m/s²)²/Hz)"
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        );
+
+}
+
+
+/* =========================================================
+   32. FFT RADIX-2
+   ========================================================= */
+
+function fftReal(
+    input
+) {
+
+    const n =
+        input.length;
+
+
+    /*
+       Partes real e imaginaria.
+    */
+    const real =
+        input.slice();
+
+
+    const imag =
+        new Array(n)
+            .fill(0);
+
+
+    /*
+       Reordenamiento bit-reversal.
+    */
+    let j =
+        0;
+
+
+    for (
+        let i = 1;
+        i < n;
+        i++
+    ) {
+
+        let bit =
+            n >>
+            1;
+
+
+        while (
+            j &
+            bit
+        ) {
+
+            j ^=
+                bit;
+
+            bit >>=
+                1;
+
+        }
+
+
+        j ^=
+            bit;
+
+
+        if (
+            i <
+            j
+        ) {
+
+            [
+                real[i],
+                real[j]
+            ] =
+            [
+                real[j],
+                real[i]
+            ];
+
+
+            [
+                imag[i],
+                imag[j]
+            ] =
+            [
+                imag[j],
+                imag[i]
+            ];
+
+        }
+
+    }
+
+
+    /*
+       Cooley-Tukey.
+    */
+    for (
+        let length = 2;
+        length <= n;
+        length <<= 1
+    ) {
+
+        const angle =
+            -2 *
+            Math.PI /
+            length;
+
+
+        const wLengthReal =
+            Math.cos(
+                angle
+            );
+
+
+        const wLengthImag =
+            Math.sin(
+                angle
+            );
+
+
+        for (
+            let i = 0;
+            i < n;
+            i += length
+        ) {
+
+            let wReal =
+                1;
+
+            let wImag =
+                0;
+
+
+            const half =
+                length >>
+                1;
+
+
+            for (
+                let k = 0;
+                k < half;
+                k++
+            ) {
+
+                const even =
+                    i + k;
+
+                const odd =
+                    even + half;
+
+
+                const oddReal =
+                    real[odd] *
+                    wReal -
+                    imag[odd] *
+                    wImag;
+
+
+                const oddImag =
+                    real[odd] *
+                    wImag +
+                    imag[odd] *
+                    wReal;
+
+
+                const evenReal =
+                    real[even];
+
+                const evenImag =
+                    imag[even];
+
+
+                real[even] =
+                    evenReal +
+                    oddReal;
+
+
+                imag[even] =
+                    evenImag +
+                    oddImag;
+
+
+                real[odd] =
+                    evenReal -
+                    oddReal;
+
+
+                imag[odd] =
+                    evenImag -
+                    oddImag;
+
+
+                const nextWReal =
+                    wReal *
+                    wLengthReal -
+                    wImag *
+                    wLengthImag;
+
+
+                const nextWImag =
+                    wReal *
+                    wLengthImag +
+                    wImag *
+                    wLengthReal;
+
+
+                wReal =
+                    nextWReal;
+
+                wImag =
+                    nextWImag;
+
+            }
+
+        }
+
+    }
+
+
+    return {
+
+        real:
+            real,
+
+        imag:
+            imag
+
+    };
+
+}
+
+
+/* =========================================================
+   33. VENTANA HANN
+   ========================================================= */
+
+function hannWindow(
+    n
+) {
+
+    if (
+        n === 1
+    ) {
+
+        return [1];
+
+    }
+
+
+    const window =
+        [];
+
+
+    for (
+        let i = 0;
+        i < n;
+        i++
+    ) {
+
+        window.push(
+
+            0.5 *
+            (
+                1 -
+                Math.cos(
+
+                    2 *
+                    Math.PI *
+                    i /
+                    (
+                        n -
+                        1
+                    )
+
+                )
+            )
+
+        );
+
+    }
+
+
+    return window;
+
+}
+
+
+/* =========================================================
+   34. POTENCIA DE 2 INFERIOR
+   ========================================================= */
+
+function previousPowerOfTwo(
+    value
+) {
+
+    if (
+        value < 1
+    ) {
+
+        return 1;
+
+    }
+
+
+    return Math.pow(
+
+        2,
+
+        Math.floor(
+            Math.log2(
+                value
+            )
+        )
+
+    );
+
+}
+
+
+/* =========================================================
+   35. RESET ZOOM
+   ========================================================= */
+
+resetTimeZoomButton.addEventListener(
+    "click",
+    function () {
+
+        if (
+            resultsTimeChart
+        ) {
+
+            resultsTimeChart.resetZoom();
+
+        }
+
+    }
+);
+
+
+resetSpectrumZoomButton.addEventListener(
+    "click",
+    function () {
+
+        if (
+            resultsSpectrumChart
+        ) {
+
+            resultsSpectrumChart.resetZoom();
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   36. OTRO ENSAYO
    ========================================================= */
 
 newTestButton.addEventListener(
     "click",
     function () {
+
+        resultsSection.style.display =
+            "none";
+
+
+        testSetup.style.display =
+            "block";
+
+
+        document
+            .getElementById(
+                "acquisitionChartCard"
+            )
+            .style
+            .display =
+            "block";
+
+
+        document
+            .getElementById(
+                "liveValues"
+            )
+            .style
+            .display =
+            "grid";
+
+
+        document
+            .getElementById(
+                "testInfo"
+            )
+            .style
+            .display =
+            "grid";
+
+
+        recordButton.style.display =
+            "block";
+
 
         testDescription.value =
             "";
@@ -2538,18 +4360,13 @@ newTestButton.addEventListener(
         axValue.textContent =
             "0.000";
 
-
         ayValue.textContent =
             "0.000";
-
 
         azValue.textContent =
             "0.000";
 
 
-        /*
-           Limpiamos gráfica.
-        */
         accelerationChart
             .data
             .datasets
@@ -2565,9 +4382,6 @@ newTestButton.addEventListener(
             );
 
 
-        /*
-           Eliminamos escalas anteriores.
-        */
         delete accelerationChart
             .options
             .scales
@@ -2601,10 +4415,6 @@ newTestButton.addEventListener(
         );
 
 
-        finishedTestButtons.style.display =
-            "none";
-
-
         testDescription.focus();
 
     }
@@ -2612,7 +4422,7 @@ newTestButton.addEventListener(
 
 
 /* =========================================================
-   34. DESCARGAR / COMPARTIR CSV
+   37. DESCARGAR CSV
    ========================================================= */
 
 downloadCsvButton.addEventListener(
@@ -2625,7 +4435,7 @@ downloadCsvButton.addEventListener(
         ) {
 
             alert(
-                "No hay ensayos disponibles para descargar."
+                "No hay ensayos para descargar."
             );
 
             return;
@@ -2633,9 +4443,6 @@ downloadCsvButton.addEventListener(
         }
 
 
-        /*
-           Cabecera CSV.
-        */
         let csv =
             "test_id,description,sensor_mode,sensor_type," +
             "requested_frequency_hz,average_frequency_hz," +
@@ -2649,82 +4456,88 @@ downloadCsvButton.addEventListener(
                 testIndex
             ) {
 
-                const testId =
-                    testIndex + 1;
-
-
                 const description =
                     '"' +
 
-                    test.description.replaceAll(
-                        '"',
-                        '""'
-                    ) +
+                    test.description
+                        .replaceAll(
+                            '"',
+                            '""'
+                        )
+
+                    +
 
                     '"';
 
 
-                const requestedFrequency =
-                    test.requestedFrequency === null
-
-                        ? ""
-
-                        : test.requestedFrequency;
-
-
-                const averageFrequency =
-                    test.averageFrequency === null
-
-                        ? ""
-
-                        : test.averageFrequency.toFixed(3);
-
-
                 test.data.forEach(
 
-                    function (sample) {
-
-                        const dtValue =
-                            sample.dt === null
-
-                                ? ""
-
-                                : sample.dt.toFixed(6);
-
+                    function (
+                        sample
+                    ) {
 
                         csv +=
 
-                            testId +
-                            "," +
+                            (
+                                testIndex +
+                                1
+                            )
+                            +
+                            ","
+                            +
+                            description
+                            +
+                            ","
+                            +
+                            test.sensorMode
+                            +
+                            ","
+                            +
+                            test.sensorType
+                            +
+                            ","
+                            +
+                            (
+                                test.requestedFrequency ??
+                                ""
+                            )
+                            +
+                            ","
+                            +
+                            test.averageFrequency
+                                .toFixed(4)
+                            +
+                            ","
+                            +
+                            sample.time
+                                .toFixed(6)
+                            +
+                            ","
+                            +
+                            (
+                                sample.dt === null
 
-                            description +
-                            "," +
+                                    ? ""
 
-                            test.sensorMode +
-                            "," +
-
-                            test.sensorType +
-                            "," +
-
-                            requestedFrequency +
-                            "," +
-
-                            averageFrequency +
-                            "," +
-
-                            sample.time.toFixed(6) +
-                            "," +
-
-                            dtValue +
-                            "," +
-
-                            sample.ax.toFixed(6) +
-                            "," +
-
-                            sample.ay.toFixed(6) +
-                            "," +
-
-                            sample.az.toFixed(6) +
+                                    : sample.dt
+                                        .toFixed(6)
+                            )
+                            +
+                            ","
+                            +
+                            sample.ax
+                                .toFixed(6)
+                            +
+                            ","
+                            +
+                            sample.ay
+                                .toFixed(6)
+                            +
+                            ","
+                            +
+                            sample.az
+                                .toFixed(6)
+                            +
                             "\n";
 
                     }
@@ -2736,32 +4549,13 @@ downloadCsvButton.addEventListener(
         );
 
 
-        /*
-           Nombre del fichero.
-        */
-        const timestamp =
-            new Date()
-                .toISOString()
-                .replaceAll(
-                    ":",
-                    "-"
-                )
-                .replaceAll(
-                    ".",
-                    "-"
-                );
-
-
         const fileName =
             "ensayos_pasarela_" +
-            timestamp +
+            Date.now() +
             ".csv";
 
 
-        /*
-           Creamos archivo.
-        */
-        const csvFile =
+        const file =
             new File(
 
                 [csv],
@@ -2777,14 +4571,9 @@ downloadCsvButton.addEventListener(
 
 
         /*
-           =================================================
-           IPHONE / MÓVIL
-
-           Utilizamos el menú de compartir
-           si el navegador lo permite.
-           =================================================
+           iPhone / Android:
+           intentamos utilizar compartir.
         */
-
         if (
 
             navigator.share &&
@@ -2793,9 +4582,8 @@ downloadCsvButton.addEventListener(
 
             navigator.canShare({
 
-                files: [
-                    csvFile
-                ]
+                files:
+                    [file]
 
             })
 
@@ -2805,15 +4593,11 @@ downloadCsvButton.addEventListener(
 
                 await navigator.share({
 
-                    files: [
-                        csvFile
-                    ],
+                    files:
+                        [file],
 
                     title:
-                        "Ensayos de pasarela",
-
-                    text:
-                        "Datos de aceleración"
+                        "Ensayos de pasarela"
 
                 });
 
@@ -2822,7 +4606,9 @@ downloadCsvButton.addEventListener(
 
             }
 
-            catch (error) {
+            catch (
+                error
+            ) {
 
                 if (
                     error.name ===
@@ -2833,39 +4619,17 @@ downloadCsvButton.addEventListener(
 
                 }
 
-
-                console.log(
-                    "Error al compartir CSV:",
-                    error
-                );
-
             }
 
         }
 
 
         /*
-           =================================================
-           DESCARGA TRADICIONAL
-           =================================================
+           Fallback tradicional.
         */
-
-        const blob =
-            new Blob(
-
-                [csv],
-
-                {
-                    type:
-                        "text/csv;charset=utf-8"
-                }
-
-            );
-
-
         const url =
             URL.createObjectURL(
-                blob
+                file
             );
 
 
@@ -2891,9 +4655,7 @@ downloadCsvButton.addEventListener(
         link.click();
 
 
-        document.body.removeChild(
-            link
-        );
+        link.remove();
 
 
         setTimeout(
@@ -2915,7 +4677,7 @@ downloadCsvButton.addEventListener(
 
 
 /* =========================================================
-   35. TERMINAR
+   38. TERMINAR
    ========================================================= */
 
 finishTestsButton.addEventListener(
@@ -2926,7 +4688,7 @@ finishTestsButton.addEventListener(
 
             "Ensayos terminados. " +
             tests.length +
-            " ensayo(s) guardado(s) temporalmente."
+            " ensayo(s) realizados."
 
         );
 
@@ -2935,7 +4697,140 @@ finishTestsButton.addEventListener(
 
 
 /* =========================================================
-   36. FORMATEAR TIEMPO
+   39. FUNCIONES ESTADÍSTICAS
+   ========================================================= */
+
+function mean(values) {
+
+    if (
+        values.length ===
+        0
+    ) {
+
+        return NaN;
+
+    }
+
+
+    return values.reduce(
+
+        (
+            sum,
+            value
+        ) =>
+            sum +
+            value,
+
+        0
+
+    )
+    /
+    values.length;
+
+}
+
+
+function median(values) {
+
+    if (
+        values.length ===
+        0
+    ) {
+
+        return NaN;
+
+    }
+
+
+    const sorted =
+        [
+            ...values
+        ]
+        .sort(
+            (
+                a,
+                b
+            ) =>
+                a - b
+        );
+
+
+    const middle =
+        Math.floor(
+            sorted.length /
+            2
+        );
+
+
+    if (
+        sorted.length %
+        2 ===
+        0
+    ) {
+
+        return (
+
+            sorted[
+                middle - 1
+            ]
+
+            +
+
+            sorted[
+                middle
+            ]
+
+        )
+        /
+        2;
+
+    }
+
+
+    return sorted[
+        middle
+    ];
+
+}
+
+
+/* =========================================================
+   40. FS MEDIA
+   ========================================================= */
+
+function calculateAverageFrequency(
+    data
+) {
+
+    if (
+        data.length <
+        2
+    ) {
+
+        return NaN;
+
+    }
+
+
+    const duration =
+        data[
+            data.length - 1
+        ].time -
+        data[0].time;
+
+
+    return (
+        data.length -
+        1
+    )
+    /
+    duration;
+
+}
+
+
+/* =========================================================
+   41. FORMATEAR TIEMPO
    ========================================================= */
 
 function formatTime(
@@ -2944,13 +4839,15 @@ function formatTime(
 
     const minutes =
         Math.floor(
-            seconds / 60
+            seconds /
+            60
         );
 
 
-    const remainingSeconds =
+    const remaining =
         seconds -
-        minutes * 60;
+        minutes *
+        60;
 
 
     return (
@@ -2958,10 +4855,10 @@ function formatTime(
         String(
             minutes
         )
-            .padStart(
-                2,
-                "0"
-            )
+        .padStart(
+            2,
+            "0"
+        )
 
         +
 
@@ -2969,7 +4866,7 @@ function formatTime(
 
         +
 
-        remainingSeconds
+        remaining
             .toFixed(2)
             .padStart(
                 5,
