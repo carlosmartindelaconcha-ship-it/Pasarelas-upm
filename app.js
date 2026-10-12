@@ -990,6 +990,13 @@ continueToTestsButton.addEventListener(
 
             createRmsChart();
 
+            [
+                accelerationChart,
+                spectrumChart,
+                psdChart,
+                rmsChart
+            ].forEach(enableLegendToggling);
+
         }
 
     }
@@ -3706,7 +3713,7 @@ function setChartNavigationEnabled(enabled) {
                 "touchend",
                 "click"
             ]
-            : [];
+            : ["click"];
 
         chart.options.plugins.zoom.pan.enabled = enabled;
         chart.options.plugins.zoom.zoom.wheel.enabled = enabled;
@@ -3714,6 +3721,26 @@ function setChartNavigationEnabled(enabled) {
         chart.update("none");
 
     });
+
+}
+
+
+function enableLegendToggling(chart) {
+
+    chart.options.plugins.legend.onClick =
+        function (event, legendItem, legend) {
+
+            const datasetIndex =
+                legendItem.datasetIndex;
+
+            chart.setDatasetVisibility(
+                datasetIndex,
+                !chart.isDatasetVisible(datasetIndex)
+            );
+
+            chart.update("none");
+
+        };
 
 }
 
