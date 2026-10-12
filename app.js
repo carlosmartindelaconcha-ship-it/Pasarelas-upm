@@ -1397,12 +1397,34 @@ function resetTemporalView() {
 }
 
 
+function getSpectrumInitialYLimit() {
+
+    if (!spectrumChart) {
+        return 1;
+    }
+
+    const maximum = Math.max(
+        0,
+        ...spectrumChart.data.datasets.flatMap(function (dataset) {
+            return dataset.data.map(function (point) {
+                return Number(point.y) || 0;
+            });
+        })
+    );
+
+    return roundedUpperLimit(maximum * 1.2);
+
+}
+
+
 function resetSpectrumView() {
 
-    const yMax = Math.max(
-        spectrumChart.options.plugins.zoom.limits.y.max,
-        1
-    );
+    const yMax = getSpectrumInitialYLimit();
+
+    spectrumChart.options.plugins.zoom.limits.x.min = 0;
+    spectrumChart.options.plugins.zoom.limits.x.max = 30;
+    spectrumChart.options.plugins.zoom.limits.y.min = 0;
+    spectrumChart.options.plugins.zoom.limits.y.max = yMax;
 
     if (typeof spectrumChart.resetZoom === "function") {
         spectrumChart.resetZoom("none");
@@ -3520,45 +3542,34 @@ function clampSpectrumAxes(chart) {
     const y = chart.scales.y;
     const xLower = 0;
     const xUpper = 30;
-    const xRange = x.max - x.min;
+    const yLower = 0;
+    const yUpper = Math.max(
+        0.01,
+        Number(chart.options.plugins.zoom.limits.y.max) || 0.01
+    );
+    const xRange = Math.max(0, x.max - x.min);
+    const yRange = Math.max(0, y.max - y.min);
 
-    let xMin = x.min;
-    let xMax = x.max;
+    let xMin;
+    let xMax;
 
     if (xRange >= xUpper - xLower) {
         xMin = xLower;
         xMax = xUpper;
     } else {
-        if (xMin < xLower) {
-            xMin = xLower;
-            xMax = xMin + xRange;
-        }
-
-        if (xMax > xUpper) {
-            xMax = xUpper;
-            xMin = xMax - xRange;
-        }
+        xMin = Math.max(xLower, Math.min(x.min, xUpper - xRange));
+        xMax = xMin + xRange;
     }
 
-    let yMin = y.min;
-    let yMax = y.max;
+    let yMin;
+    let yMax;
 
-    const yUpper =
-        chart.options.plugins.zoom.limits.y.max;
-
-    if (yMax - yMin >= yUpper) {
-        yMin = 0;
+    if (yRange >= yUpper) {
+        yMin = yLower;
         yMax = yUpper;
-    }
-
-    if (yMin < 0) {
-        yMax -= yMin;
-        yMin = 0;
-    }
-
-    if (yMax > yUpper) {
-        yMax = yUpper;
-        yMin = Math.max(0, yMax - (y.max - y.min));
+    } else {
+        yMin = Math.max(yLower, Math.min(y.min, yUpper - yRange));
+        yMax = yMin + yRange;
     }
 
     chart.options.scales.x.min = xMin;
@@ -3674,6 +3685,8 @@ function updateSpectrumChart(data, resetZoom = true) {
     spectrumChart.options.scales.x.max = 30;
     spectrumChart.options.scales.y.min = 0;
     spectrumChart.options.scales.y.max = spectrumYLimit;
+    spectrumChart.options.plugins.zoom.limits.x.min = 0;
+    spectrumChart.options.plugins.zoom.limits.x.max = 30;
     spectrumChart.options.plugins.zoom.limits.y.min = 0;
     spectrumChart.options.plugins.zoom.limits.y.max = spectrumYLimit;
     if (
