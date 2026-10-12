@@ -247,7 +247,10 @@ const legendTouchTogglePlugin = {
 
     afterEvent: function (chart, args) {
 
-        if (args.event.type !== "touchend") {
+        if (
+            !args.event.native ||
+            args.event.native.type !== "touchend"
+        ) {
             return;
         }
 
