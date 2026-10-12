@@ -2915,7 +2915,25 @@ function updateRealSamplingFrequency() {
 
 function roundedUpperLimit(value) {
 
-    return roundedAdaptiveUpperLimit(value);
+    const validValue =
+        Number.isFinite(value) && value > 0
+            ? value
+            : 0;
+
+    if (validValue === 0) {
+        return 0.01;
+    }
+
+    /*
+       La señal temporal y RMS necesitan algo más de aire.
+       Para magnitudes pequeñas se mantiene un límite limpio;
+       desde 1 se redondea a décimas para evitar saltos a 3.
+    */
+    if (validValue >= 1) {
+        return Math.ceil(validValue * 1.3 * 10) / 10;
+    }
+
+    return roundedAdaptiveUpperLimit(validValue, 1.3);
 
 }
 
@@ -3219,7 +3237,7 @@ function updateRmsChart(data) {
             return [sample.ax, sample.ay, sample.az];
         })
     );
-    const yLimit = roundedAdaptiveUpperLimit(maximum);
+    const yLimit = roundedUpperLimit(maximum);
     const xMax = Math.max(
         rmsData[rmsData.length - 1].time,
         0.001
