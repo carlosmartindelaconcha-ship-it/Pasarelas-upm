@@ -1102,12 +1102,28 @@ function createAccelerationChart() {
                             },
 
                             onZoom: function (context) {
+                                clampTemporalXAxis(context.chart);
+                                keepTemporalYAxisCentered(
+                                    context.chart
+                                );
+                            },
+
+                            onPan: function (context) {
+                                clampTemporalXAxis(context.chart);
                                 keepTemporalYAxisCentered(
                                     context.chart
                                 );
                             },
 
                             onZoomComplete: function (context) {
+                                clampTemporalXAxis(context.chart);
+                                keepTemporalYAxisCentered(
+                                    context.chart
+                                );
+                            },
+
+                            onPanComplete: function (context) {
+                                clampTemporalXAxis(context.chart);
                                 keepTemporalYAxisCentered(
                                     context.chart
                                 );
@@ -1278,6 +1294,22 @@ function createSpectrumChart() {
                                 min: 0
                             }
 
+                        },
+
+                        onZoom: function (context) {
+                            clampSpectrumAxes(context.chart);
+                        },
+
+                        onPan: function (context) {
+                            clampSpectrumAxes(context.chart);
+                        },
+
+                        onZoomComplete: function (context) {
+                            clampSpectrumAxes(context.chart);
+                        },
+
+                        onPanComplete: function (context) {
+                            clampSpectrumAxes(context.chart);
                         }
                     }
                 }
@@ -2782,6 +2814,98 @@ function keepTemporalYAxisCentered(chart) {
 
     chart.scales.y.options.min = -halfRange;
     chart.scales.y.options.max = halfRange;
+    chart.update("none");
+
+}
+
+
+function clampTemporalXAxis(chart) {
+
+    if (!chart || !chart.scales || !chart.scales.x) {
+        return;
+    }
+
+    const scale = chart.scales.x;
+    const lower = 0;
+    const upper = Math.max(
+        chart.options.plugins.zoom.limits.x.max,
+        0.001
+    );
+    const range = scale.max - scale.min;
+
+    let min = scale.min;
+    let max = scale.max;
+
+    if (range >= upper - lower) {
+        min = lower;
+        max = upper;
+    } else {
+        if (min < lower) {
+            min = lower;
+            max = min + range;
+        }
+
+        if (max > upper) {
+            max = upper;
+            min = max - range;
+        }
+    }
+
+    chart.options.scales.x.min = min;
+    chart.options.scales.x.max = max;
+    scale.options.min = min;
+    scale.options.max = max;
+    chart.update("none");
+
+}
+
+
+function clampSpectrumAxes(chart) {
+
+    if (!chart || !chart.scales || !chart.scales.x || !chart.scales.y) {
+        return;
+    }
+
+    const x = chart.scales.x;
+    const y = chart.scales.y;
+    const xLower = 0;
+    const xUpper = 30;
+    const xRange = x.max - x.min;
+
+    let xMin = x.min;
+    let xMax = x.max;
+
+    if (xRange >= xUpper - xLower) {
+        xMin = xLower;
+        xMax = xUpper;
+    } else {
+        if (xMin < xLower) {
+            xMin = xLower;
+            xMax = xMin + xRange;
+        }
+
+        if (xMax > xUpper) {
+            xMax = xUpper;
+            xMin = xMax - xRange;
+        }
+    }
+
+    let yMin = y.min;
+    let yMax = y.max;
+
+    if (yMin < 0) {
+        yMax -= yMin;
+        yMin = 0;
+    }
+
+    chart.options.scales.x.min = xMin;
+    chart.options.scales.x.max = xMax;
+    chart.options.scales.y.min = yMin;
+    chart.options.scales.y.max = yMax;
+    x.options.min = xMin;
+    x.options.max = xMax;
+    y.options.min = yMin;
+    y.options.max = yMax;
     chart.update("none");
 
 }
