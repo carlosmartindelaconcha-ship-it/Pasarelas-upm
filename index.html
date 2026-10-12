@@ -357,6 +357,18 @@
                     </div>
                 </div>
 
+                <div id="psdPanel" class="psd-panel">
+                    <div class="chart-heading">
+                        <h3>PSD Welch (5 ventanas)</h3>
+                        <button id="resetPsdZoom" class="chart-control" type="button">
+                            Restablecer zoom
+                        </button>
+                    </div>
+                    <div class="chart-canvas-wrap psd-chart-wrap">
+                        <canvas id="psdChart"></canvas>
+                    </div>
+                </div>
+
             </div>
 
 
@@ -402,6 +414,54 @@
 
                     <small>m/s²</small>
 
+                </div>
+
+            </div>
+
+
+            <div id="resultSummary" class="result-summary">
+
+                <div class="summary-row summary-header">
+                    <span></span>
+                    <strong>X</strong>
+                    <strong>Y</strong>
+                    <strong>Z</strong>
+                </div>
+
+                <div class="summary-row summary-row-values">
+                    <span class="summary-label">Pico absoluto (m/s²)</span>
+                    <strong id="axPeakValue">--</strong>
+                    <strong id="ayPeakValue">--</strong>
+                    <strong id="azPeakValue">--</strong>
+                </div>
+
+                <div class="summary-row summary-row-values">
+                    <span class="summary-label">Pico RMS (m/s²)</span>
+                    <strong id="axRmsPeakValue">--</strong>
+                    <strong id="ayRmsPeakValue">--</strong>
+                    <strong id="azRmsPeakValue">--</strong>
+                </div>
+
+                <div class="summary-row summary-row-values">
+                    <span class="summary-label">Frecuencia pico (Hz)</span>
+                    <strong id="axPeakFrequency">--</strong>
+                    <strong id="ayPeakFrequency">--</strong>
+                    <strong id="azPeakFrequency">--</strong>
+                </div>
+
+                <div class="summary-row summary-row-metadata">
+                    <div>
+                        <span>Tiempo total</span>
+                        <strong id="totalDurationValue">--</strong>
+                    </div>
+                    <div>
+                        <span>Muestras</span>
+                        <strong id="totalSamplesValue">--</strong>
+                    </div>
+                    <div>
+                        <span>Δt medio</span>
+                        <strong id="averageDtValue">--</strong>
+                    </div>
                 </div>
 
             </div>

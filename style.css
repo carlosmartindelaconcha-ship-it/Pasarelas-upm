@@ -556,6 +556,109 @@ button:hover {
 }
 
 
+#psdPanel {
+
+    margin-top: 18px;
+    border-top: 1px solid #dddddd;
+    padding-top: 12px;
+
+}
+
+
+#psdPanel h3 {
+
+    margin: 0;
+    text-align: left;
+    font-size: 17px;
+    line-height: 1.2;
+    font-weight: 700;
+    white-space: nowrap;
+
+}
+
+
+.psd-chart-wrap {
+
+    height: 320px;
+
+}
+
+
+#liveValues {
+
+    display: none;
+
+}
+
+
+#resultSummary {
+
+    display: none;
+
+}
+
+
+#testForm.result-ready #resultSummary {
+
+    display: block;
+
+}
+
+
+.summary-row {
+
+    display: grid;
+    grid-template-columns: minmax(150px, 1.5fr) repeat(3, 1fr);
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eeeeee;
+
+}
+
+
+.summary-row strong,
+.summary-row span {
+
+    text-align: center;
+
+}
+
+
+.summary-row .summary-label {
+
+    text-align: left;
+    font-weight: 600;
+
+}
+
+
+.summary-row-metadata {
+
+    grid-template-columns: repeat(3, 1fr);
+    border-bottom: 0;
+
+}
+
+
+.summary-row-metadata div {
+
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: center;
+
+}
+
+
+.summary-row-metadata span {
+
+    color: #666666;
+    font-size: 12px;
+
+}
+
+
 /* =========================================================
    VALORES INSTANTÁNEOS
    ========================================================= */
@@ -950,6 +1053,55 @@ body.recording-lock main {
 #testForm.measurement-active #rmsPanel {
 
     display: none;
+
+}
+
+
+#testForm.measurement-active #psdPanel {
+
+    display: none;
+
+}
+
+
+#testForm.measurement-active #resultSummary {
+
+    display: none;
+
+}
+
+
+#testForm.measurement-active #spectrumPanel {
+
+    order: 2;
+
+}
+
+
+#testForm:not(.measurement-active) .temporal-panel {
+
+    order: 1;
+
+}
+
+
+#testForm:not(.measurement-active) #rmsPanel {
+
+    order: 2;
+
+}
+
+
+#testForm:not(.measurement-active) #spectrumPanel {
+
+    order: 3;
+
+}
+
+
+#testForm:not(.measurement-active) #psdPanel {
+
+    order: 4;
 
 }
 
