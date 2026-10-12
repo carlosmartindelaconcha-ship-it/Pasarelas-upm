@@ -90,6 +90,9 @@ const closeCameraButton =
 const galleryInput =
     document.getElementById("galleryInput");
 
+const photoTitleInput =
+    document.getElementById("photoTitle");
+
 const photoPreview =
     document.getElementById("photoPreview");
 
@@ -835,6 +838,19 @@ capturePhotoButton.addEventListener(
     "click",
     function () {
 
+        const title = getPhotoTitle();
+
+        if (!title) {
+            alert(
+                "Escribe un título antes de capturar la fotografía."
+            );
+
+            photoTitleInput.focus();
+
+            return;
+
+        }
+
         const width =
             cameraPreview.videoWidth;
 
@@ -890,7 +906,8 @@ capturePhotoButton.addEventListener(
 
 
                 addPhotoFile(
-                    file
+                    file,
+                    title
                 );
 
             },
@@ -1044,7 +1061,8 @@ function startCameraPreviewRendering() {
    ========================================================= */
 
 function addPhotoFile(
-    file
+    file,
+    title
 ) {
 
     if (
@@ -1059,7 +1077,10 @@ function addPhotoFile(
 
 
     selectedPhotos.push(
-        file
+        {
+            file: file,
+            title: title
+        }
     );
 
 
@@ -1067,6 +1088,12 @@ function addPhotoFile(
         URL.createObjectURL(
             file
         );
+
+
+    const photoCard =
+        document.createElement("div");
+
+    photoCard.className = "photo-card";
 
 
     const image =
@@ -1079,13 +1106,26 @@ function addPhotoFile(
         imageURL;
 
 
-    image.alt =
-        "Fotografía de la pasarela";
+    image.alt = title;
+
+
+    const titleElement =
+        document.createElement("p");
+
+    titleElement.className = "photo-card-title";
+    titleElement.textContent = title;
+
+
+    photoCard.appendChild(image);
+    photoCard.appendChild(titleElement);
 
 
     photoPreview.appendChild(
-        image
+        photoCard
     );
+
+
+    photoTitleInput.value = "";
 
 
     updatePhotoCounter();
@@ -1104,6 +1144,21 @@ galleryInput.addEventListener(
         const files =
             galleryInput.files;
 
+        const title = getPhotoTitle();
+
+        if (!title) {
+
+            alert(
+                "Escribe un título antes de elegir la fotografía."
+            );
+
+            photoTitleInput.focus();
+            galleryInput.value = "";
+
+            return;
+
+        }
+
 
         for (
             let i = 0;
@@ -1112,7 +1167,8 @@ galleryInput.addEventListener(
         ) {
 
             addPhotoFile(
-                files[i]
+                files[i],
+                title
             );
 
         }
@@ -1151,6 +1207,13 @@ function updatePhotoCounter() {
             " fotografías añadidas";
 
     }
+
+}
+
+
+function getPhotoTitle() {
+
+    return photoTitleInput.value.trim();
 
 }
 

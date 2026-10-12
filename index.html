@@ -14,7 +14,7 @@
     <title>Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261012-camera-canvas-preview">
+    <link rel="stylesheet" href="style.css?v=20261012-photo-titles">
 
     <!-- MapLibre -->
     <link
@@ -197,6 +197,23 @@
             </div>
 
 
+            <label
+                for="photoTitle"
+                class="field-label"
+            >
+                Título de la fotografía
+            </label>
+
+            <input
+                id="photoTitle"
+                class="photo-title-input"
+                type="text"
+                maxlength="100"
+                placeholder="Ej.: Vista lateral de la pasarela"
+                autocomplete="off"
+            >
+
+
             <!-- Cámara -->
             <button id="openCameraButton">
                 📷 Tomar foto
@@ -244,7 +261,6 @@
                 type="file"
                 id="galleryInput"
                 accept="image/*"
-                multiple
                 class="hidden-input"
             >
 
@@ -523,7 +539,7 @@
     </script>
 
     <!-- Nuestro JavaScript -->
-    <script src="app.js?v=20261012-camera-canvas-preview"></script>
+    <script src="app.js?v=20261012-photo-titles"></script>
 
 
 </body>

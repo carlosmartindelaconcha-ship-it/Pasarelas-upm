@@ -338,6 +338,58 @@ button:hover {
 }
 
 
+.photo-title-input {
+
+    width: 100%;
+
+    box-sizing: border-box;
+
+    font-size: 16px;
+
+    padding: 12px;
+
+    border: 1px solid #cccccc;
+
+    border-radius: 8px;
+
+}
+
+
+.photo-card {
+
+    width: 120px;
+
+    text-align: left;
+
+}
+
+
+.photo-card img {
+
+    width: 120px;
+
+    height: 90px;
+
+    object-fit: cover;
+
+    border-radius: 8px;
+
+}
+
+
+.photo-card-title {
+
+    margin: 6px 0 0;
+
+    font-size: 13px;
+
+    line-height: 1.25;
+
+    overflow-wrap: anywhere;
+
+}
+
+
 /* =========================================================
    DESCRIPCIÓN DEL ENSAYO
    ========================================================= */
