@@ -1607,7 +1607,7 @@ function getPsdInitialYLimit() {
         })
     );
 
-    return roundedSpectrumUpperLimit(maximum * 1.2);
+    return roundedPsdUpperLimit(maximum * 1.2);
 
 }
 
@@ -2911,18 +2911,41 @@ function roundedUpperLimit(value) {
 }
 
 
-/* El espectro usa una resolución más fina que la señal temporal. */
+/* El espectro se redondea según la magnitud de sus amplitudes. */
 function roundedSpectrumUpperLimit(value) {
+
+    return roundedAdaptiveUpperLimit(value);
+
+}
+
+
+/* La PSD usa su propia escala, independiente de la del espectro. */
+function roundedPsdUpperLimit(value) {
+
+    return roundedAdaptiveUpperLimit(value);
+
+}
+
+
+function roundedAdaptiveUpperLimit(value) {
 
     const validValue =
         Number.isFinite(value) && value > 0
             ? value
             : 0;
 
-    return Math.max(
-        0.01,
-        Math.ceil(validValue * 100) / 100
-    );
+    if (validValue === 0) {
+        return 0.01;
+    }
+
+    const resolution =
+        10 ** Math.floor(
+            Math.log10(validValue)
+        );
+
+    return Math.ceil(
+        validValue / resolution
+    ) * resolution;
 
 }
 
@@ -3904,16 +3927,10 @@ function updateSpectrumChart(data, resetZoom = true) {
         })
     );
 
-    const spectrumYLimit = resetZoom
-        ? roundedSpectrumUpperLimit(
-              maximumSpectrumAmplitude *
-              1.2
-          )
-        : Math.max(
-              0.01,
-              maximumSpectrumAmplitude *
-              1.2
-          );
+    const spectrumYLimit = roundedSpectrumUpperLimit(
+        maximumSpectrumAmplitude *
+        1.2
+    );
 
     spectrumChart.options.scales.x.min = 0;
     spectrumChart.options.scales.x.max = 30;
@@ -3970,7 +3987,7 @@ function updatePsdChart(data) {
         })
     );
 
-    const yLimit = roundedSpectrumUpperLimit(
+    const yLimit = roundedPsdUpperLimit(
         maximumPsd * 1.2
     );
 
