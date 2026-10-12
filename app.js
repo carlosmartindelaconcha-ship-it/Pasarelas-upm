@@ -145,6 +145,12 @@ const azValue =
 const spectrumCanvas =
     document.getElementById("spectrumChart");
 
+const resetTemporalZoomButton =
+    document.getElementById("resetTemporalZoom");
+
+const resetSpectrumZoomButton =
+    document.getElementById("resetSpectrumZoom");
+
 
 /* =========================================================
    3. VARIABLES GENERALES
@@ -1148,14 +1154,32 @@ function createSpectrumChart() {
             type: "line",
 
             data: {
-                datasets: [{
-                    label: "Amplitud | FFT |Z|",
-                    data: [],
-                    borderColor: "#7b1fa2",
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    fill: false
-                }]
+                datasets: [
+                    {
+                        label: "X",
+                        data: [],
+                        borderColor: "#1565c0",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: "Y",
+                        data: [],
+                        borderColor: "#c62828",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: "Z",
+                        data: [],
+                        borderColor: "#2e7d32",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
             },
 
             options: {
@@ -1212,6 +1236,24 @@ function createSpectrumChart() {
     );
 
 }
+
+
+resetTemporalZoomButton.addEventListener("click", function () {
+
+    if (accelerationChart && typeof accelerationChart.resetZoom === "function") {
+        accelerationChart.resetZoom();
+    }
+
+});
+
+
+resetSpectrumZoomButton.addEventListener("click", function () {
+
+    if (spectrumChart && typeof spectrumChart.resetZoom === "function") {
+        spectrumChart.resetZoom();
+    }
+
+});
 
 
 /* =========================================================
@@ -2658,17 +2700,34 @@ function updateSpectrumChart(data) {
         (data.length - 1) / duration;
 
     /* La FFT necesita una señal uniformemente muestreada. */
-    const sampleCount = Math.min(data.length, 8192);
-    const source = data.slice(data.length - sampleCount);
+    const source = data.slice(
+        data.length - Math.min(data.length, 8192)
+    );
+
+    spectrumChart.data.datasets[0].data = calculateSpectrum(source, "ax", sampleRate);
+    spectrumChart.data.datasets[1].data = calculateSpectrum(source, "ay", sampleRate);
+    spectrumChart.data.datasets[2].data = calculateSpectrum(source, "az", sampleRate);
+    spectrumChart.options.scales.x.min = 0;
+    spectrumChart.options.scales.x.max = 60;
+    if (typeof spectrumChart.resetZoom === "function") {
+        spectrumChart.resetZoom();
+    }
+    spectrumChart.update("none");
+
+}
+
+
+function calculateSpectrum(source, component, sampleRate) {
+
     const n = nextPowerOfTwo(source.length);
     const values = new Array(n).fill(0);
     const mean = source.reduce(
-        (sum, sample) => sum + sample.az,
+        (sum, sample) => sum + sample[component],
         0
     ) / source.length;
 
     source.forEach((sample, index) => {
-        values[index] = sample.az - mean;
+        values[index] = sample[component] - mean;
     });
 
     const real = values.slice();
@@ -2698,13 +2757,7 @@ function updateSpectrumChart(data) {
 
     }
 
-    spectrumChart.data.datasets[0].data = points;
-    spectrumChart.options.scales.x.min = 0;
-    spectrumChart.options.scales.x.max = 60;
-    if (typeof spectrumChart.resetZoom === "function") {
-        spectrumChart.resetZoom();
-    }
-    spectrumChart.update("none");
+    return points;
 
 }
 

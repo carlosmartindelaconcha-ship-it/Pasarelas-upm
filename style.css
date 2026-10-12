@@ -404,7 +404,7 @@ button:hover {
 
     padding: 10px;
 
-    height: 760px;
+    height: auto;
 
     display: flex;
     flex-direction: column;
@@ -416,9 +416,44 @@ button:hover {
 
 #timeSignalTitle {
 
-    margin: 0 0 8px 0;
+    margin: 0;
     text-align: left;
-    font-size: 17px;
+    font-size: 18px;
+    line-height: 1.25;
+    font-weight: 700;
+
+}
+
+
+.chart-heading {
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+
+}
+
+
+.chart-control {
+
+    width: auto !important;
+    margin: 0 !important;
+    padding: 7px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    background-color: #eeeeee;
+    color: #333333;
+    border: 1px solid #cccccc;
+    border-radius: 6px;
+
+}
+
+
+.chart-control:hover {
+
+    background-color: #dddddd;
 
 }
 
@@ -427,9 +462,9 @@ button:hover {
 
     width: 100% !important;
 
-    height: 380px !important;
+    height: 320px !important;
 
-    flex: 0 0 380px;
+    flex: 0 0 320px;
 
 }
 
@@ -445,9 +480,11 @@ button:hover {
 
 #spectrumPanel h3 {
 
-    margin: 0 0 8px 0;
+    margin: 0;
     text-align: left;
-    font-size: 17px;
+    font-size: 18px;
+    line-height: 1.25;
+    font-weight: 700;
 
 }
 
@@ -455,17 +492,7 @@ button:hover {
 #spectrumChart {
 
     width: 100% !important;
-    height: 300px !important;
-
-}
-
-
-.chart-help {
-
-    margin: 6px 0 0 0;
-    color: #666666;
-    font-size: 12px;
-    text-align: left;
+    height: 320px !important;
 
 }
 
@@ -677,22 +704,22 @@ footer {
 
     .chart-card {
 
-        height: 660px;
+        height: auto;
 
     }
 
 
     #accelerationChart {
 
-        height: 300px !important;
-        flex-basis: 300px;
+        height: 260px !important;
+        flex-basis: 260px;
 
     }
 
 
     #spectrumChart {
 
-        height: 250px !important;
+        height: 260px !important;
 
     }
 
@@ -906,6 +933,13 @@ body.recording-lock main {
 #testForm.measurement-active #timeSignalTitle {
 
     display: none;
+
+}
+
+
+#testForm.measurement-active .chart-control {
+
+    display: none !important;
 
 }
 
