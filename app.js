@@ -146,32 +146,6 @@ const ayValue =
 const azValue =
     document.getElementById("azValue");
 
-const resultMetrics =
-    document.getElementById("resultMetrics");
-
-const resultMetricElements = {
-    acceleration: ["X", "Y", "Z"].map(function (axis) {
-        return document.getElementById(
-            "peakAcceleration" + axis
-        );
-    }),
-    rms: ["X", "Y", "Z"].map(function (axis) {
-        return document.getElementById(
-            "peakRms" + axis
-        );
-    }),
-    spectrumFrequency: ["X", "Y", "Z"].map(function (axis) {
-        return document.getElementById(
-            "spectrumPeakFrequency" + axis
-        );
-    }),
-    psdFrequency: ["X", "Y", "Z"].map(function (axis) {
-        return document.getElementById(
-            "psdPeakFrequency" + axis
-        );
-    })
-};
-
 const spectrumCanvas =
     document.getElementById("spectrumChart");
 
@@ -3643,11 +3617,6 @@ function stopRecording() {
 
         updateRmsChart(processedTestData);
 
-        updateResultMetrics(processedTestData);
-
-        resultMetrics.style.display =
-            "block";
-
 
         /*
            Mostramos:
@@ -4035,119 +4004,6 @@ function updatePsdChart(data) {
 }
 
 
-function getPeakMagnitude(data, component) {
-
-    return data.reduce(function (maximum, sample) {
-        return Math.max(
-            maximum,
-            Math.abs(Number(sample[component]) || 0)
-        );
-    }, 0);
-
-}
-
-
-function getPeakFrequency(points) {
-
-    const peak = points.reduce(function (currentPeak, point) {
-        if (
-            point.x <= 0 ||
-            !Number.isFinite(point.y) ||
-            point.y <= currentPeak.y
-        ) {
-            return currentPeak;
-        }
-
-        return point;
-    }, {
-        x: null,
-        y: -Infinity
-    });
-
-    return peak.x;
-
-}
-
-
-function setResultMetricValues(elements, values, formatter) {
-
-    elements.forEach(function (element, index) {
-        element.textContent =
-            values[index] === null
-                ? "--"
-                : formatter(values[index]);
-    });
-
-}
-
-
-function updateResultMetrics(data) {
-
-    const components = ["ax", "ay", "az"];
-    const peakAcceleration = components.map(function (component) {
-        return getPeakMagnitude(data, component);
-    });
-    const rmsData = calculateMovingRms(data, 1);
-    const peakRms = components.map(function (component) {
-        return getPeakMagnitude(rmsData, component);
-    });
-    const spectrumFrequencies = spectrumChart.data.datasets.map(
-        function (dataset) {
-            return getPeakFrequency(dataset.data);
-        }
-    );
-    const psdFrequencies = psdChart.data.datasets.map(
-        function (dataset) {
-            return getPeakFrequency(dataset.data);
-        }
-    );
-
-    setResultMetricValues(
-        resultMetricElements.acceleration,
-        peakAcceleration,
-        function (value) {
-            return value.toFixed(4);
-        }
-    );
-    setResultMetricValues(
-        resultMetricElements.rms,
-        peakRms,
-        function (value) {
-            return value.toFixed(4);
-        }
-    );
-    setResultMetricValues(
-        resultMetricElements.spectrumFrequency,
-        spectrumFrequencies,
-        function (value) {
-            return value.toFixed(3);
-        }
-    );
-    setResultMetricValues(
-        resultMetricElements.psdFrequency,
-        psdFrequencies,
-        function (value) {
-            return value.toFixed(3);
-        }
-    );
-
-}
-
-
-function resetResultMetrics() {
-
-    Object.values(resultMetricElements)
-        .flat()
-        .forEach(function (element) {
-            element.textContent = "--";
-        });
-
-    resultMetrics.style.display =
-        "none";
-
-}
-
-
 function calculateWelchPsd(source, component, sampleRate) {
 
     const numberOfWindows = 5;
@@ -4349,8 +4205,6 @@ function fft(real, imag) {
 newTestButton.addEventListener(
     "click",
     function () {
-
-        resetResultMetrics();
 
         testDescription.value =
             "";
