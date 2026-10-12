@@ -2123,6 +2123,11 @@ async function startRecording() {
         true;
 
 
+    /* El resumen pertenece solo a la página de resultados. */
+    resultMetrics.style.display =
+        "none";
+
+
     disableChartNavigation();
 
 
