@@ -2915,16 +2915,7 @@ function updateRealSamplingFrequency() {
 
 function roundedUpperLimit(value) {
 
-    /*
-       Las señales de aceleración y RMS se leen mejor con
-       un margen algo mayor. Para magnitudes pequeñas se
-       conservan límites limpios; desde 1 se usan décimas.
-    */
-    return roundedAdaptiveUpperLimit(
-        value,
-        1.3,
-        value >= 1 ? 10 : 1
-    );
+    return roundedAdaptiveUpperLimit(value);
 
 }
 
@@ -2949,11 +2940,7 @@ function roundedPsdUpperLimit(value) {
    Mantiene una escala legible sin que el margen de seguridad
    provoque saltos bruscos de orden de magnitud.
 */
-function roundedAdaptiveUpperLimit(
-    value,
-    margin = 1.2,
-    subdivisions = 1
-) {
+function roundedAdaptiveUpperLimit(value, margin = 1.2) {
 
     const validValue =
         Number.isFinite(value) && value > 0
@@ -2967,7 +2954,7 @@ function roundedAdaptiveUpperLimit(
     const resolution =
         10 ** Math.floor(
             Math.log10(validValue)
-        ) / subdivisions;
+        );
 
     return Math.ceil(
         validValue * margin / resolution
@@ -3232,7 +3219,7 @@ function updateRmsChart(data) {
             return [sample.ax, sample.ay, sample.az];
         })
     );
-    const yLimit = roundedUpperLimit(maximum);
+    const yLimit = roundedAdaptiveUpperLimit(maximum);
     const xMax = Math.max(
         rmsData[rmsData.length - 1].time,
         0.001
