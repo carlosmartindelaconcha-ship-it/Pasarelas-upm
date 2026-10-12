@@ -1079,7 +1079,7 @@ function createAccelerationChart() {
 
                             pan: {
                                 enabled: true,
-                                mode: "xy"
+                                mode: "x"
                             },
 
                             zoom: {
@@ -1090,6 +1090,27 @@ function createAccelerationChart() {
                                     enabled: true
                                 },
                                 mode: "xy"
+                            },
+
+                            limits: {
+
+                            x: {
+                                min: 0,
+                                max: 1
+                            }
+
+                            },
+
+                            onZoom: function (context) {
+                                keepTemporalYAxisCentered(
+                                    context.chart
+                                );
+                            },
+
+                            onZoomComplete: function (context) {
+                                keepTemporalYAxisCentered(
+                                    context.chart
+                                );
                             }
 
                         }
@@ -1244,6 +1265,19 @@ function createSpectrumChart() {
                                 enabled: true
                             },
                             mode: "xy"
+                        },
+
+                        limits: {
+
+                            x: {
+                                min: 0,
+                                max: 30
+                            },
+
+                            y: {
+                                min: 0
+                            }
+
                         }
                     }
                 }
@@ -1390,6 +1424,24 @@ async function startRecording() {
     );
 
 
+    if (spectrumChart) {
+
+        spectrumChart.data.datasets.forEach(function (dataset) {
+            dataset.data = [];
+        });
+
+        spectrumChart.options.scales.x.min = 0;
+        spectrumChart.options.scales.x.max = 30;
+
+        if (typeof spectrumChart.resetZoom === "function") {
+            spectrumChart.resetZoom();
+        }
+
+        spectrumChart.update("none");
+
+    }
+
+
     /*
        Reiniciamos indicadores.
     */
@@ -1461,6 +1513,9 @@ async function startRecording() {
 
     isRecording =
         true;
+
+
+    disableChartNavigation();
 
 
     /*
@@ -2394,6 +2449,10 @@ function updateChart(
         );
 
 
+    accelerationChart.options.plugins.zoom.limits.x.max =
+        Math.max(currentTime, 0.001);
+
+
     /*
        Autoescala vertical.
     */
@@ -2550,6 +2609,15 @@ function stopRecording() {
         "measurement-active"
     );
 
+
+    if (currentTestData.length > 0) {
+
+        updateChart(
+            currentTestData[currentTestData.length - 1].time
+        );
+
+    }
+
     enableResultChartNavigation();
 
 
@@ -2654,21 +2722,67 @@ function stopRecording() {
 
 function enableResultChartNavigation() {
 
-    if (!accelerationChart) {
+    setChartNavigationEnabled(true);
+
+}
+
+
+function disableChartNavigation() {
+
+    setChartNavigationEnabled(false);
+
+}
+
+
+function setChartNavigationEnabled(enabled) {
+
+    [accelerationChart, spectrumChart].forEach(function (chart) {
+
+        if (!chart) {
+            return;
+        }
+
+        chart.options.events = enabled
+            ? [
+                "wheel",
+                "mousedown",
+                "mousemove",
+                "mouseup",
+                "touchstart",
+                "touchmove",
+                "touchend"
+            ]
+            : [];
+
+        chart.options.plugins.zoom.pan.enabled = enabled;
+        chart.options.plugins.zoom.zoom.wheel.enabled = enabled;
+        chart.options.plugins.zoom.zoom.pinch.enabled = enabled;
+        chart.update("none");
+
+    });
+
+}
+
+
+function keepTemporalYAxisCentered(chart) {
+
+    if (!chart || !chart.scales || !chart.scales.y) {
         return;
     }
 
-    accelerationChart.options.events = [
-        "wheel",
-        "mousedown",
-        "mousemove",
-        "mouseup",
-        "touchstart",
-        "touchmove",
-        "touchend"
-    ];
+    const scale = chart.scales.y;
+    const halfRange = Math.max(
+        Math.abs(scale.min),
+        Math.abs(scale.max),
+        0.000001
+    );
 
-    accelerationChart.update("none");
+    chart.options.scales.y.min = -halfRange;
+    chart.options.scales.y.max = halfRange;
+
+    chart.scales.y.options.min = -halfRange;
+    chart.scales.y.options.max = halfRange;
+    chart.update("none");
 
 }
 
