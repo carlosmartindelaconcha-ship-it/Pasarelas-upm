@@ -1354,10 +1354,67 @@ function createSpectrumChart() {
 }
 
 
+function resetTemporalView() {
+
+    const xMax = Math.max(
+        accelerationChart.options.plugins.zoom.limits.x.max,
+        0.001
+    );
+
+    const yMax = Math.max(
+        accelerationChart.options.plugins.zoom.limits.y.max,
+        1
+    );
+
+    if (typeof accelerationChart.resetZoom === "function") {
+        accelerationChart.resetZoom("none");
+    }
+
+    accelerationChart.options.scales.x.min = 0;
+    accelerationChart.options.scales.x.max = xMax;
+    accelerationChart.options.scales.y.min = -yMax;
+    accelerationChart.options.scales.y.max = yMax;
+    accelerationChart.scales.x.options.min = 0;
+    accelerationChart.scales.x.options.max = xMax;
+    accelerationChart.scales.y.options.min = -yMax;
+    accelerationChart.scales.y.options.max = yMax;
+    accelerationChart.setActiveElements([]);
+    accelerationChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    accelerationChart.update("none");
+
+}
+
+
+function resetSpectrumView() {
+
+    const yMax = Math.max(
+        spectrumChart.options.plugins.zoom.limits.y.max,
+        1
+    );
+
+    if (typeof spectrumChart.resetZoom === "function") {
+        spectrumChart.resetZoom("none");
+    }
+
+    spectrumChart.options.scales.x.min = 0;
+    spectrumChart.options.scales.x.max = 30;
+    spectrumChart.options.scales.y.min = 0;
+    spectrumChart.options.scales.y.max = yMax;
+    spectrumChart.scales.x.options.min = 0;
+    spectrumChart.scales.x.options.max = 30;
+    spectrumChart.scales.y.options.min = 0;
+    spectrumChart.scales.y.options.max = yMax;
+    spectrumChart.setActiveElements([]);
+    spectrumChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    spectrumChart.update("none");
+
+}
+
+
 resetTemporalZoomButton.addEventListener("click", function () {
 
-    if (accelerationChart && typeof accelerationChart.resetZoom === "function") {
-        accelerationChart.resetZoom();
+    if (accelerationChart) {
+        resetTemporalView();
     }
 
 });
@@ -1365,8 +1422,8 @@ resetTemporalZoomButton.addEventListener("click", function () {
 
 resetSpectrumZoomButton.addEventListener("click", function () {
 
-    if (spectrumChart && typeof spectrumChart.resetZoom === "function") {
-        spectrumChart.resetZoom();
+    if (spectrumChart) {
+        resetSpectrumView();
     }
 
 });
