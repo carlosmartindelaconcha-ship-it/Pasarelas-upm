@@ -14,7 +14,7 @@
     <title>Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261012-map-location-selection">
+    <link rel="stylesheet" href="style.css?v=20261012-camera-preview-frame">
 
     <!-- MapLibre -->
     <link
@@ -205,11 +205,15 @@
 
             <div id="cameraSection">
 
-                <video
-                    id="cameraPreview"
-                    autoplay
-                    playsinline
-                ></video>
+                <div class="camera-preview-frame">
+
+                    <video
+                        id="cameraPreview"
+                        autoplay
+                        playsinline
+                    ></video>
+
+                </div>
 
                 <canvas id="cameraCanvas"></canvas>
 
@@ -516,7 +520,7 @@
     </script>
 
     <!-- Nuestro JavaScript -->
-    <script src="app.js?v=20261012-map-location-selection"></script>
+    <script src="app.js?v=20261012-camera-preview-frame"></script>
 
 
 </body>

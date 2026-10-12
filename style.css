@@ -256,7 +256,7 @@ button:hover {
 }
 
 
-#cameraPreview {
+.camera-preview-frame {
 
     width: 100%;
 
@@ -265,6 +265,21 @@ button:hover {
     background-color: black;
 
     border-radius: 10px;
+
+    overflow: hidden;
+
+    line-height: 0;
+
+}
+
+
+#cameraPreview {
+
+    display: block;
+
+    width: 100%;
+
+    max-height: 500px;
 
     object-fit: cover;
 
