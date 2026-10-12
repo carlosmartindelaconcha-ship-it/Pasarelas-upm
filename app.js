@@ -142,6 +142,9 @@ const ayValue =
 const azValue =
     document.getElementById("azValue");
 
+const spectrumCanvas =
+    document.getElementById("spectrumChart");
+
 
 /* =========================================================
    3. VARIABLES GENERALES
@@ -180,6 +183,8 @@ let currentTestData = [];
 let tests = [];
 
 let accelerationChart = null;
+
+let spectrumChart = null;
 
 let lastChartUpdate = 0;
 
@@ -498,7 +503,6 @@ function updateGPSPosition(
     if (
         bridgeMarker !== null
     ) {
-
         bridgeMarker.remove();
 
     }
@@ -934,6 +938,8 @@ continueToTestsButton.addEventListener(
 
             createAccelerationChart();
 
+            createSpectrumChart();
+
         }
 
     }
@@ -997,7 +1003,6 @@ function createAccelerationChart() {
 
                             borderColor:
                                 "#c62828",
-
                             borderWidth:
                                 2,
 
@@ -1045,6 +1050,29 @@ function createAccelerationChart() {
                     */
                     events:
                         [],
+
+                    plugins: {
+
+                        zoom: {
+
+                            pan: {
+                                enabled: true,
+                                mode: "x"
+                            },
+
+                            zoom: {
+                                wheel: {
+                                    enabled: true
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: "x"
+                            }
+
+                        }
+
+                    },
 
 
                     scales: {
@@ -1102,6 +1130,86 @@ function createAccelerationChart() {
             }
 
         );
+
+}
+
+
+/* =========================================================
+   18 bis. CREAR GRÁFICA DEL ESPECTRO
+   ========================================================= */
+
+function createSpectrumChart() {
+
+    spectrumChart = new Chart(
+
+        spectrumCanvas.getContext("2d"),
+
+        {
+            type: "line",
+
+            data: {
+                datasets: [{
+                    label: "Amplitud | FFT |Z|",
+                    data: [],
+                    borderColor: "#7b1fa2",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false
+                }]
+            },
+
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                parsing: false,
+                scales: {
+                    x: {
+                        type: "linear",
+                        min: 0,
+                        max: 60,
+                        title: {
+                            display: true,
+                            text: "Frecuencia (Hz)"
+                        },
+                        grid: {
+                            color: "rgba(0,0,0,0.08)"
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: "Amplitud"
+                        },
+                        grid: {
+                            color: "rgba(0,0,0,0.08)"
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    },
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: "x"
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: "x"
+                        }
+                    }
+                }
+            }
+        }
+    );
 
 }
 
@@ -1497,8 +1605,7 @@ async function startBestAvailableSensor() {
        =====================================================
        FALLBACK
 
-       Si Generic Sensor API no existe o falla,
-       usamos DeviceMotionEvent.
+       Si Generic Sensor API no existe o falla,       usamos DeviceMotionEvent.
        =====================================================
     */
 
@@ -1997,8 +2104,7 @@ function updateRealSamplingFrequency() {
 
 
     const finalTime =
-        currentTestData[
-            finalIndex
+        currentTestData[            finalIndex
         ].time;
 
 
@@ -2360,6 +2466,8 @@ function stopRecording() {
         "measurement-active"
     );
 
+    enableResultChartNavigation();
+
 
     setTimeout(
         function () {
@@ -2431,6 +2539,8 @@ function stopRecording() {
 
         });
 
+        updateSpectrumChart(currentTestData);
+
 
         /*
            Mostramos:
@@ -2454,6 +2564,27 @@ function stopRecording() {
         );
 
     }
+
+}
+
+
+function enableResultChartNavigation() {
+
+    if (!accelerationChart) {
+        return;
+    }
+
+    accelerationChart.options.events = [
+        "wheel",
+        "mousedown",
+        "mousemove",
+        "mouseup",
+        "touchstart",
+        "touchmove",
+        "touchend"
+    ];
+
+    accelerationChart.update("none");
 
 }
 
@@ -2498,6 +2629,158 @@ function calculateAverageFrequency(
 
 }
 
+
+/* =========================================================
+   32 bis. ESPECTRO MEDIANTE FFT
+   ========================================================= */
+
+function updateSpectrumChart(data) {
+
+    if (
+        !spectrumChart ||
+        data.length < 2
+    ) {
+
+        return;
+
+    }
+
+    const duration =
+        data[data.length - 1].time - data[0].time;
+
+    if (duration <= 0) {
+
+        return;
+
+    }
+
+    const sampleRate =
+        (data.length - 1) / duration;
+
+    /* La FFT necesita una señal uniformemente muestreada. */
+    const sampleCount = Math.min(data.length, 8192);
+    const source = data.slice(data.length - sampleCount);
+    const n = nextPowerOfTwo(source.length);
+    const values = new Array(n).fill(0);
+    const mean = source.reduce(
+        (sum, sample) => sum + sample.az,
+        0
+    ) / source.length;
+
+    source.forEach((sample, index) => {
+        values[index] = sample.az - mean;
+    });
+
+    const real = values.slice();
+    const imag = new Array(n).fill(0);
+    fft(real, imag);
+
+    const points = [];
+    const frequencyResolution = sampleRate / n;
+    const maximumBin = Math.min(
+        Math.floor(60 / frequencyResolution),
+        Math.floor(n / 2)
+    );
+
+    for (let k = 0; k <= maximumBin; k++) {
+
+        let amplitude =
+            Math.sqrt(real[k] ** 2 + imag[k] ** 2) / n;
+
+        if (k > 0 && k < n / 2) {
+            amplitude *= 2;
+        }
+
+        points.push({
+            x: k * frequencyResolution,
+            y: amplitude
+        });
+
+    }
+
+    spectrumChart.data.datasets[0].data = points;
+    spectrumChart.options.scales.x.min = 0;
+    spectrumChart.options.scales.x.max = 60;
+    if (typeof spectrumChart.resetZoom === "function") {
+        spectrumChart.resetZoom();
+    }
+    spectrumChart.update("none");
+
+}
+
+
+function nextPowerOfTwo(value) {
+
+    let result = 1;
+
+    while (result < value) {
+        result *= 2;
+    }
+
+    return result;
+
+}
+
+
+function fft(real, imag) {
+
+    const n = real.length;
+
+    for (let i = 1, j = 0; i < n; i++) {
+
+        let bit = n >> 1;
+
+        for (; j & bit; bit >>= 1) {
+            j ^= bit;
+        }
+
+        j ^= bit;
+
+        if (i < j) {
+            [real[i], real[j]] = [real[j], real[i]];
+        }
+
+    }
+
+    for (let length = 2; length <= n; length <<= 1) {
+
+        const angle = -2 * Math.PI / length;
+        const wlenReal = Math.cos(angle);
+        const wlenImag = Math.sin(angle);
+
+        for (let start = 0; start < n; start += length) {
+
+            let wReal = 1;
+            let wImag = 0;
+            const half = length >> 1;
+
+            for (let offset = 0; offset < half; offset++) {
+
+                const even = start + offset;
+                const odd = even + half;
+                const oddReal =
+                    real[odd] * wReal - imag[odd] * wImag;
+                const oddImag =
+                    real[odd] * wImag + imag[odd] * wReal;
+
+                real[odd] = real[even] - oddReal;
+                imag[odd] = imag[even] - oddImag;
+                real[even] += oddReal;
+                imag[even] += oddImag;
+
+                const nextWReal =
+                    wReal * wlenReal - wImag * wlenImag;
+                wImag =
+                    wReal * wlenImag + wImag * wlenReal;
+                wReal = nextWReal;
+
+            }
+
+        }
+
+    }
+
+}
 
 /* =========================================================
    33. HACER OTRO ENSAYO

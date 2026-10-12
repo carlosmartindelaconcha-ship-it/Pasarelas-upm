@@ -404,9 +404,21 @@ button:hover {
 
     padding: 10px;
 
-    height: 360px;
+    height: 760px;
+
+    display: flex;
+    flex-direction: column;
 
     box-sizing: border-box;
+
+}
+
+
+#timeSignalTitle {
+
+    margin: 0 0 8px 0;
+    text-align: left;
+    font-size: 17px;
 
 }
 
@@ -415,7 +427,45 @@ button:hover {
 
     width: 100% !important;
 
-    height: 100% !important;
+    height: 380px !important;
+
+    flex: 0 0 380px;
+
+}
+
+
+#spectrumPanel {
+
+    margin-top: 18px;
+    border-top: 1px solid #dddddd;
+    padding-top: 12px;
+
+}
+
+
+#spectrumPanel h3 {
+
+    margin: 0 0 8px 0;
+    text-align: left;
+    font-size: 17px;
+
+}
+
+
+#spectrumChart {
+
+    width: 100% !important;
+    height: 300px !important;
+
+}
+
+
+.chart-help {
+
+    margin: 6px 0 0 0;
+    color: #666666;
+    font-size: 12px;
+    text-align: left;
 
 }
 
@@ -497,8 +547,7 @@ button:hover {
 }
 
 
-/* =========================================================
-   TIEMPO Y MUESTRAS
+/* =========================================================   TIEMPO Y MUESTRAS
    ========================================================= */
 
 .test-info {
@@ -628,7 +677,22 @@ footer {
 
     .chart-card {
 
-        height: 300px;
+        height: 660px;
+
+    }
+
+
+    #accelerationChart {
+
+        height: 300px !important;
+        flex-basis: 300px;
+
+    }
+
+
+    #spectrumChart {
+
+        height: 250px !important;
 
     }
 
@@ -826,6 +890,29 @@ body.recording-lock main {
     padding: 5px;
 
     border-radius: 6px;
+
+}
+
+
+#testForm.measurement-active #accelerationChart {
+
+    height: auto !important;
+    flex: 1 1 auto;
+    min-height: 0;
+
+}
+
+
+#testForm.measurement-active #timeSignalTitle {
+
+    display: none;
+
+}
+
+
+#testForm.measurement-active #spectrumPanel {
+
+    display: none;
 
 }
 

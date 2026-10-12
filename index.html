@@ -24,6 +24,8 @@
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0"></script>
 
 </head>
 
@@ -314,7 +316,16 @@
 
             <div class="chart-card">
 
+                <h3 id="timeSignalTitle">Señal temporal</h3>
                 <canvas id="accelerationChart"></canvas>
+
+                <div id="spectrumPanel" class="spectrum-panel">
+                    <h3>Espectro de la aceleración</h3>
+                    <canvas id="spectrumChart"></canvas>
+                    <p class="chart-help">
+                        Puedes hacer zoom con la rueda o pellizcando la pantalla y desplazar la gráfica.
+                    </p>
+                </div>
 
             </div>
 
