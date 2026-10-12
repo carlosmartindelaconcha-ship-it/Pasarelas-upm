@@ -375,6 +375,51 @@
 
 
             <!-- =================================================
+                 RESUMEN DE RESULTADOS
+                 ================================================= -->
+
+            <section id="resultMetrics" class="result-metrics">
+
+                <div class="result-metric-row">
+                    <h3>Pico de aceleración</h3>
+                    <div class="live-values">
+                        <div class="live-value x-value"><span>X</span><strong id="peakAccelerationX">--</strong><small>m/s²</small></div>
+                        <div class="live-value y-value"><span>Y</span><strong id="peakAccelerationY">--</strong><small>m/s²</small></div>
+                        <div class="live-value z-value"><span>Z</span><strong id="peakAccelerationZ">--</strong><small>m/s²</small></div>
+                    </div>
+                </div>
+
+                <div class="result-metric-row">
+                    <h3>Pico de RMS</h3>
+                    <div class="live-values">
+                        <div class="live-value x-value"><span>X</span><strong id="peakRmsX">--</strong><small>m/s²</small></div>
+                        <div class="live-value y-value"><span>Y</span><strong id="peakRmsY">--</strong><small>m/s²</small></div>
+                        <div class="live-value z-value"><span>Z</span><strong id="peakRmsZ">--</strong><small>m/s²</small></div>
+                    </div>
+                </div>
+
+                <div class="result-metric-row">
+                    <h3>Frecuencia de pico del espectro</h3>
+                    <div class="live-values">
+                        <div class="live-value x-value"><span>X</span><strong id="spectrumPeakFrequencyX">--</strong><small>Hz</small></div>
+                        <div class="live-value y-value"><span>Y</span><strong id="spectrumPeakFrequencyY">--</strong><small>Hz</small></div>
+                        <div class="live-value z-value"><span>Z</span><strong id="spectrumPeakFrequencyZ">--</strong><small>Hz</small></div>
+                    </div>
+                </div>
+
+                <div class="result-metric-row">
+                    <h3>Frecuencia de pico de la PSD</h3>
+                    <div class="live-values">
+                        <div class="live-value x-value"><span>X</span><strong id="psdPeakFrequencyX">--</strong><small>Hz</small></div>
+                        <div class="live-value y-value"><span>Y</span><strong id="psdPeakFrequencyY">--</strong><small>Hz</small></div>
+                        <div class="live-value z-value"><span>Z</span><strong id="psdPeakFrequencyZ">--</strong><small>Hz</small></div>
+                    </div>
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
                  VALORES INSTANTÁNEOS
                  ================================================= -->
 
