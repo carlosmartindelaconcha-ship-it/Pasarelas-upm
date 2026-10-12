@@ -930,7 +930,9 @@ body.recording-lock main {
 
 #testForm.measurement-active .chart-card {
 
-    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
 
     min-height: 0;
 
@@ -945,16 +947,36 @@ body.recording-lock main {
 }
 
 
-#testForm.measurement-active .temporal-chart-wrap {
+#testForm.measurement-active .measurement-chart-panel,
+#testForm.measurement-active #spectrumPanel {
 
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+}
+
+
+#testForm.measurement-active .temporal-panel {
+
+    margin: 0;
+
+}
+
+
+#testForm.measurement-active .temporal-chart-wrap,
+#testForm.measurement-active .spectrum-chart-wrap {
+
+    flex: 1 1 0;
     min-height: 0;
     height: auto;
 
 }
 
 
-#testForm.measurement-active > .chart-card > .chart-heading {
+#testForm.measurement-active .measurement-chart-panel .chart-heading,
+#testForm.measurement-active #spectrumPanel .chart-heading {
 
     min-height: 22px;
     margin-bottom: 3px;
@@ -980,10 +1002,6 @@ body.recording-lock main {
 
 #testForm.measurement-active #spectrumPanel {
 
-    display: flex;
-    flex: 1 1 0;
-    min-height: 0;
-    flex-direction: column;
     margin-top: 6px;
     padding-top: 5px;
 
@@ -1002,15 +1020,6 @@ body.recording-lock main {
 
     font-size: 14px;
     line-height: 1.2;
-
-}
-
-
-#testForm.measurement-active .spectrum-chart-wrap {
-
-    flex: 1 1 auto;
-    min-height: 0;
-    height: auto;
 
 }
 
