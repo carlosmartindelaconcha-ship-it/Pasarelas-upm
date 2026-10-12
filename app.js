@@ -2925,15 +2925,15 @@ function roundedUpperLimit(value) {
     }
 
     /*
-       La señal temporal y RMS necesitan algo más de aire.
+       La señal temporal y RMS conservan un margen del 20 %.
        Para magnitudes pequeñas se mantiene un límite limpio;
        desde 1 se redondea a décimas para evitar saltos a 3.
     */
     if (validValue >= 1) {
-        return Math.ceil(validValue * 1.3 * 10) / 10;
+        return Math.ceil(validValue * 1.2 * 10) / 10;
     }
 
-    return roundedAdaptiveUpperLimit(validValue, 1.3);
+    return roundedAdaptiveUpperLimit(validValue, 1.2);
 
 }
 
