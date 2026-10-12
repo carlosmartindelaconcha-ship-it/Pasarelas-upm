@@ -1584,7 +1584,7 @@ function getSpectrumInitialYLimit() {
         })
     );
 
-    return roundedSpectrumUpperLimit(maximum * 1.2);
+    return roundedSpectrumUpperLimit(maximum);
 
 }
 
@@ -1632,7 +1632,7 @@ function getPsdInitialYLimit() {
         })
     );
 
-    return roundedPsdUpperLimit(maximum * 1.2);
+    return roundedPsdUpperLimit(maximum);
 
 }
 
@@ -2936,7 +2936,11 @@ function roundedPsdUpperLimit(value) {
 }
 
 
-function roundedAdaptiveUpperLimit(value) {
+/*
+   Mantiene una escala legible sin que el margen de seguridad
+   provoque saltos bruscos de orden de magnitud.
+*/
+function roundedAdaptiveUpperLimit(value, margin = 1.2) {
 
     const validValue =
         Number.isFinite(value) && value > 0
@@ -2953,7 +2957,7 @@ function roundedAdaptiveUpperLimit(value) {
         );
 
     return Math.ceil(
-        validValue / resolution
+        validValue * margin / resolution
     ) * resolution;
 
 }
@@ -3215,9 +3219,7 @@ function updateRmsChart(data) {
             return [sample.ax, sample.ay, sample.az];
         })
     );
-    const yLimit = roundedAdaptiveUpperLimit(
-        maximum * 1.2
-    );
+    const yLimit = roundedAdaptiveUpperLimit(maximum);
     const xMax = Math.max(
         rmsData[rmsData.length - 1].time,
         0.001
@@ -3425,10 +3427,7 @@ function updateChart(
        15 % de margen.
     */
     const yLimit =
-        roundedUpperLimit(
-            maximumAcceleration *
-            1.2
-        );
+        roundedUpperLimit(maximumAcceleration);
 
 
     accelerationChart
@@ -4095,8 +4094,7 @@ function updateSpectrumChart(data, resetZoom = true) {
     );
 
     const spectrumYLimit = roundedSpectrumUpperLimit(
-        maximumSpectrumAmplitude *
-        1.2
+        maximumSpectrumAmplitude
     );
 
     if (
@@ -4154,9 +4152,7 @@ function updatePsdChart(data) {
         })
     );
 
-    const yLimit = roundedPsdUpperLimit(
-        maximumPsd * 1.2
-    );
+    const yLimit = roundedPsdUpperLimit(maximumPsd);
 
     psdChart.options.scales.x.min = 0;
     psdChart.options.scales.x.max = 30;
