@@ -584,6 +584,25 @@ button:hover {
 }
 
 
+#rmsPanel .chart-heading,
+#spectrumPanel .chart-heading,
+#psdPanel .chart-heading {
+
+    min-height: 34px;
+    margin-bottom: 8px;
+
+}
+
+
+#rmsPanel,
+#spectrumPanel,
+#psdPanel {
+
+    box-sizing: border-box;
+
+}
+
+
 #resultSummary {
 
     display: none;

@@ -1494,6 +1494,10 @@ function applyChartZoomScale(chart, axis, min, max) {
 
 function createRmsChart() {
 
+    if (!rmsCanvas) {
+        return;
+    }
+
     rmsChart = new Chart(
         rmsCanvas.getContext("2d"),
         {
@@ -1624,6 +1628,10 @@ function createRmsChart() {
 
 
 function createPsdChart() {
+
+    if (!psdCanvas) {
+        return;
+    }
 
     psdChart = new Chart(
         psdCanvas.getContext("2d"),
@@ -1883,22 +1891,26 @@ resetSpectrumZoomButton.addEventListener("click", function () {
 });
 
 
-resetRmsZoomButton.addEventListener("click", function () {
+if (resetRmsZoomButton) {
+    resetRmsZoomButton.addEventListener("click", function () {
 
-    if (rmsChart) {
-        resetRmsView();
-    }
+        if (rmsChart) {
+            resetRmsView();
+        }
 
-});
+    });
+}
 
 
-resetPsdZoomButton.addEventListener("click", function () {
+if (resetPsdZoomButton) {
+    resetPsdZoomButton.addEventListener("click", function () {
 
-    if (psdChart) {
-        resetPsdView();
-    }
+        if (psdChart) {
+            resetPsdView();
+        }
 
-});
+    });
+}
 
 
 /* =========================================================
