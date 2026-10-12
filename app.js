@@ -34,6 +34,10 @@ const visibleWindowSeconds = 5;
 const chartUpdateInterval = 40;
 
 
+/* El espectro provisional se recalcula una vez por segundo. */
+const spectrumUpdateInterval = 1000;
+
+
 /* =========================================================
    2. ELEMENTOS DE LA INTERFAZ
    ========================================================= */
@@ -193,6 +197,8 @@ let accelerationChart = null;
 let spectrumChart = null;
 
 let lastChartUpdate = 0;
+
+let lastSpectrumUpdate = 0;
 
 
 /*
@@ -1201,7 +1207,7 @@ function createSpectrumChart() {
                     x: {
                         type: "linear",
                         min: 0,
-                        max: 60,
+                        max: 30,
                         title: {
                             display: true,
                             text: "Frecuencia (Hz)"
@@ -2128,6 +2134,28 @@ function processAccelerationSample(
 
     }
 
+
+    /*
+       Actualizamos el espectro con todo el registro acumulado,
+       pero con mucha menor frecuencia que la señal temporal.
+       Esto no interviene en la adquisición del sensor.
+    */
+    if (
+        now -
+        lastSpectrumUpdate >=
+        spectrumUpdateInterval
+    ) {
+
+        updateSpectrumChart(
+            currentTestData,
+            false
+        );
+
+        lastSpectrumUpdate =
+            now;
+
+    }
+
 }
 
 
@@ -2591,7 +2619,7 @@ function stopRecording() {
 
         });
 
-        updateSpectrumChart(currentTestData);
+        updateSpectrumChart(currentTestData, true);
 
 
         /*
@@ -2686,7 +2714,7 @@ function calculateAverageFrequency(
    32 bis. ESPECTRO MEDIANTE FFT
    ========================================================= */
 
-function updateSpectrumChart(data) {
+function updateSpectrumChart(data, resetZoom = true) {
 
     if (
         !spectrumChart ||
@@ -2710,16 +2738,18 @@ function updateSpectrumChart(data) {
         (data.length - 1) / duration;
 
     /* La FFT necesita una señal uniformemente muestreada. */
-    const source = data.slice(
-        data.length - Math.min(data.length, 8192)
-    );
+    /* Se utiliza todo el registro acumulado. */
+    const source = data;
 
     spectrumChart.data.datasets[0].data = calculateSpectrum(source, "ax", sampleRate);
     spectrumChart.data.datasets[1].data = calculateSpectrum(source, "ay", sampleRate);
     spectrumChart.data.datasets[2].data = calculateSpectrum(source, "az", sampleRate);
     spectrumChart.options.scales.x.min = 0;
-    spectrumChart.options.scales.x.max = 60;
-    if (typeof spectrumChart.resetZoom === "function") {
+    spectrumChart.options.scales.x.max = 30;
+    if (
+        resetZoom &&
+        typeof spectrumChart.resetZoom === "function"
+    ) {
         spectrumChart.resetZoom();
     }
     spectrumChart.update("none");
@@ -2747,7 +2777,7 @@ function calculateSpectrum(source, component, sampleRate) {
     const points = [];
     const frequencyResolution = sampleRate / n;
     const maximumBin = Math.min(
-        Math.floor(60 / frequencyResolution),
+        Math.floor(30 / frequencyResolution),
         Math.floor(n / 2)
     );
 
