@@ -418,9 +418,10 @@ button:hover {
 
     margin: 0;
     text-align: left;
-    font-size: 18px;
-    line-height: 1.25;
+    font-size: 17px;
+    line-height: 1.2;
     font-weight: 700;
+    white-space: nowrap;
 
 }
 
@@ -430,7 +431,8 @@ button:hover {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
+    min-height: 34px;
     margin-bottom: 8px;
 
 }
@@ -440,13 +442,16 @@ button:hover {
 
     width: auto !important;
     margin: 0 !important;
-    padding: 7px 12px;
-    font-size: 13px;
+    padding: 7px 10px;
+    font-size: 12px;
+    line-height: 1.2;
     font-weight: 600;
     background-color: #eeeeee;
     color: #333333;
     border: 1px solid #cccccc;
     border-radius: 6px;
+    white-space: nowrap;
+    flex: 0 0 auto;
 
 }
 
@@ -460,11 +465,30 @@ button:hover {
 
 #accelerationChart {
 
-    width: 100% !important;
+    max-width: 100%;
 
-    height: 320px !important;
+}
 
-    flex: 0 0 320px;
+
+.chart-canvas-wrap {
+
+    position: relative;
+    width: 100%;
+
+}
+
+
+.chart-canvas-wrap canvas {
+
+    display: block;
+    max-width: 100%;
+
+}
+
+
+.temporal-chart-wrap {
+
+    height: 320px;
 
 }
 
@@ -482,17 +506,24 @@ button:hover {
 
     margin: 0;
     text-align: left;
-    font-size: 18px;
-    line-height: 1.25;
+    font-size: 17px;
+    line-height: 1.2;
     font-weight: 700;
+    white-space: nowrap;
 
 }
 
 
 #spectrumChart {
 
-    width: 100% !important;
-    height: 320px !important;
+    max-width: 100%;
+
+}
+
+
+.spectrum-chart-wrap {
+
+    height: 320px;
 
 }
 
@@ -709,17 +740,10 @@ footer {
     }
 
 
-    #accelerationChart {
+    .temporal-chart-wrap,
+    .spectrum-chart-wrap {
 
-        height: 260px !important;
-        flex-basis: 260px;
-
-    }
-
-
-    #spectrumChart {
-
-        height: 260px !important;
+        height: 260px;
 
     }
 
@@ -921,11 +945,11 @@ body.recording-lock main {
 }
 
 
-#testForm.measurement-active #accelerationChart {
+#testForm.measurement-active .temporal-chart-wrap {
 
-    height: auto !important;
     flex: 1 1 auto;
     min-height: 0;
+    height: auto;
 
 }
 

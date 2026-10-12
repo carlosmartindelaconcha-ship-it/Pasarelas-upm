@@ -211,6 +211,16 @@ let currentSensorMode = "";
 let currentSensorType = "";
 
 
+/* Tipografía coherente y nítida para todos los textos de Chart.js. */
+if (typeof Chart !== "undefined") {
+
+    Chart.defaults.font.family = "Arial, sans-serif";
+    Chart.defaults.font.size = 12;
+    Chart.defaults.font.lineHeight = 1.2;
+
+}
+
+
 /* =========================================================
    6. NAVEGACIÓN
    ========================================================= */
@@ -1063,7 +1073,7 @@ function createAccelerationChart() {
 
                             pan: {
                                 enabled: true,
-                                mode: "x"
+                                mode: "xy"
                             },
 
                             zoom: {
@@ -1073,7 +1083,7 @@ function createAccelerationChart() {
                                 pinch: {
                                     enabled: true
                                 },
-                                mode: "x"
+                                mode: "xy"
                             }
 
                         }
@@ -1218,7 +1228,7 @@ function createSpectrumChart() {
                     zoom: {
                         pan: {
                             enabled: true,
-                            mode: "x"
+                            mode: "xy"
                         },
                         zoom: {
                             wheel: {
@@ -1227,7 +1237,7 @@ function createSpectrumChart() {
                             pinch: {
                                 enabled: true
                             },
-                            mode: "x"
+                            mode: "xy"
                         }
                     }
                 }
