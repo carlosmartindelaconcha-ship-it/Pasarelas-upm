@@ -1079,7 +1079,19 @@ function createAccelerationChart() {
 
                             pan: {
                                 enabled: true,
-                                mode: "x"
+                                mode: "x",
+                                onPan: function (context) {
+                                    clampTemporalXAxis(context.chart);
+                                    keepTemporalYAxisCentered(
+                                        context.chart
+                                    );
+                                },
+                                onPanComplete: function (context) {
+                                    clampTemporalXAxis(context.chart);
+                                    keepTemporalYAxisCentered(
+                                        context.chart
+                                    );
+                                }
                             },
 
                             zoom: {
@@ -1089,7 +1101,19 @@ function createAccelerationChart() {
                                 pinch: {
                                     enabled: true
                                 },
-                                mode: "xy"
+                                mode: "xy",
+                                onZoom: function (context) {
+                                    clampTemporalXAxis(context.chart);
+                                    keepTemporalYAxisCentered(
+                                        context.chart
+                                    );
+                                },
+                                onZoomComplete: function (context) {
+                                    clampTemporalXAxis(context.chart);
+                                    keepTemporalYAxisCentered(
+                                        context.chart
+                                    );
+                                }
                             },
 
                             limits: {
@@ -1100,34 +1124,6 @@ function createAccelerationChart() {
                             }
 
                             },
-
-                            onZoom: function (context) {
-                                clampTemporalXAxis(context.chart);
-                                keepTemporalYAxisCentered(
-                                    context.chart
-                                );
-                            },
-
-                            onPan: function (context) {
-                                clampTemporalXAxis(context.chart);
-                                keepTemporalYAxisCentered(
-                                    context.chart
-                                );
-                            },
-
-                            onZoomComplete: function (context) {
-                                clampTemporalXAxis(context.chart);
-                                keepTemporalYAxisCentered(
-                                    context.chart
-                                );
-                            },
-
-                            onPanComplete: function (context) {
-                                clampTemporalXAxis(context.chart);
-                                keepTemporalYAxisCentered(
-                                    context.chart
-                                );
-                            }
 
                         }
 
@@ -1271,7 +1267,13 @@ function createSpectrumChart() {
                     zoom: {
                         pan: {
                             enabled: true,
-                            mode: "xy"
+                            mode: "xy",
+                            onPan: function (context) {
+                                clampSpectrumAxes(context.chart);
+                            },
+                            onPanComplete: function (context) {
+                                clampSpectrumAxes(context.chart);
+                            }
                         },
                         zoom: {
                             wheel: {
@@ -1280,7 +1282,13 @@ function createSpectrumChart() {
                             pinch: {
                                 enabled: true
                             },
-                            mode: "xy"
+                            mode: "xy",
+                            onZoom: function (context) {
+                                clampSpectrumAxes(context.chart);
+                            },
+                            onZoomComplete: function (context) {
+                                clampSpectrumAxes(context.chart);
+                            }
                         },
 
                         limits: {
@@ -1294,22 +1302,6 @@ function createSpectrumChart() {
                                 min: 0
                             }
 
-                        },
-
-                        onZoom: function (context) {
-                            clampSpectrumAxes(context.chart);
-                        },
-
-                        onPan: function (context) {
-                            clampSpectrumAxes(context.chart);
-                        },
-
-                        onZoomComplete: function (context) {
-                            clampSpectrumAxes(context.chart);
-                        },
-
-                        onPanComplete: function (context) {
-                            clampSpectrumAxes(context.chart);
                         }
                     }
                 }
