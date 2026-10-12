@@ -268,6 +268,16 @@ button:hover {
 
     line-height: 0;
 
+    /*
+       Algunos navegadores móviles dibujan el vídeo en una capa
+       acelerada que ignora overflow. El clip fuerza las esquinas.
+    */
+    clip-path: inset(0 round 10px);
+
+    -webkit-clip-path: inset(0 round 10px);
+
+    transform: translateZ(0);
+
 }
 
 
@@ -280,6 +290,12 @@ button:hover {
     max-height: 500px;
 
     object-fit: cover;
+
+    vertical-align: top;
+
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+
+    transform: translateZ(0);
 
 }
 
