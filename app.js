@@ -149,11 +149,17 @@ const azValue =
 const spectrumCanvas =
     document.getElementById("spectrumChart");
 
+const rmsCanvas =
+    document.getElementById("rmsChart");
+
 const resetTemporalZoomButton =
     document.getElementById("resetTemporalZoom");
 
 const resetSpectrumZoomButton =
     document.getElementById("resetSpectrumZoom");
+
+const resetRmsZoomButton =
+    document.getElementById("resetRmsZoom");
 
 
 /* =========================================================
@@ -190,11 +196,15 @@ let recordingStartTime = null;
 
 let currentTestData = [];
 
+let processedTestData = [];
+
 let tests = [];
 
 let accelerationChart = null;
 
 let spectrumChart = null;
+
+let rmsChart = null;
 
 let lastChartUpdate = 0;
 
@@ -962,6 +972,8 @@ continueToTestsButton.addEventListener(
 
             createSpectrumChart();
 
+            createRmsChart();
+
         }
 
     }
@@ -1411,6 +1423,204 @@ function resetSpectrumView() {
 }
 
 
+function createRmsChart() {
+
+    rmsChart = new Chart(
+        rmsCanvas.getContext("2d"),
+        {
+            type: "line",
+            data: {
+                datasets: [
+                    {
+                        label: "X",
+                        data: [],
+                        borderColor: "#1565c0",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: "Y",
+                        data: [],
+                        borderColor: "#c62828",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: "Z",
+                        data: [],
+                        borderColor: "#2e7d32",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                parsing: false,
+                onClick: function (event, elements, chart) {
+                    showClickedValue(event, elements, chart);
+                },
+                scales: {
+                    x: {
+                        type: "linear",
+                        min: 0,
+                        max: 1,
+                        title: {
+                            display: true,
+                            text: "Tiempo (s)"
+                        },
+                        grid: {
+                            color: "rgba(0,0,0,0.08)"
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 1,
+                        title: {
+                            display: true,
+                            text: "RMS (m/s²)"
+                        },
+                        grid: {
+                            color: "rgba(0,0,0,0.08)"
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function (items) {
+                                return "t = " +
+                                    items[0].parsed.x.toFixed(3) +
+                                    " s";
+                            },
+                            label: function (item) {
+                                return item.dataset.label +
+                                    ": " +
+                                    item.parsed.y.toFixed(4) +
+                                    " m/s²";
+                            }
+                        }
+                    },
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: "xy",
+                            onPan: function (context) {
+                                clampRmsAxes(context.chart);
+                            },
+                            onPanComplete: function (context) {
+                                clampRmsAxes(context.chart);
+                            }
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: "xy",
+                            onZoom: function (context) {
+                                clampRmsAxes(context.chart);
+                            },
+                            onZoomComplete: function (context) {
+                                clampRmsAxes(context.chart);
+                            }
+                        },
+                        limits: {
+                            x: {
+                                min: 0,
+                                max: 1
+                            },
+                            y: {
+                                min: 0,
+                                max: 1
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    );
+
+}
+
+
+function clampRmsAxes(chart) {
+
+    const duration =
+        processedTestData.length > 0
+            ? processedTestData[processedTestData.length - 1].time
+            : 1;
+
+    const yLimit = Math.max(
+        chart.options.plugins.zoom.limits.y.max || 0.01,
+        0.01
+    );
+
+    chart.options.plugins.zoom.limits.x.min = 0;
+    chart.options.plugins.zoom.limits.x.max = Math.max(duration, 0.001);
+    chart.options.plugins.zoom.limits.y.min = 0;
+    chart.options.plugins.zoom.limits.y.max = yLimit;
+
+    chart.options.scales.x.min = Math.max(
+        0,
+        Math.min(chart.scales.x.min, duration)
+    );
+    chart.options.scales.x.max = Math.min(
+        duration,
+        Math.max(chart.scales.x.max, 0.001)
+    );
+    chart.options.scales.y.min = 0;
+    chart.options.scales.y.max = Math.min(
+        yLimit,
+        Math.max(chart.scales.y.max, 0.01)
+    );
+
+}
+
+
+function resetRmsView() {
+
+    const xMax = Math.max(
+        processedTestData.length > 0
+            ? processedTestData[processedTestData.length - 1].time
+            : 0.001,
+        0.001
+    );
+
+    const yMax = Math.max(
+        rmsChart.options.plugins.zoom.limits.y.max || 0.01,
+        0.01
+    );
+
+    if (typeof rmsChart.resetZoom === "function") {
+        rmsChart.resetZoom("none");
+    }
+
+    rmsChart.options.scales.x.min = 0;
+    rmsChart.options.scales.x.max = xMax;
+    rmsChart.options.scales.y.min = 0;
+    rmsChart.options.scales.y.max = yMax;
+    rmsChart.scales.x.options.min = 0;
+    rmsChart.scales.x.options.max = xMax;
+    rmsChart.scales.y.options.min = 0;
+    rmsChart.scales.y.options.max = yMax;
+    rmsChart.setActiveElements([]);
+    rmsChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    rmsChart.update("none");
+
+}
+
+
 resetTemporalZoomButton.addEventListener("click", function () {
 
     if (accelerationChart) {
@@ -1424,6 +1634,15 @@ resetSpectrumZoomButton.addEventListener("click", function () {
 
     if (spectrumChart) {
         resetSpectrumView();
+    }
+
+});
+
+
+resetRmsZoomButton.addEventListener("click", function () {
+
+    if (rmsChart) {
+        resetRmsView();
     }
 
 });
@@ -1680,6 +1899,8 @@ async function startRecording() {
         function () {
 
             accelerationChart.resize();
+            spectrumChart.resize();
+            rmsChart.resize();
 
         },
         50
@@ -2453,6 +2674,257 @@ function roundedUpperLimit(value) {
 }
 
 
+function getUniformSampleInterval(data) {
+
+    const intervals = data
+        .map(function (sample) {
+            return Number(sample.dt);
+        })
+        .filter(function (value) {
+            return Number.isFinite(value) && value > 0;
+        })
+        .sort(function (a, b) {
+            return a - b;
+        });
+
+    if (intervals.length > 0) {
+        return intervals[Math.floor(intervals.length / 2)];
+    }
+
+    const duration =
+        data[data.length - 1].time - data[0].time;
+
+    return duration > 0
+        ? duration / Math.max(data.length - 1, 1)
+        : 1 / 60;
+
+}
+
+
+function interpolateSignal(data, time, component, startIndex) {
+
+    let index = startIndex;
+
+    while (
+        index < data.length - 2 &&
+        data[index + 1].time < time
+    ) {
+        index += 1;
+    }
+
+    const first = data[index];
+    const second = data[Math.min(index + 1, data.length - 1)];
+    const interval = second.time - first.time;
+
+    if (!Number.isFinite(interval) || interval <= 0) {
+        return Number(first[component]) || 0;
+    }
+
+    const ratio = Math.max(
+        0,
+        Math.min(1, (time - first.time) / interval)
+    );
+
+    return (
+        (Number(first[component]) || 0) * (1 - ratio) +
+        (Number(second[component]) || 0) * ratio
+    );
+
+}
+
+
+function detrendSignal(data, component) {
+
+    const n = data.length;
+    let sumTime = 0;
+    let sumValue = 0;
+    let sumTimeSquared = 0;
+    let sumTimeValue = 0;
+
+    data.forEach(function (sample) {
+        const time = sample.time;
+        const value = sample[component];
+        sumTime += time;
+        sumValue += value;
+        sumTimeSquared += time * time;
+        sumTimeValue += time * value;
+    });
+
+    const denominator =
+        n * sumTimeSquared - sumTime * sumTime;
+    const slope = Math.abs(denominator) > 1e-12
+        ? (n * sumTimeValue - sumTime * sumValue) / denominator
+        : 0;
+    const intercept =
+        (sumValue - slope * sumTime) / Math.max(n, 1);
+
+    return data.map(function (sample) {
+        return {
+            time: sample.time,
+            value: sample[component] - (intercept + slope * sample.time)
+        };
+    });
+
+}
+
+
+function buildProcessedSignal(data) {
+
+    if (!data || data.length < 2) {
+        return [];
+    }
+
+    const interval = getUniformSampleInterval(data);
+    const duration =
+        data[data.length - 1].time - data[0].time;
+    const count = Math.max(
+        2,
+        Math.floor(duration / interval) + 1
+    );
+    const uniform = [];
+    let sourceIndex = 0;
+
+    for (let index = 0; index < count; index += 1) {
+        const time = Math.min(
+            duration,
+            index * interval
+        );
+
+        uniform.push({
+            time: time,
+            ax: interpolateSignal(data, time + data[0].time, "ax", sourceIndex),
+            ay: interpolateSignal(data, time + data[0].time, "ay", sourceIndex),
+            az: interpolateSignal(data, time + data[0].time, "az", sourceIndex)
+        });
+
+        while (
+            sourceIndex < data.length - 2 &&
+            data[sourceIndex + 1].time < time + data[0].time
+        ) {
+            sourceIndex += 1;
+        }
+    }
+
+    const detrendedX = detrendSignal(uniform, "ax");
+    const detrendedY = detrendSignal(uniform, "ay");
+    const detrendedZ = detrendSignal(uniform, "az");
+
+    return uniform.map(function (sample, index) {
+        return {
+            time: sample.time,
+            dt: interval,
+            ax: detrendedX[index].value,
+            ay: detrendedY[index].value,
+            az: detrendedZ[index].value
+        };
+    });
+
+}
+
+
+function calculateMovingRms(data, windowSeconds) {
+
+    if (!data || data.length === 0) {
+        return [];
+    }
+
+    const interval =
+        Number(data[1] && data[1].time - data[0].time) ||
+        1 / 60;
+    const windowSamples = Math.max(
+        1,
+        Math.round(windowSeconds / interval)
+    );
+    const sums = {
+        ax: [0],
+        ay: [0],
+        az: [0]
+    };
+
+    data.forEach(function (sample, index) {
+        ["ax", "ay", "az"].forEach(function (component) {
+            const previous = sums[component][index];
+            sums[component].push(
+                previous + sample[component] * sample[component]
+            );
+        });
+    });
+
+    return data.map(function (sample, index) {
+        const first = Math.max(
+            0,
+            index + 1 - windowSamples
+        );
+        const count = index + 1 - first;
+        const values = {};
+
+        ["ax", "ay", "az"].forEach(function (component) {
+            values[component] = Math.sqrt(
+                Math.max(
+                    0,
+                    (sums[component][index + 1] - sums[component][first]) /
+                    count
+                )
+            );
+        });
+
+        return {
+            time: sample.time,
+            ax: values.ax,
+            ay: values.ay,
+            az: values.az
+        };
+    });
+
+}
+
+
+function updateRmsChart(data) {
+
+    if (!rmsChart || !data || data.length === 0) {
+        return;
+    }
+
+    const rmsData = calculateMovingRms(data, 1);
+    const components = ["ax", "ay", "az"];
+
+    components.forEach(function (component, index) {
+        rmsChart.data.datasets[index].data = rmsData.map(function (sample) {
+            return {
+                x: sample.time,
+                y: sample[component]
+            };
+        });
+    });
+
+    const maximum = Math.max(
+        0.01,
+        ...rmsData.flatMap(function (sample) {
+            return [sample.ax, sample.ay, sample.az];
+        })
+    );
+    const yLimit = Math.max(
+        0.01,
+        maximum * 1.2
+    );
+    const xMax = Math.max(
+        rmsData[rmsData.length - 1].time,
+        0.001
+    );
+
+    rmsChart.options.scales.x.min = 0;
+    rmsChart.options.scales.x.max = xMax;
+    rmsChart.options.scales.y.min = 0;
+    rmsChart.options.scales.y.max = yLimit;
+    rmsChart.options.plugins.zoom.limits.x.min = 0;
+    rmsChart.options.plugins.zoom.limits.x.max = xMax;
+    rmsChart.options.plugins.zoom.limits.y.min = 0;
+    rmsChart.options.plugins.zoom.limits.y.max = yLimit;
+    rmsChart.update("none");
+
+}
+
+
 function updateChart(
     currentTime,
     complete = false
@@ -2476,10 +2948,15 @@ function updateChart(
        Solo enviamos a Chart.js
        los últimos 5 segundos.
     */
+    const chartSource =
+        complete && processedTestData.length > 0
+            ? processedTestData
+            : currentTestData;
+
     const visibleData =
         complete
-            ? currentTestData
-            : currentTestData.filter(
+            ? chartSource
+            : chartSource.filter(
 
             function (sample) {
 
@@ -2772,6 +3249,9 @@ function stopRecording() {
 
     if (currentTestData.length > 0) {
 
+        processedTestData =
+            buildProcessedSignal(currentTestData);
+
         updateChart(
             currentTestData[currentTestData.length - 1].time,
             true
@@ -2786,6 +3266,8 @@ function stopRecording() {
         function () {
 
             accelerationChart.resize();
+            spectrumChart.resize();
+            rmsChart.resize();
 
         },
         50
@@ -2852,7 +3334,9 @@ function stopRecording() {
 
         });
 
-        updateSpectrumChart(currentTestData, true);
+        updateSpectrumChart(processedTestData, true);
+
+        updateRmsChart(processedTestData);
 
 
         /*
@@ -2897,7 +3381,7 @@ function disableChartNavigation() {
 
 function setChartNavigationEnabled(enabled) {
 
-    [accelerationChart, spectrumChart].forEach(function (chart) {
+    [accelerationChart, spectrumChart, rmsChart].forEach(function (chart) {
 
         if (!chart) {
             return;
@@ -3336,6 +3820,9 @@ newTestButton.addEventListener(
         currentTestData =
             [];
 
+        processedTestData =
+            [];
+
 
         elapsedTimeElement.textContent =
             "00:00.00";
@@ -3421,6 +3908,13 @@ newTestButton.addEventListener(
         accelerationChart.update(
             "none"
         );
+
+        if (rmsChart) {
+            rmsChart.data.datasets.forEach(function (dataset) {
+                dataset.data = [];
+            });
+            rmsChart.update("none");
+        }
 
 
         finishedTestButtons.style.display =

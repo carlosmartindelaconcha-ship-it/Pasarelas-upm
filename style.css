@@ -528,6 +528,34 @@ button:hover {
 }
 
 
+#rmsPanel {
+
+    margin-top: 18px;
+    border-top: 1px solid #dddddd;
+    padding-top: 12px;
+
+}
+
+
+#rmsPanel h3 {
+
+    margin: 0;
+    text-align: left;
+    font-size: 17px;
+    line-height: 1.2;
+    font-weight: 700;
+    white-space: nowrap;
+
+}
+
+
+.rms-chart-wrap {
+
+    height: 320px;
+
+}
+
+
 /* =========================================================
    VALORES INSTANTÁNEOS
    ========================================================= */
@@ -741,7 +769,8 @@ footer {
 
 
     .temporal-chart-wrap,
-    .spectrum-chart-wrap {
+    .spectrum-chart-wrap,
+    .rms-chart-wrap {
 
         height: 260px;
 
@@ -914,6 +943,13 @@ body.recording-lock main {
 #testForm.measurement-active #finishedTestButtons {
 
     display: none !important;
+
+}
+
+
+#testForm.measurement-active #rmsPanel {
+
+    display: none;
 
 }
 
