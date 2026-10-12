@@ -75,6 +75,9 @@ const cameraSection =
 const cameraPreview =
     document.getElementById("cameraPreview");
 
+const cameraPreviewCanvas =
+    document.getElementById("cameraPreviewCanvas");
+
 const cameraCanvas =
     document.getElementById("cameraCanvas");
 
@@ -188,6 +191,8 @@ let bridgeMarker = null;
 let selectedPhotos = [];
 
 let cameraStream = null;
+
+let cameraPreviewFrameId = null;
 
 
 /* =========================================================
@@ -793,6 +798,8 @@ openCameraButton.addEventListener(
             cameraPreview.srcObject =
                 cameraStream;
 
+            startCameraPreviewRendering();
+
 
             cameraSection.style.display =
                 "block";
@@ -936,6 +943,26 @@ function stopCamera() {
         null;
 
 
+    if (cameraPreviewFrameId !== null) {
+
+        cancelAnimationFrame(cameraPreviewFrameId);
+
+        cameraPreviewFrameId = null;
+
+    }
+
+
+    const previewContext =
+        cameraPreviewCanvas.getContext("2d");
+
+    previewContext.clearRect(
+        0,
+        0,
+        cameraPreviewCanvas.width,
+        cameraPreviewCanvas.height
+    );
+
+
     cameraStream =
         null;
 
@@ -946,6 +973,68 @@ function stopCamera() {
 
     openCameraButton.style.display =
         "block";
+
+}
+
+
+/*
+   El vídeo nativo de algunos móviles no respeta el recorte CSS.
+   Dibujarlo en canvas permite mostrarlo siempre con bordes redondeados.
+*/
+function startCameraPreviewRendering() {
+
+    if (cameraPreviewFrameId !== null) {
+        cancelAnimationFrame(cameraPreviewFrameId);
+    }
+
+    const previewContext =
+        cameraPreviewCanvas.getContext("2d");
+
+
+    function drawFrame() {
+
+        if (
+            cameraStream !== null &&
+            cameraPreview.readyState >= 2 &&
+            cameraPreview.videoWidth > 0 &&
+            cameraPreview.videoHeight > 0
+        ) {
+
+            if (
+                cameraPreviewCanvas.width !==
+                cameraPreview.videoWidth ||
+                cameraPreviewCanvas.height !==
+                cameraPreview.videoHeight
+            ) {
+
+                cameraPreviewCanvas.width =
+                    cameraPreview.videoWidth;
+
+                cameraPreviewCanvas.height =
+                    cameraPreview.videoHeight;
+
+            }
+
+            previewContext.drawImage(
+                cameraPreview,
+                0,
+                0,
+                cameraPreviewCanvas.width,
+                cameraPreviewCanvas.height
+            );
+
+        }
+
+        if (cameraStream !== null) {
+            cameraPreviewFrameId =
+                requestAnimationFrame(drawFrame);
+        }
+
+    }
+
+
+    cameraPreviewFrameId =
+        requestAnimationFrame(drawFrame);
 
 }
 

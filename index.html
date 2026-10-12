@@ -14,7 +14,7 @@
     <title>Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261012-camera-preview-rounded-mask">
+    <link rel="stylesheet" href="style.css?v=20261012-camera-canvas-preview">
 
     <!-- MapLibre -->
     <link
@@ -211,7 +211,10 @@
                         id="cameraPreview"
                         autoplay
                         playsinline
+                        muted
                     ></video>
+
+                    <canvas id="cameraPreviewCanvas"></canvas>
 
                 </div>
 
@@ -520,7 +523,7 @@
     </script>
 
     <!-- Nuestro JavaScript -->
-    <script src="app.js?v=20261012-camera-preview-rounded-mask"></script>
+    <script src="app.js?v=20261012-camera-canvas-preview"></script>
 
 
 </body>
