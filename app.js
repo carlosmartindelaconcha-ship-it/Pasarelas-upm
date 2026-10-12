@@ -1412,7 +1412,7 @@ function getSpectrumInitialYLimit() {
         })
     );
 
-    return roundedUpperLimit(maximum * 1.2);
+    return roundedSpectrumUpperLimit(maximum * 1.2);
 
 }
 
@@ -2696,6 +2696,22 @@ function roundedUpperLimit(value) {
 }
 
 
+/* El espectro usa una resolución más fina que la señal temporal. */
+function roundedSpectrumUpperLimit(value) {
+
+    const validValue =
+        Number.isFinite(value) && value > 0
+            ? value
+            : 0;
+
+    return Math.max(
+        0.01,
+        Math.ceil(validValue * 100) / 100
+    );
+
+}
+
+
 function getUniformSampleInterval(data) {
 
     const intervals = data
@@ -3671,7 +3687,7 @@ function updateSpectrumChart(data, resetZoom = true) {
     );
 
     const spectrumYLimit = resetZoom
-        ? roundedUpperLimit(
+        ? roundedSpectrumUpperLimit(
               maximumSpectrumAmplitude *
               1.2
           )
