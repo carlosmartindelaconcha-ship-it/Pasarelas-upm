@@ -149,38 +149,11 @@ const azValue =
 const spectrumCanvas =
     document.getElementById("spectrumChart");
 
-const rmsCanvas =
-    document.getElementById("rmsChart");
-
-const psdCanvas =
-    document.getElementById("psdChart");
-
 const resetTemporalZoomButton =
     document.getElementById("resetTemporalZoom");
 
 const resetSpectrumZoomButton =
     document.getElementById("resetSpectrumZoom");
-
-const resetRmsZoomButton =
-    document.getElementById("resetRmsZoom");
-
-const resetPsdZoomButton =
-    document.getElementById("resetPsdZoom");
-
-const resultSummaryElements = {
-    axPeak: document.getElementById("axPeakValue"),
-    ayPeak: document.getElementById("ayPeakValue"),
-    azPeak: document.getElementById("azPeakValue"),
-    axRms: document.getElementById("axRmsPeakValue"),
-    ayRms: document.getElementById("ayRmsPeakValue"),
-    azRms: document.getElementById("azRmsPeakValue"),
-    axFrequency: document.getElementById("axPeakFrequency"),
-    ayFrequency: document.getElementById("ayPeakFrequency"),
-    azFrequency: document.getElementById("azPeakFrequency"),
-    duration: document.getElementById("totalDurationValue"),
-    samples: document.getElementById("totalSamplesValue"),
-    dt: document.getElementById("averageDtValue")
-};
 
 
 /* =========================================================
@@ -217,20 +190,11 @@ let recordingStartTime = null;
 
 let currentTestData = [];
 
-let processedTestData = [];
-
 let tests = [];
 
 let accelerationChart = null;
 
 let spectrumChart = null;
-
-/* Límite vertical de referencia de la gráfica de resultados. */
-let spectrumInitialYLimit = 0.01;
-
-let rmsChart = null;
-
-let psdChart = null;
 
 let lastChartUpdate = 0;
 
@@ -990,12 +954,14 @@ continueToTestsButton.addEventListener(
             "block";
 
 
-        if (accelerationChart === null) {
-            createAccelerationChart();
-        }
+        if (
+            accelerationChart === null
+        ) {
 
-        if (spectrumChart === null) {
+            createAccelerationChart();
+
             createSpectrumChart();
+
         }
 
     }
@@ -1419,488 +1385,28 @@ function resetTemporalView() {
 }
 
 
-function getSpectrumInitialYLimit() {
-
-    if (!spectrumChart) {
-        return spectrumInitialYLimit;
-    }
-
-    const resultView =
-        testForm &&
-        testForm.classList.contains("result-ready");
-
-    if (
-        resultView &&
-        Number.isFinite(spectrumInitialYLimit) &&
-        spectrumInitialYLimit > 0
-    ) {
-        return spectrumInitialYLimit;
-    }
-
-    const maximum = Math.max(
-        0,
-        ...spectrumChart.data.datasets.flatMap(function (dataset) {
-            return dataset.data.map(function (point) {
-                return Number(point.y) || 0;
-            });
-        })
-    );
-
-    return resultView
-        ? roundUpToScale(maximum * 1.2, 0.01)
-        : roundedUpperLimit(maximum * 1.2);
-
-}
-
-
-function roundUpToScale(value, scale) {
-
-    const safeScale = Number(scale) > 0 ? Number(scale) : 0.01;
-    const safeValue = Number.isFinite(Number(value))
-        ? Math.max(0, Number(value))
-        : 0;
-
-    return Math.max(
-        safeScale,
-        Math.ceil((safeValue - Number.EPSILON) / safeScale) * safeScale
-    );
-
-}
-
-
 function resetSpectrumView() {
 
-    const yMax = getSpectrumInitialYLimit();
-
-    spectrumChart.options.plugins.zoom.limits.x.min = 0;
-    spectrumChart.options.plugins.zoom.limits.x.max = 30;
-    spectrumChart.options.plugins.zoom.limits.y.min = 0;
-    spectrumChart.options.plugins.zoom.limits.y.max = yMax;
+    const yMax = Math.max(
+        spectrumChart.options.plugins.zoom.limits.y.max,
+        1
+    );
 
     if (typeof spectrumChart.resetZoom === "function") {
         spectrumChart.resetZoom("none");
     }
 
-    applyChartZoomScale(
-        spectrumChart,
-        "x",
-        0,
-        30
-    );
-    applyChartZoomScale(
-        spectrumChart,
-        "y",
-        0,
-        yMax
-    );
+    spectrumChart.options.scales.x.min = 0;
+    spectrumChart.options.scales.x.max = 30;
+    spectrumChart.options.scales.y.min = 0;
+    spectrumChart.options.scales.y.max = yMax;
+    spectrumChart.scales.x.options.min = 0;
+    spectrumChart.scales.x.options.max = 30;
+    spectrumChart.scales.y.options.min = 0;
+    spectrumChart.scales.y.options.max = yMax;
     spectrumChart.setActiveElements([]);
     spectrumChart.tooltip.setActiveElements([], { x: 0, y: 0 });
     spectrumChart.update("none");
-
-}
-
-
-function applyChartZoomScale(chart, axis, min, max) {
-
-    if (
-        chart &&
-        typeof chart.zoomScale === "function"
-    ) {
-        chart.zoomScale(
-            axis,
-            {
-                min: min,
-                max: max
-            },
-            "none"
-        );
-    }
-
-    chart.options.scales[axis].min = min;
-    chart.options.scales[axis].max = max;
-    chart.scales[axis].options.min = min;
-    chart.scales[axis].options.max = max;
-
-}
-
-
-function createRmsChart() {
-
-    if (!rmsCanvas) {
-        return;
-    }
-
-    rmsChart = new Chart(
-        rmsCanvas.getContext("2d"),
-        {
-            type: "line",
-            data: {
-                datasets: [
-                    {
-                        label: "X",
-                        data: [],
-                        borderColor: "#1565c0",
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        fill: false
-                    },
-                    {
-                        label: "Y",
-                        data: [],
-                        borderColor: "#c62828",
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        fill: false
-                    },
-                    {
-                        label: "Z",
-                        data: [],
-                        borderColor: "#2e7d32",
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        fill: false
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                parsing: false,
-                onClick: function (event, elements, chart) {
-                    showClickedValue(event, elements, chart);
-                },
-                scales: {
-                    x: {
-                        type: "linear",
-                        min: 0,
-                        max: 1,
-                        title: {
-                            display: true,
-                            text: "Tiempo (s)"
-                        },
-                        grid: {
-                            color: "rgba(0,0,0,0.08)"
-                        }
-                    },
-                    y: {
-                        min: 0,
-                        max: 1,
-                        title: {
-                            display: true,
-                            text: "RMS (m/s²)"
-                        },
-                        grid: {
-                            color: "rgba(0,0,0,0.08)"
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: true
-                    },
-                    tooltip: {
-                        callbacks: {
-                            title: function (items) {
-                                return "t = " +
-                                    items[0].parsed.x.toFixed(3) +
-                                    " s";
-                            },
-                            label: function (item) {
-                                return item.dataset.label +
-                                    ": " +
-                                    item.parsed.y.toFixed(4) +
-                                    " m/s²";
-                            }
-                        }
-                    },
-                    zoom: {
-                        pan: {
-                            enabled: true,
-                            mode: "xy",
-                            onPan: function (context) {
-                                clampRmsAxes(context.chart);
-                            },
-                            onPanComplete: function (context) {
-                                clampRmsAxes(context.chart);
-                            }
-                        },
-                        zoom: {
-                            wheel: {
-                                enabled: true
-                            },
-                            pinch: {
-                                enabled: true
-                            },
-                            mode: "xy",
-                            onZoom: function (context) {
-                                clampRmsAxes(context.chart);
-                            },
-                            onZoomComplete: function (context) {
-                                clampRmsAxes(context.chart);
-                            }
-                        },
-                        limits: {
-                            x: {
-                                min: 0,
-                                max: 1
-                            },
-                            y: {
-                                min: 0,
-                                max: 1
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    );
-
-}
-
-
-function createPsdChart() {
-
-    if (!psdCanvas) {
-        return;
-    }
-
-    psdChart = new Chart(
-        psdCanvas.getContext("2d"),
-        {
-            type: "line",
-            data: {
-                datasets: [
-                    {
-                        label: "X",
-                        data: [],
-                        borderColor: "#1565c0",
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        fill: false
-                    },
-                    {
-                        label: "Y",
-                        data: [],
-                        borderColor: "#c62828",
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        fill: false
-                    },
-                    {
-                        label: "Z",
-                        data: [],
-                        borderColor: "#2e7d32",
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        fill: false
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                parsing: false,
-                onClick: function (event, elements, chart) {
-                    showClickedValue(event, elements, chart);
-                },
-                scales: {
-                    x: {
-                        type: "linear",
-                        min: 0,
-                        max: 30,
-                        title: {
-                            display: true,
-                            text: "Frecuencia (Hz)"
-                        },
-                        grid: {
-                            color: "rgba(0,0,0,0.08)"
-                        }
-                    },
-                    y: {
-                        min: 0,
-                        max: 1,
-                        title: {
-                            display: true,
-                            text: "PSD"
-                        },
-                        grid: {
-                            color: "rgba(0,0,0,0.08)"
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: true
-                    },
-                    tooltip: {
-                        callbacks: {
-                            title: function (items) {
-                                return "f = " +
-                                    items[0].parsed.x.toFixed(3) +
-                                    " Hz";
-                            },
-                            label: function (item) {
-                                return item.dataset.label +
-                                    ": " +
-                                    item.parsed.y.toExponential(4);
-                            }
-                        }
-                    },
-                    zoom: {
-                        pan: {
-                            enabled: true,
-                            mode: "xy",
-                            onPan: function (context) {
-                                clampSpectrumAxes(context.chart);
-                            },
-                            onPanComplete: function (context) {
-                                clampSpectrumAxes(context.chart);
-                            }
-                        },
-                        zoom: {
-                            wheel: {
-                                enabled: true
-                            },
-                            pinch: {
-                                enabled: true
-                            },
-                            mode: "xy",
-                            onZoom: function (context) {
-                                clampSpectrumAxes(context.chart);
-                            },
-                            onZoomComplete: function (context) {
-                                clampSpectrumAxes(context.chart);
-                            }
-                        },
-                        limits: {
-                            x: {
-                                min: 0,
-                                max: 30
-                            },
-                            y: {
-                                min: 0,
-                                max: 1
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    );
-
-}
-
-
-function clampRmsAxes(chart) {
-
-    const duration =
-        processedTestData.length > 0
-            ? processedTestData[processedTestData.length - 1].time
-            : 1;
-
-    const yLimit = Math.max(
-        chart.options.plugins.zoom.limits.y.max || 0.01,
-        0.01
-    );
-
-    chart.options.plugins.zoom.limits.x.min = 0;
-    chart.options.plugins.zoom.limits.x.max = Math.max(duration, 0.001);
-    chart.options.plugins.zoom.limits.y.min = 0;
-    chart.options.plugins.zoom.limits.y.max = yLimit;
-
-    chart.options.scales.x.min = Math.max(
-        0,
-        Math.min(chart.scales.x.min, duration)
-    );
-    chart.options.scales.x.max = Math.min(
-        duration,
-        Math.max(chart.scales.x.max, 0.001)
-    );
-    chart.options.scales.y.min = 0;
-    chart.options.scales.y.max = Math.min(
-        yLimit,
-        Math.max(chart.scales.y.max, 0.01)
-    );
-
-}
-
-
-function resetRmsView() {
-
-    const xMax = Math.max(
-        processedTestData.length > 0
-            ? processedTestData[processedTestData.length - 1].time
-            : 0.001,
-        0.001
-    );
-
-    const yMax = Math.max(
-        rmsChart.options.plugins.zoom.limits.y.max || 0.01,
-        0.01
-    );
-
-    if (typeof rmsChart.resetZoom === "function") {
-        rmsChart.resetZoom("none");
-    }
-
-    rmsChart.options.scales.x.min = 0;
-    rmsChart.options.scales.x.max = xMax;
-    rmsChart.options.scales.y.min = 0;
-    rmsChart.options.scales.y.max = yMax;
-    rmsChart.scales.x.options.min = 0;
-    rmsChart.scales.x.options.max = xMax;
-    rmsChart.scales.y.options.min = 0;
-    rmsChart.scales.y.options.max = yMax;
-    rmsChart.setActiveElements([]);
-    rmsChart.tooltip.setActiveElements([], { x: 0, y: 0 });
-    rmsChart.update("none");
-
-}
-
-
-function getPsdInitialYLimit() {
-
-    if (!psdChart) {
-        return 1;
-    }
-
-    const maximum = Math.max(
-        0,
-        ...psdChart.data.datasets.flatMap(function (dataset) {
-            return dataset.data.map(function (point) {
-                return Number(point.y) || 0;
-            });
-        })
-    );
-
-    return Math.max(
-        Number.EPSILON,
-        maximum * 1.2
-    );
-
-}
-
-
-function resetPsdView() {
-
-    const yMax = getPsdInitialYLimit();
-
-    psdChart.options.plugins.zoom.limits.x.min = 0;
-    psdChart.options.plugins.zoom.limits.x.max = 30;
-    psdChart.options.plugins.zoom.limits.y.min = 0;
-    psdChart.options.plugins.zoom.limits.y.max = yMax;
-
-    if (typeof psdChart.resetZoom === "function") {
-        psdChart.resetZoom("none");
-    }
-
-    applyChartZoomScale(psdChart, "x", 0, 30);
-    applyChartZoomScale(psdChart, "y", 0, yMax);
-    psdChart.setActiveElements([]);
-    psdChart.tooltip.setActiveElements([], { x: 0, y: 0 });
-    psdChart.update("none");
 
 }
 
@@ -1921,28 +1427,6 @@ resetSpectrumZoomButton.addEventListener("click", function () {
     }
 
 });
-
-
-if (resetRmsZoomButton) {
-    resetRmsZoomButton.addEventListener("click", function () {
-
-        if (rmsChart) {
-            resetRmsView();
-        }
-
-    });
-}
-
-
-if (resetPsdZoomButton) {
-    resetPsdZoomButton.addEventListener("click", function () {
-
-        if (psdChart) {
-            resetPsdView();
-        }
-
-    });
-}
 
 
 /* =========================================================
@@ -2085,21 +1569,6 @@ async function startRecording() {
     }
 
 
-    [rmsChart, psdChart].forEach(function (chart) {
-
-        if (!chart) {
-            return;
-        }
-
-        chart.data.datasets.forEach(function (dataset) {
-            dataset.data = [];
-        });
-
-        chart.update("none");
-
-    });
-
-
     /*
        Reiniciamos indicadores.
     */
@@ -2189,10 +1658,6 @@ async function startRecording() {
         "measurement-active"
     );
 
-    testForm.classList.remove(
-        "result-ready"
-    );
-
 
     testDescription.disabled =
         true;
@@ -2214,10 +1679,7 @@ async function startRecording() {
     setTimeout(
         function () {
 
-            if (accelerationChart) accelerationChart.resize();
-            if (spectrumChart) spectrumChart.resize();
-            if (rmsChart) rmsChart.resize();
-            if (psdChart) psdChart.resize();
+            accelerationChart.resize();
 
         },
         50
@@ -2991,257 +2453,6 @@ function roundedUpperLimit(value) {
 }
 
 
-function getUniformSampleInterval(data) {
-
-    const intervals = data
-        .map(function (sample) {
-            return Number(sample.dt);
-        })
-        .filter(function (value) {
-            return Number.isFinite(value) && value > 0;
-        })
-        .sort(function (a, b) {
-            return a - b;
-        });
-
-    if (intervals.length > 0) {
-        return intervals[Math.floor(intervals.length / 2)];
-    }
-
-    const duration =
-        data[data.length - 1].time - data[0].time;
-
-    return duration > 0
-        ? duration / Math.max(data.length - 1, 1)
-        : 1 / 60;
-
-}
-
-
-function interpolateSignal(data, time, component, startIndex) {
-
-    let index = startIndex;
-
-    while (
-        index < data.length - 2 &&
-        data[index + 1].time < time
-    ) {
-        index += 1;
-    }
-
-    const first = data[index];
-    const second = data[Math.min(index + 1, data.length - 1)];
-    const interval = second.time - first.time;
-
-    if (!Number.isFinite(interval) || interval <= 0) {
-        return Number(first[component]) || 0;
-    }
-
-    const ratio = Math.max(
-        0,
-        Math.min(1, (time - first.time) / interval)
-    );
-
-    return (
-        (Number(first[component]) || 0) * (1 - ratio) +
-        (Number(second[component]) || 0) * ratio
-    );
-
-}
-
-
-function detrendSignal(data, component) {
-
-    const n = data.length;
-    let sumTime = 0;
-    let sumValue = 0;
-    let sumTimeSquared = 0;
-    let sumTimeValue = 0;
-
-    data.forEach(function (sample) {
-        const time = sample.time;
-        const value = sample[component];
-        sumTime += time;
-        sumValue += value;
-        sumTimeSquared += time * time;
-        sumTimeValue += time * value;
-    });
-
-    const denominator =
-        n * sumTimeSquared - sumTime * sumTime;
-    const slope = Math.abs(denominator) > 1e-12
-        ? (n * sumTimeValue - sumTime * sumValue) / denominator
-        : 0;
-    const intercept =
-        (sumValue - slope * sumTime) / Math.max(n, 1);
-
-    return data.map(function (sample) {
-        return {
-            time: sample.time,
-            value: sample[component] - (intercept + slope * sample.time)
-        };
-    });
-
-}
-
-
-function buildProcessedSignal(data) {
-
-    if (!data || data.length < 2) {
-        return [];
-    }
-
-    const interval = getUniformSampleInterval(data);
-    const duration =
-        data[data.length - 1].time - data[0].time;
-    const count = Math.max(
-        2,
-        Math.floor(duration / interval) + 1
-    );
-    const uniform = [];
-    let sourceIndex = 0;
-
-    for (let index = 0; index < count; index += 1) {
-        const time = Math.min(
-            duration,
-            index * interval
-        );
-
-        uniform.push({
-            time: time,
-            ax: interpolateSignal(data, time + data[0].time, "ax", sourceIndex),
-            ay: interpolateSignal(data, time + data[0].time, "ay", sourceIndex),
-            az: interpolateSignal(data, time + data[0].time, "az", sourceIndex)
-        });
-
-        while (
-            sourceIndex < data.length - 2 &&
-            data[sourceIndex + 1].time < time + data[0].time
-        ) {
-            sourceIndex += 1;
-        }
-    }
-
-    const detrendedX = detrendSignal(uniform, "ax");
-    const detrendedY = detrendSignal(uniform, "ay");
-    const detrendedZ = detrendSignal(uniform, "az");
-
-    return uniform.map(function (sample, index) {
-        return {
-            time: sample.time,
-            dt: interval,
-            ax: detrendedX[index].value,
-            ay: detrendedY[index].value,
-            az: detrendedZ[index].value
-        };
-    });
-
-}
-
-
-function calculateMovingRms(data, windowSeconds) {
-
-    if (!data || data.length === 0) {
-        return [];
-    }
-
-    const interval =
-        Number(data[1] && data[1].time - data[0].time) ||
-        1 / 60;
-    const windowSamples = Math.max(
-        1,
-        Math.round(windowSeconds / interval)
-    );
-    const sums = {
-        ax: [0],
-        ay: [0],
-        az: [0]
-    };
-
-    data.forEach(function (sample, index) {
-        ["ax", "ay", "az"].forEach(function (component) {
-            const previous = sums[component][index];
-            sums[component].push(
-                previous + sample[component] * sample[component]
-            );
-        });
-    });
-
-    return data.map(function (sample, index) {
-        const first = Math.max(
-            0,
-            index + 1 - windowSamples
-        );
-        const count = index + 1 - first;
-        const values = {};
-
-        ["ax", "ay", "az"].forEach(function (component) {
-            values[component] = Math.sqrt(
-                Math.max(
-                    0,
-                    (sums[component][index + 1] - sums[component][first]) /
-                    count
-                )
-            );
-        });
-
-        return {
-            time: sample.time,
-            ax: values.ax,
-            ay: values.ay,
-            az: values.az
-        };
-    });
-
-}
-
-
-function updateRmsChart(data) {
-
-    if (!rmsChart || !data || data.length === 0) {
-        return;
-    }
-
-    const rmsData = calculateMovingRms(data, 1);
-    const components = ["ax", "ay", "az"];
-
-    components.forEach(function (component, index) {
-        rmsChart.data.datasets[index].data = rmsData.map(function (sample) {
-            return {
-                x: sample.time,
-                y: sample[component]
-            };
-        });
-    });
-
-    const maximum = Math.max(
-        0.01,
-        ...rmsData.flatMap(function (sample) {
-            return [sample.ax, sample.ay, sample.az];
-        })
-    );
-    const yLimit = Math.max(
-        0.01,
-        maximum * 1.2
-    );
-    const xMax = Math.max(
-        rmsData[rmsData.length - 1].time,
-        0.001
-    );
-
-    rmsChart.options.scales.x.min = 0;
-    rmsChart.options.scales.x.max = xMax;
-    rmsChart.options.scales.y.min = 0;
-    rmsChart.options.scales.y.max = yLimit;
-    rmsChart.options.plugins.zoom.limits.x.min = 0;
-    rmsChart.options.plugins.zoom.limits.x.max = xMax;
-    rmsChart.options.plugins.zoom.limits.y.min = 0;
-    rmsChart.options.plugins.zoom.limits.y.max = yLimit;
-    rmsChart.update("none");
-
-}
-
-
 function updateChart(
     currentTime,
     complete = false
@@ -3265,15 +2476,10 @@ function updateChart(
        Solo enviamos a Chart.js
        los últimos 5 segundos.
     */
-    const chartSource =
-        complete && processedTestData.length > 0
-            ? processedTestData
-            : currentTestData;
-
     const visibleData =
         complete
-            ? chartSource
-            : chartSource.filter(
+            ? currentTestData
+            : currentTestData.filter(
 
             function (sample) {
 
@@ -3396,7 +2602,7 @@ function updateChart(
        Autoescala vertical.
     */
     let maximumAcceleration =
-        0;
+        0.1;
 
 
     visibleData.forEach(
@@ -3431,16 +2637,10 @@ function updateChart(
        15 % de margen.
     */
     const yLimit =
-        complete
-            ? roundedUpperLimit(
-                  maximumAcceleration *
-                  1.2
-              )
-            : Math.max(
-                  0.01,
-                  maximumAcceleration *
-                  1.2
-              );
+        roundedUpperLimit(
+            maximumAcceleration *
+            1.2
+        );
 
 
     accelerationChart
@@ -3563,23 +2763,8 @@ function stopRecording() {
         "measurement-active"
     );
 
-    testForm.classList.add(
-        "result-ready"
-    );
-
-    if (rmsChart === null) {
-        createRmsChart();
-    }
-
-    if (psdChart === null) {
-        createPsdChart();
-    }
-
 
     if (currentTestData.length > 0) {
-
-        processedTestData =
-            buildProcessedSignal(currentTestData);
 
         updateChart(
             currentTestData[currentTestData.length - 1].time,
@@ -3594,10 +2779,7 @@ function stopRecording() {
     setTimeout(
         function () {
 
-            if (accelerationChart) accelerationChart.resize();
-            if (spectrumChart) spectrumChart.resize();
-            if (rmsChart) rmsChart.resize();
-            if (psdChart) psdChart.resize();
+            accelerationChart.resize();
 
         },
         50
@@ -3664,16 +2846,7 @@ function stopRecording() {
 
         });
 
-        updateSpectrumChart(processedTestData, true);
-
-        updateRmsChart(processedTestData);
-
-        updatePsdChart(processedTestData);
-
-        updateResultSummary(
-            currentTestData,
-            processedTestData
-        );
+        updateSpectrumChart(currentTestData, true);
 
 
         /*
@@ -3718,7 +2891,7 @@ function disableChartNavigation() {
 
 function setChartNavigationEnabled(enabled) {
 
-    [accelerationChart, spectrumChart, rmsChart, psdChart].forEach(function (chart) {
+    [accelerationChart, spectrumChart].forEach(function (chart) {
 
         if (!chart) {
             return;
@@ -3857,48 +3030,55 @@ function clampSpectrumAxes(chart) {
     const y = chart.scales.y;
     const xLower = 0;
     const xUpper = 30;
-    const yLower = 0;
-    const yUpper = Math.max(
-        0.01,
-        Number(chart.options.plugins.zoom.limits.y.max) || 0.01
-    );
-    const xRange = Math.max(0, x.max - x.min);
-    const yRange = Math.max(0, y.max - y.min);
+    const xRange = x.max - x.min;
 
-    let xMin;
-    let xMax;
+    let xMin = x.min;
+    let xMax = x.max;
 
     if (xRange >= xUpper - xLower) {
         xMin = xLower;
         xMax = xUpper;
     } else {
-        xMin = Math.max(xLower, Math.min(x.min, xUpper - xRange));
-        xMax = xMin + xRange;
+        if (xMin < xLower) {
+            xMin = xLower;
+            xMax = xMin + xRange;
+        }
+
+        if (xMax > xUpper) {
+            xMax = xUpper;
+            xMin = xMax - xRange;
+        }
     }
 
-    let yMin;
-    let yMax;
+    let yMin = y.min;
+    let yMax = y.max;
 
-    if (yRange >= yUpper) {
-        yMin = yLower;
+    const yUpper =
+        chart.options.plugins.zoom.limits.y.max;
+
+    if (yMax - yMin >= yUpper) {
+        yMin = 0;
         yMax = yUpper;
-    } else {
-        yMin = Math.max(yLower, Math.min(y.min, yUpper - yRange));
-        yMax = yMin + yRange;
     }
 
-    applyChartZoomScale(
-        chart,
-        "x",
-        xMin,
-        xMax
-    );
-    applyChartZoomScale(
-        chart,
-        "y",
-        yMin,
-        yMax
-    );
+    if (yMin < 0) {
+        yMax -= yMin;
+        yMin = 0;
+    }
+
+    if (yMax > yUpper) {
+        yMax = yUpper;
+        yMin = Math.max(0, yMax - (y.max - y.min));
+    }
+
+    chart.options.scales.x.min = xMin;
+    chart.options.scales.x.max = xMax;
+    chart.options.scales.y.min = yMin;
+    chart.options.scales.y.max = yMax;
+    x.options.min = xMin;
+    x.options.max = xMax;
+    y.options.min = yMin;
+    y.options.max = yMax;
     chart.update("none");
 
 }
@@ -3989,33 +3169,14 @@ function updateSpectrumChart(data, resetZoom = true) {
         })
     );
 
-    const calculatedSpectrumYLimit = roundUpToScale(
-        maximumSpectrumAmplitude * 1.2,
-        0.01
+    const spectrumYLimit = roundedUpperLimit(
+        maximumSpectrumAmplitude * 1.2
     );
-
-    /*
-       El límite inicial se fija al terminar el ensayo. Durante la
-       adquisición no se sustituye, para que Restablecer zoom vuelva
-       exactamente a la vista inicial de resultados.
-    */
-    if (resetZoom) {
-        spectrumInitialYLimit = calculatedSpectrumYLimit;
-    }
-
-    const spectrumYLimit = resetZoom
-        ? spectrumInitialYLimit
-        : Math.max(
-              0.01,
-              maximumSpectrumAmplitude * 1.2
-          );
 
     spectrumChart.options.scales.x.min = 0;
     spectrumChart.options.scales.x.max = 30;
     spectrumChart.options.scales.y.min = 0;
     spectrumChart.options.scales.y.max = spectrumYLimit;
-    spectrumChart.options.plugins.zoom.limits.x.min = 0;
-    spectrumChart.options.plugins.zoom.limits.x.max = 30;
     spectrumChart.options.plugins.zoom.limits.y.min = 0;
     spectrumChart.options.plugins.zoom.limits.y.max = spectrumYLimit;
     if (
@@ -4025,222 +3186,6 @@ function updateSpectrumChart(data, resetZoom = true) {
         spectrumChart.resetZoom();
     }
     spectrumChart.update("none");
-
-}
-
-
-function calculateWelchPsd(source, component, sampleRate) {
-
-    const windowCount = 5;
-    const segmentLength = Math.floor(
-        source.length / (1 + 0.5 * (windowCount - 1))
-    );
-
-    if (segmentLength < 4 || !Number.isFinite(sampleRate) || sampleRate <= 0) {
-        return [];
-    }
-
-    const step = Math.max(
-        1,
-        Math.floor(segmentLength * 0.5)
-    );
-    const fftLength = nextPowerOfTwo(segmentLength);
-    const window = new Array(segmentLength);
-    let windowPower = 0;
-
-    for (let index = 0; index < segmentLength; index += 1) {
-        window[index] = 0.5 -
-            0.5 * Math.cos(2 * Math.PI * index / (segmentLength - 1));
-        windowPower += window[index] * window[index];
-    }
-
-    const accumulated = new Array(
-        Math.floor(fftLength / 2) + 1
-    ).fill(0);
-    let usedWindows = 0;
-
-    for (
-        let start = 0;
-        start + segmentLength <= source.length && usedWindows < windowCount;
-        start += step
-    ) {
-        const values = new Array(fftLength).fill(0);
-        let mean = 0;
-
-        for (let index = 0; index < segmentLength; index += 1) {
-            mean += Number(source[start + index][component]) || 0;
-        }
-        mean /= segmentLength;
-
-        for (let index = 0; index < segmentLength; index += 1) {
-            values[index] =
-                ((Number(source[start + index][component]) || 0) - mean) *
-                window[index];
-        }
-
-        const real = values;
-        const imag = new Array(fftLength).fill(0);
-        fft(real, imag);
-
-        for (let bin = 0; bin <= fftLength / 2; bin += 1) {
-            const power =
-                (real[bin] * real[bin] + imag[bin] * imag[bin]) /
-                (sampleRate * windowPower);
-            accumulated[bin] += power;
-        }
-
-        usedWindows += 1;
-    }
-
-    if (usedWindows === 0) {
-        return [];
-    }
-
-    const resolution = sampleRate / fftLength;
-    const points = [];
-
-    for (let bin = 0; bin < accumulated.length; bin += 1) {
-        const frequency = bin * resolution;
-
-        if (frequency > 30) {
-            break;
-        }
-
-        let value = accumulated[bin] / usedWindows;
-
-        if (bin > 0 && bin < fftLength / 2) {
-            value *= 2;
-        }
-
-        points.push({
-            x: frequency,
-            y: value
-        });
-    }
-
-    return points;
-
-}
-
-
-function updatePsdChart(data) {
-
-    if (!psdChart || !data || data.length < 2) {
-        return;
-    }
-
-    const duration =
-        data[data.length - 1].time - data[0].time;
-    const sampleRate =
-        duration > 0
-            ? (data.length - 1) / duration
-            : 0;
-    const components = ["ax", "ay", "az"];
-
-    components.forEach(function (component, index) {
-        psdChart.data.datasets[index].data =
-            calculateWelchPsd(data, component, sampleRate);
-    });
-
-    const maximum = Math.max(
-        0,
-        ...psdChart.data.datasets.flatMap(function (dataset) {
-            return dataset.data.map(function (point) {
-                return point.y;
-            });
-        })
-    );
-    const yLimit = Math.max(
-        Number.EPSILON,
-        maximum * 1.2
-    );
-
-    psdChart.options.scales.x.min = 0;
-    psdChart.options.scales.x.max = 30;
-    psdChart.options.scales.y.min = 0;
-    psdChart.options.scales.y.max = yLimit;
-    psdChart.options.plugins.zoom.limits.x.min = 0;
-    psdChart.options.plugins.zoom.limits.x.max = 30;
-    psdChart.options.plugins.zoom.limits.y.min = 0;
-    psdChart.options.plugins.zoom.limits.y.max = yLimit;
-    psdChart.update("none");
-
-}
-
-
-function getPeakAbsolute(data, component) {
-
-    return Math.max.apply(
-        null,
-        data.map(function (sample) {
-            return Math.abs(Number(sample[component]) || 0);
-        })
-    );
-
-}
-
-
-function getPeakFrequency(data, component) {
-
-    if (!data || data.length < 2) {
-        return 0;
-    }
-
-    const duration =
-        data[data.length - 1].time - data[0].time;
-    const sampleRate =
-        duration > 0
-            ? (data.length - 1) / duration
-            : 0;
-    const spectrum = calculateSpectrum(data, component, sampleRate)
-        .filter(function (point) {
-            return point.x > 0;
-        });
-
-    if (spectrum.length === 0) {
-        return 0;
-    }
-
-    return spectrum.reduce(function (best, point) {
-        return point.y > best.y ? point : best;
-    }).x;
-
-}
-
-
-function updateResultSummary(rawData, processedData) {
-
-    if (!rawData || rawData.length === 0 || !processedData.length) {
-        return;
-    }
-
-    const components = ["ax", "ay", "az"];
-    const rmsData = calculateMovingRms(processedData, 1);
-    const peakIds = ["axPeak", "ayPeak", "azPeak"];
-    const rmsIds = ["axRms", "ayRms", "azRms"];
-    const frequencyIds = ["axFrequency", "ayFrequency", "azFrequency"];
-
-    components.forEach(function (component, index) {
-        resultSummaryElements[peakIds[index]].textContent =
-            getPeakAbsolute(processedData, component).toFixed(4);
-        resultSummaryElements[rmsIds[index]].textContent =
-            Math.max.apply(null, rmsData.map(function (sample) {
-                return sample[component];
-            })).toFixed(4);
-        resultSummaryElements[frequencyIds[index]].textContent =
-            getPeakFrequency(processedData, component).toFixed(3);
-    });
-
-    const duration =
-        rawData[rawData.length - 1].time - rawData[0].time;
-    const dt = getUniformSampleInterval(rawData);
-
-    resultSummaryElements.duration.textContent =
-        duration.toFixed(3) + " s";
-    resultSummaryElements.samples.textContent =
-        rawData.length.toString();
-    resultSummaryElements.dt.textContent =
-        (dt * 1000).toFixed(3) + " ms";
 
 }
 
@@ -4378,9 +3323,6 @@ newTestButton.addEventListener(
         currentTestData =
             [];
 
-        processedTestData =
-            [];
-
 
         elapsedTimeElement.textContent =
             "00:00.00";
@@ -4467,27 +3409,9 @@ newTestButton.addEventListener(
             "none"
         );
 
-        if (rmsChart) {
-            rmsChart.data.datasets.forEach(function (dataset) {
-                dataset.data = [];
-            });
-            rmsChart.update("none");
-        }
-
-        if (psdChart) {
-            psdChart.data.datasets.forEach(function (dataset) {
-                dataset.data = [];
-            });
-            psdChart.update("none");
-        }
-
 
         finishedTestButtons.style.display =
             "none";
-
-        testForm.classList.remove(
-            "result-ready"
-        );
 
 
         testDescription.focus();

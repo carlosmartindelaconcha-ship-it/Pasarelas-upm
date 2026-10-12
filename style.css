@@ -528,160 +528,6 @@ button:hover {
 }
 
 
-#rmsPanel {
-
-    margin-top: 18px;
-    border-top: 1px solid #dddddd;
-    padding-top: 12px;
-
-}
-
-
-#rmsPanel h3 {
-
-    margin: 0;
-    text-align: left;
-    font-size: 17px;
-    line-height: 1.2;
-    font-weight: 700;
-    white-space: nowrap;
-
-}
-
-
-.rms-chart-wrap {
-
-    height: 320px;
-
-}
-
-
-#psdPanel {
-
-    margin-top: 18px;
-    border-top: 1px solid #dddddd;
-    padding-top: 12px;
-
-}
-
-
-#psdPanel h3 {
-
-    margin: 0;
-    text-align: left;
-    font-size: 17px;
-    line-height: 1.2;
-    font-weight: 700;
-    white-space: nowrap;
-
-}
-
-
-.psd-chart-wrap {
-
-    height: 320px;
-
-}
-
-
-#rmsPanel .chart-heading,
-#spectrumPanel .chart-heading,
-#psdPanel .chart-heading {
-
-    min-height: 34px;
-    margin-bottom: 8px;
-
-}
-
-
-#rmsPanel,
-#spectrumPanel,
-#psdPanel {
-
-    box-sizing: border-box;
-
-}
-
-
-#resultSummary {
-
-    display: none;
-
-}
-
-
-#testForm.result-ready #resultSummary {
-
-    display: block;
-
-}
-
-
-#testForm.result-ready #liveValues {
-
-    display: none;
-
-}
-
-
-.summary-row {
-
-    display: grid;
-    grid-template-columns: minmax(150px, 1.5fr) repeat(3, 1fr);
-    gap: 8px;
-    align-items: center;
-    padding: 8px 0;
-    margin-top: 8px;
-    padding: 10px;
-    background-color: #ffffff;
-    border: 1px solid #dddddd;
-    border-radius: 8px;
-
-}
-
-
-.summary-row strong,
-.summary-row span {
-
-    text-align: center;
-
-}
-
-
-.summary-row .summary-label {
-
-    text-align: left;
-    font-weight: 600;
-
-}
-
-
-.summary-row-metadata {
-
-    grid-template-columns: repeat(3, 1fr);
-    border-bottom: 1px solid #dddddd;
-
-}
-
-
-.summary-row-metadata div {
-
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    align-items: center;
-
-}
-
-
-.summary-row-metadata span {
-
-    color: #666666;
-    font-size: 12px;
-
-}
-
-
 /* =========================================================
    VALORES INSTANTÁNEOS
    ========================================================= */
@@ -895,8 +741,7 @@ footer {
 
 
     .temporal-chart-wrap,
-    .spectrum-chart-wrap,
-    .rms-chart-wrap {
+    .spectrum-chart-wrap {
 
         height: 260px;
 
@@ -1040,7 +885,13 @@ body.recording-lock main {
 /* Título */
 #testForm.measurement-active h2 {
 
-    display: none;
+    margin: 2px 0 6px 0;
+
+    font-size: 20px;
+
+    line-height: 1.2;
+
+    flex: 0 0 auto;
 
 }
 
@@ -1073,64 +924,13 @@ body.recording-lock main {
 }
 
 
-#testForm.measurement-active #rmsPanel {
-
-    display: none;
-
-}
-
-
-#testForm.measurement-active #psdPanel {
-
-    display: none;
-
-}
-
-
-#testForm.measurement-active #resultSummary {
-
-    display: none;
-
-}
-
-
-#testForm:not(.measurement-active) .temporal-panel {
-
-    order: 1;
-
-}
-
-
-#testForm:not(.measurement-active) #rmsPanel {
-
-    order: 2;
-
-}
-
-
-#testForm:not(.measurement-active) #spectrumPanel {
-
-    order: 3;
-
-}
-
-
-#testForm:not(.measurement-active) #psdPanel {
-
-    order: 4;
-
-}
-
-
 /* =========================================================
    GRÁFICA DURANTE LA MEDIDA
    ========================================================= */
 
 #testForm.measurement-active .chart-card {
 
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 0;
+    flex: 1 1 auto;
 
     min-height: 0;
 
@@ -1145,47 +945,18 @@ body.recording-lock main {
 }
 
 
-#testForm.measurement-active .measurement-chart-panel,
-#testForm.measurement-active #spectrumPanel {
+#testForm.measurement-active .temporal-chart-wrap {
 
-    flex: 1 1 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-
-}
-
-
-#testForm.measurement-active .temporal-panel {
-
-    margin: 0;
-
-}
-
-
-#testForm.measurement-active .temporal-chart-wrap,
-#testForm.measurement-active .spectrum-chart-wrap {
-
-    flex: 1 1 0;
-    min-height: 0;
+    flex: 1 1 auto;
+    min-height: 190px;
     height: auto;
-
-}
-
-
-#testForm.measurement-active .measurement-chart-panel .chart-heading,
-#testForm.measurement-active #spectrumPanel .chart-heading {
-
-    display: none;
 
 }
 
 
 #testForm.measurement-active #timeSignalTitle {
 
-    display: block;
-    font-size: 14px;
-    line-height: 1.2;
+    display: none;
 
 }
 
@@ -1199,9 +970,9 @@ body.recording-lock main {
 
 #testForm.measurement-active #spectrumPanel {
 
+    display: block;
     margin-top: 6px;
-    padding-top: 0;
-    border-top: 0;
+    padding-top: 5px;
 
 }
 
@@ -1216,8 +987,15 @@ body.recording-lock main {
 
 #testForm.measurement-active #spectrumPanel h3 {
 
-    font-size: 14px;
-    line-height: 1.2;
+    font-size: 13px;
+
+}
+
+
+#testForm.measurement-active .spectrum-chart-wrap {
+
+    flex: 0 0 120px;
+    height: 120px;
 
 }
 
@@ -1326,15 +1104,15 @@ body.recording-lock main {
 
     #testForm.measurement-active .temporal-chart-wrap {
 
-        min-height: 0;
+        min-height: 145px;
 
     }
 
 
     #testForm.measurement-active .spectrum-chart-wrap {
 
-        flex-basis: auto;
-        min-height: 0;
+        flex-basis: 95px;
+        height: 95px;
 
     }
 
