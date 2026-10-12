@@ -811,6 +811,7 @@ footer {
 
     .temporal-chart-wrap,
     .spectrum-chart-wrap,
+    .psd-chart-wrap,
     .rms-chart-wrap {
 
         height: 260px;

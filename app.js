@@ -1227,6 +1227,13 @@ function createAccelerationChart() {
                                 color:
                                     "rgba(0,0,0,0.08)"
 
+                            },
+
+                            ticks: {
+
+                                callback:
+                                    formatYAxisTick
+
                             }
 
                         }
@@ -1313,6 +1320,9 @@ function createSpectrumChart() {
                         },
                         grid: {
                             color: "rgba(0,0,0,0.08)"
+                        },
+                        ticks: {
+                            callback: formatYAxisTick
                         }
                     }
                 },
@@ -1453,6 +1463,9 @@ function createPsdChart() {
                         },
                         grid: {
                             color: "rgba(0,0,0,0.08)"
+                        },
+                        ticks: {
+                            callback: formatYAxisTick
                         }
                     }
                 },
@@ -1528,7 +1541,7 @@ function resetTemporalView() {
 
     const yMax = Math.max(
         accelerationChart.options.plugins.zoom.limits.y.max,
-        1
+        0.01
     );
 
     if (typeof accelerationChart.resetZoom === "function") {
@@ -1710,6 +1723,9 @@ function createRmsChart() {
                         },
                         grid: {
                             color: "rgba(0,0,0,0.08)"
+                        },
+                        ticks: {
+                            callback: formatYAxisTick
                         }
                     }
                 },
@@ -1820,10 +1836,9 @@ function resetRmsView() {
         0.001
     );
 
-    const yMax = Math.max(
-        rmsChart.options.plugins.zoom.limits.y.max || 0.01,
-        0.01
-    );
+    const yMax =
+        rmsChart.options.plugins.zoom.limits.y.max ||
+        0.01;
 
     if (typeof rmsChart.resetZoom === "function") {
         rmsChart.resetZoom("none");
@@ -2894,14 +2909,7 @@ function updateRealSamplingFrequency() {
 
 function roundedUpperLimit(value) {
 
-    return Math.max(
-        1,
-        Math.ceil(
-            Number.isFinite(value) && value > 0
-                ? value
-                : 0
-        )
-    );
+    return roundedAdaptiveUpperLimit(value);
 
 }
 
@@ -2941,6 +2949,33 @@ function roundedAdaptiveUpperLimit(value) {
     return Math.ceil(
         validValue / resolution
     ) * resolution;
+
+}
+
+
+function formatYAxisTick(value) {
+
+    const numericValue =
+        Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+        return "";
+    }
+
+    if (numericValue === 0) {
+        return "0";
+    }
+
+    const magnitude =
+        Math.abs(numericValue);
+
+    if (magnitude < 0.001 || magnitude >= 10000) {
+        return numericValue.toExponential(2);
+    }
+
+    return Number(
+        numericValue.toPrecision(3)
+    ).toString();
 
 }
 
@@ -3169,13 +3204,12 @@ function updateRmsChart(data) {
     });
 
     const maximum = Math.max(
-        0.01,
+        0,
         ...rmsData.flatMap(function (sample) {
             return [sample.ax, sample.ay, sample.az];
         })
     );
-    const yLimit = Math.max(
-        0.01,
+    const yLimit = roundedAdaptiveUpperLimit(
         maximum * 1.2
     );
     const xMax = Math.max(
@@ -3385,16 +3419,10 @@ function updateChart(
        15 % de margen.
     */
     const yLimit =
-        complete
-            ? roundedUpperLimit(
-                  maximumAcceleration *
-                  1.2
-              )
-            : Math.max(
-                  0.01,
-                  maximumAcceleration *
-                  1.2
-              );
+        roundedUpperLimit(
+            maximumAcceleration *
+            1.2
+        );
 
 
     accelerationChart
@@ -3933,6 +3961,12 @@ function updateSpectrumChart(data, resetZoom = true) {
         1.2
     );
 
+    if (
+        resetZoom &&
+        typeof spectrumChart.resetZoom === "function"
+    ) {
+        spectrumChart.resetZoom();
+    }
     spectrumChart.options.scales.x.min = 0;
     spectrumChart.options.scales.x.max = 30;
     spectrumChart.options.scales.y.min = 0;
@@ -3941,12 +3975,6 @@ function updateSpectrumChart(data, resetZoom = true) {
     spectrumChart.options.plugins.zoom.limits.x.max = 30;
     spectrumChart.options.plugins.zoom.limits.y.min = 0;
     spectrumChart.options.plugins.zoom.limits.y.max = spectrumYLimit;
-    if (
-        resetZoom &&
-        typeof spectrumChart.resetZoom === "function"
-    ) {
-        spectrumChart.resetZoom();
-    }
     spectrumChart.update("none");
 
 }
