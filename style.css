@@ -948,15 +948,25 @@ body.recording-lock main {
 #testForm.measurement-active .temporal-chart-wrap {
 
     flex: 1 1 auto;
-    min-height: 190px;
+    min-height: 0;
     height: auto;
+
+}
+
+
+#testForm.measurement-active > .chart-card > .chart-heading {
+
+    min-height: 22px;
+    margin-bottom: 3px;
 
 }
 
 
 #testForm.measurement-active #timeSignalTitle {
 
-    display: none;
+    display: block;
+    font-size: 14px;
+    line-height: 1.2;
 
 }
 
@@ -970,7 +980,10 @@ body.recording-lock main {
 
 #testForm.measurement-active #spectrumPanel {
 
-    display: block;
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
+    flex-direction: column;
     margin-top: 6px;
     padding-top: 5px;
 
@@ -987,15 +1000,17 @@ body.recording-lock main {
 
 #testForm.measurement-active #spectrumPanel h3 {
 
-    font-size: 13px;
+    font-size: 14px;
+    line-height: 1.2;
 
 }
 
 
 #testForm.measurement-active .spectrum-chart-wrap {
 
-    flex: 0 0 120px;
-    height: 120px;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
 
 }
 
@@ -1104,15 +1119,15 @@ body.recording-lock main {
 
     #testForm.measurement-active .temporal-chart-wrap {
 
-        min-height: 145px;
+        min-height: 0;
 
     }
 
 
     #testForm.measurement-active .spectrum-chart-wrap {
 
-        flex-basis: 95px;
-        height: 95px;
+        flex-basis: auto;
+        min-height: 0;
 
     }
 
