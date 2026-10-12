@@ -241,60 +241,12 @@ let currentSensorMode = "";
 let currentSensorType = "";
 
 
-const legendTouchTogglePlugin = {
-
-    id: "legendTouchToggle",
-
-    afterEvent: function (chart, args) {
-
-        if (
-            !args.event.native ||
-            args.event.native.type !== "touchend"
-        ) {
-            return;
-        }
-
-        const legend = chart.legend;
-
-        if (!legend || !legend.legendHitBoxes) {
-            return;
-        }
-
-        const datasetIndex = legend.legendHitBoxes.findIndex(
-            function (box) {
-                return (
-                    args.event.x >= box.left &&
-                    args.event.x <= box.left + box.width &&
-                    args.event.y >= box.top &&
-                    args.event.y <= box.top + box.height
-                );
-            }
-        );
-
-        if (datasetIndex < 0) {
-            return;
-        }
-
-        chart.$legendTouchTime =
-            performance.now();
-
-        toggleLegendDataset(chart, datasetIndex);
-
-        args.changed = true;
-
-    }
-
-};
-
-
 /* Tipografía coherente y nítida para todos los textos de Chart.js. */
 if (typeof Chart !== "undefined") {
 
     Chart.defaults.font.family = "Arial, sans-serif";
     Chart.defaults.font.size = 12;
     Chart.defaults.font.lineHeight = 1.2;
-    Chart.register(legendTouchTogglePlugin);
-
 }
 
 
@@ -3792,6 +3744,9 @@ function enableLegendToggling(chart) {
 
         };
 
+
+    enableNativeLegendTouchToggling(chart);
+
 }
 
 
@@ -3803,6 +3758,100 @@ function toggleLegendDataset(chart, datasetIndex) {
     );
 
     chart.update("none");
+
+}
+
+
+function enableNativeLegendTouchToggling(chart) {
+
+    if (chart.$legendTouchListenerAttached) {
+        return;
+    }
+
+    chart.$legendTouchListenerAttached = true;
+
+
+    chart.canvas.addEventListener(
+        "touchstart",
+        function (event) {
+
+            chart.$legendTouchStart =
+                getLegendTouch(chart, event.touches[0]);
+
+        },
+        { passive: true, capture: true }
+    );
+
+
+    chart.canvas.addEventListener(
+        "touchend",
+        function (event) {
+
+            const touchStart = chart.$legendTouchStart;
+            const touchEnd = getLegendTouch(
+                chart,
+                event.changedTouches[0]
+            );
+
+            chart.$legendTouchStart = null;
+
+
+            if (
+                !touchStart ||
+                !touchEnd ||
+                touchStart.datasetIndex !== touchEnd.datasetIndex ||
+                Math.hypot(
+                    touchEnd.x - touchStart.x,
+                    touchEnd.y - touchStart.y
+                ) > 10
+            ) {
+                return;
+            }
+
+            chart.$legendTouchTime = performance.now();
+
+            toggleLegendDataset(
+                chart,
+                touchEnd.datasetIndex
+            );
+
+        },
+        /*
+           Se ejecuta antes que el listener interno de
+           Chart.js para evitar que el mismo toque alterne
+           dos veces la visibilidad de la serie.
+        */
+        { passive: true, capture: true }
+    );
+
+}
+
+
+function getLegendTouch(chart, touch) {
+
+    if (!touch || !chart.legend) {
+        return null;
+    }
+
+    const bounds = chart.canvas.getBoundingClientRect();
+
+    const x = (touch.clientX - bounds.left) *
+        chart.width / bounds.width;
+
+    const y = (touch.clientY - bounds.top) *
+        chart.height / bounds.height;
+
+    const legendItem = chart.legend._getLegendItemAt(x, y);
+
+    if (!legendItem) {
+        return null;
+    }
+
+    return {
+        datasetIndex: legendItem.datasetIndex,
+        x: x,
+        y: y
+    };
 
 }
 
