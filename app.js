@@ -1455,17 +1455,45 @@ function resetSpectrumView() {
         spectrumChart.resetZoom("none");
     }
 
-    spectrumChart.options.scales.x.min = 0;
-    spectrumChart.options.scales.x.max = 30;
-    spectrumChart.options.scales.y.min = 0;
-    spectrumChart.options.scales.y.max = yMax;
-    spectrumChart.scales.x.options.min = 0;
-    spectrumChart.scales.x.options.max = 30;
-    spectrumChart.scales.y.options.min = 0;
-    spectrumChart.scales.y.options.max = yMax;
+    applyChartZoomScale(
+        spectrumChart,
+        "x",
+        0,
+        30
+    );
+    applyChartZoomScale(
+        spectrumChart,
+        "y",
+        0,
+        yMax
+    );
     spectrumChart.setActiveElements([]);
     spectrumChart.tooltip.setActiveElements([], { x: 0, y: 0 });
     spectrumChart.update("none");
+
+}
+
+
+function applyChartZoomScale(chart, axis, min, max) {
+
+    if (
+        chart &&
+        typeof chart.zoomScale === "function"
+    ) {
+        chart.zoomScale(
+            axis,
+            {
+                min: min,
+                max: max
+            },
+            "none"
+        );
+    }
+
+    chart.options.scales[axis].min = min;
+    chart.options.scales[axis].max = max;
+    chart.scales[axis].options.min = min;
+    chart.scales[axis].options.max = max;
 
 }
 
@@ -1834,14 +1862,8 @@ function resetPsdView() {
         psdChart.resetZoom("none");
     }
 
-    psdChart.options.scales.x.min = 0;
-    psdChart.options.scales.x.max = 30;
-    psdChart.options.scales.y.min = 0;
-    psdChart.options.scales.y.max = yMax;
-    psdChart.scales.x.options.min = 0;
-    psdChart.scales.x.options.max = 30;
-    psdChart.scales.y.options.min = 0;
-    psdChart.scales.y.options.max = yMax;
+    applyChartZoomScale(psdChart, "x", 0, 30);
+    applyChartZoomScale(psdChart, "y", 0, yMax);
     psdChart.setActiveElements([]);
     psdChart.tooltip.setActiveElements([], { x: 0, y: 0 });
     psdChart.update("none");
@@ -3804,14 +3826,18 @@ function clampSpectrumAxes(chart) {
         yMax = yMin + yRange;
     }
 
-    chart.options.scales.x.min = xMin;
-    chart.options.scales.x.max = xMax;
-    chart.options.scales.y.min = yMin;
-    chart.options.scales.y.max = yMax;
-    x.options.min = xMin;
-    x.options.max = xMax;
-    y.options.min = yMin;
-    y.options.max = yMax;
+    applyChartZoomScale(
+        chart,
+        "x",
+        xMin,
+        xMax
+    );
+    applyChartZoomScale(
+        chart,
+        "y",
+        yMin,
+        yMax
+    );
     chart.update("none");
 
 }

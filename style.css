@@ -584,13 +584,6 @@ button:hover {
 }
 
 
-#liveValues {
-
-    display: none;
-
-}
-
-
 #resultSummary {
 
     display: none;
@@ -605,6 +598,13 @@ button:hover {
 }
 
 
+#testForm.result-ready #liveValues {
+
+    display: none;
+
+}
+
+
 .summary-row {
 
     display: grid;
@@ -612,7 +612,11 @@ button:hover {
     gap: 8px;
     align-items: center;
     padding: 8px 0;
-    border-bottom: 1px solid #eeeeee;
+    margin-top: 8px;
+    padding: 10px;
+    background-color: #ffffff;
+    border: 1px solid #dddddd;
+    border-radius: 8px;
 
 }
 
@@ -636,7 +640,7 @@ button:hover {
 .summary-row-metadata {
 
     grid-template-columns: repeat(3, 1fr);
-    border-bottom: 0;
+    border-bottom: 1px solid #dddddd;
 
 }
 
@@ -1067,13 +1071,6 @@ body.recording-lock main {
 #testForm.measurement-active #resultSummary {
 
     display: none;
-
-}
-
-
-#testForm.measurement-active #spectrumPanel {
-
-    order: 2;
 
 }
 
