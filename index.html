@@ -14,7 +14,7 @@
     <title>Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261012-photo-titles">
+    <link rel="stylesheet" href="style.css?v=20261012-structural-questionnaire">
 
     <!-- MapLibre -->
     <link
@@ -273,15 +273,210 @@
             <div id="photoPreview"></div>
 
 
-            <button id="continueToTestsButton">
-                Continuar a los ensayos
+            <button id="continueToStructuralButton">
+                Continuar a la ficha estructural
             </button>
 
         </section>
 
 
         <!-- =================================================
-             5. ENSAYO DINÁMICO
+             5. FICHA ESTRUCTURAL
+             ================================================= -->
+
+        <form id="structuralForm" class="menu-card">
+
+            <h2>Ficha estructural de la pasarela</h2>
+
+            <p>
+                Completa la caracterización visual antes de
+                iniciar los ensayos dinámicos.
+            </p>
+
+            <div class="structural-fields">
+
+                <label class="field-label" for="bridgeName">
+                    Nombre de la pasarela
+                </label>
+                <input id="bridgeName" name="bridgeName" type="text" required maxlength="120">
+
+                <label class="field-label" for="structuralSystem">
+                    Sistema estructural principal
+                </label>
+                <select id="structuralSystem" name="structuralSystem" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Viga</option>
+                    <option>Pórtico</option>
+                    <option>Arco</option>
+                    <option>Celosía</option>
+                    <option>Atirantada</option>
+                    <option>Colgante</option>
+                    <option>Otra / no identificable</option>
+                </select>
+
+                <label class="field-label" for="structuralDepth">
+                    Canto de la estructura principal
+                </label>
+                <select id="structuralDepth" name="structuralDepth" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Constante</option>
+                    <option>Variable</option>
+                    <option>No aplicable / no identificable</option>
+                </select>
+
+                <label class="field-label" for="deckPosition">
+                    Posición del tablero respecto a la estructura
+                </label>
+                <select id="deckPosition" name="deckPosition" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Tablero superior</option>
+                    <option>Tablero intermedio</option>
+                    <option>Tablero inferior</option>
+                    <option>No aplicable / no identificable</option>
+                </select>
+
+                <div class="structural-field-grid">
+                    <div>
+                        <label class="field-label" for="bridgeLength">
+                            Longitud (m)
+                        </label>
+                        <input id="bridgeLength" name="bridgeLength" type="number" min="0" step="0.01" required>
+                    </div>
+                    <div>
+                        <label class="field-label" for="bridgeWidth">
+                            Anchura (m)
+                        </label>
+                        <input id="bridgeWidth" name="bridgeWidth" type="number" min="0" step="0.01" required>
+                    </div>
+                </div>
+
+                <div class="structural-field-grid">
+                    <div>
+                        <label class="field-label" for="pierHeight">
+                            Altura de pilas (m)
+                        </label>
+                        <input id="pierHeight" name="pierHeight" type="number" min="0" step="0.01" placeholder="Vacío si no aplica">
+                    </div>
+                    <div>
+                        <label class="field-label" for="numberOfSpans">
+                            Número de vanos
+                        </label>
+                        <input id="numberOfSpans" name="numberOfSpans" type="number" min="1" step="1" required>
+                    </div>
+                </div>
+
+                <label class="field-label" for="supportType">
+                    Tipología de apoyos
+                </label>
+                <select id="supportType" name="supportType" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Apoyo elastomérico</option>
+                    <option>Apoyo articulado</option>
+                    <option>Apoyo móvil o deslizante</option>
+                    <option>Apoyo fijo</option>
+                    <option>Empotramiento</option>
+                    <option>Otra / no identificable</option>
+                </select>
+
+                <label class="field-label" for="deckType">
+                    Tipo de tablero
+                </label>
+                <select id="deckType" name="deckType" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Losa</option>
+                    <option>Vigas longitudinales</option>
+                    <option>Sección cajón</option>
+                    <option>Celosía</option>
+                    <option>Mixto</option>
+                    <option>Otra / no identificable</option>
+                </select>
+
+                <label class="field-label" for="deckSection">
+                    Tipo de sección del tablero
+                </label>
+                <select id="deckSection" name="deckSection" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Losa maciza</option>
+                    <option>Losa aligerada</option>
+                    <option>Sección en T</option>
+                    <option>Sección en doble T</option>
+                    <option>Sección cajón</option>
+                    <option>Vigas con losa</option>
+                    <option>Sección mixta</option>
+                    <option>Otra / no identificable</option>
+                </select>
+
+                <label class="field-label" for="deckMaterial">
+                    Material del tablero
+                </label>
+                <select id="deckMaterial" name="deckMaterial" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Acero</option>
+                    <option>Hormigón armado</option>
+                    <option>Hormigón pretensado</option>
+                    <option>Madera</option>
+                    <option>Mixto</option>
+                    <option>Otra / no identificable</option>
+                </select>
+
+                <label class="field-label" for="substructureMaterial">
+                    Material de pilas y estribos
+                </label>
+                <select id="substructureMaterial" name="substructureMaterial" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Hormigón armado</option>
+                    <option>Mampostería</option>
+                    <option>Acero</option>
+                    <option>Madera</option>
+                    <option>No aplica</option>
+                    <option>Otra / no identificable</option>
+                </select>
+
+                <label class="field-label" for="bridgeUse">
+                    Uso
+                </label>
+                <select id="bridgeUse" name="bridgeUse" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Peatonal</option>
+                    <option>Ciclista</option>
+                    <option>Peatonal y ciclista</option>
+                    <option>Otro</option>
+                </select>
+
+                <label class="field-label" for="bridgeCondition">
+                    Estado general
+                </label>
+                <select id="bridgeCondition" name="bridgeCondition" required>
+                    <option value="" selected disabled>Selecciona una opción</option>
+                    <option>Bueno</option>
+                    <option>Leve deterioro</option>
+                    <option>Deterioro moderado</option>
+                    <option>Deterioro grave</option>
+                </select>
+
+                <fieldset class="damage-fieldset">
+                    <legend>Daños observados</legend>
+                    <label><input type="checkbox" name="damages" value="Fisuras"> Fisuras</label>
+                    <label><input type="checkbox" name="damages" value="Corrosión"> Corrosión</label>
+                    <label><input type="checkbox" name="damages" value="Deformaciones"> Deformaciones</label>
+                    <label><input type="checkbox" name="damages" value="Desprendimientos"> Desprendimientos</label>
+                    <label><input type="checkbox" name="damages" value="Humedad o filtraciones"> Humedad o filtraciones</label>
+                    <label><input type="checkbox" name="damages" value="Desgaste del pavimento"> Desgaste del pavimento</label>
+                    <label><input type="checkbox" name="damages" value="Otros"> Otros</label>
+                    <label><input id="noDamage" type="checkbox" name="damages" value="Sin daños observados"> Sin daños observados</label>
+                </fieldset>
+
+            </div>
+
+            <button id="continueToTestsButton" type="button">
+                Continuar a los ensayos
+            </button>
+
+        </form>
+
+
+        <!-- =================================================
+             6. ENSAYO DINÁMICO
              ================================================= -->
 
         <section id="testForm" class="menu-card">
@@ -539,7 +734,7 @@
     </script>
 
     <!-- Nuestro JavaScript -->
-    <script src="app.js?v=20261012-photo-titles"></script>
+    <script src="app.js?v=20261012-structural-questionnaire"></script>
 
 
 </body>

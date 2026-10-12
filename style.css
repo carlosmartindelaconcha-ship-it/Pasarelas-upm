@@ -391,6 +391,115 @@ button:hover {
 
 
 /* =========================================================
+   FICHA ESTRUCTURAL
+   ========================================================= */
+
+.structural-fields {
+
+    text-align: left;
+
+}
+
+
+.structural-fields .field-label {
+
+    margin-top: 18px;
+
+}
+
+
+.structural-fields input,
+.structural-fields select {
+
+    width: 100%;
+
+    box-sizing: border-box;
+
+    font-size: 16px;
+
+    padding: 12px;
+
+    border: 1px solid #cccccc;
+
+    border-radius: 8px;
+
+    background-color: white;
+
+}
+
+
+.structural-field-grid {
+
+    display: grid;
+
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: 12px;
+
+}
+
+
+.structural-field-grid .field-label {
+
+    margin-top: 18px;
+
+}
+
+
+.damage-fieldset {
+
+    margin: 22px 0 0;
+
+    padding: 14px;
+
+    border: 1px solid #cccccc;
+
+    border-radius: 8px;
+
+}
+
+
+.damage-fieldset legend {
+
+    padding: 0 6px;
+
+    font-weight: bold;
+
+}
+
+
+.damage-fieldset label {
+
+    display: block;
+
+    margin: 10px 0;
+
+}
+
+
+.damage-fieldset input {
+
+    width: auto;
+
+    margin-right: 7px;
+
+}
+
+
+@media (max-width: 480px) {
+
+    .structural-field-grid {
+
+        grid-template-columns: 1fr;
+
+        gap: 0;
+
+    }
+
+}
+
+
+/* =========================================================
    DESCRIPCIÓN DEL ENSAYO
    ========================================================= */
 

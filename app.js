@@ -99,8 +99,22 @@ const photoPreview =
 const photoCounter =
     document.getElementById("photoCounter");
 
+const continueToStructuralButton =
+    document.getElementById("continueToStructuralButton");
+
+const structuralForm =
+    document.getElementById("structuralForm");
+
 const continueToTestsButton =
     document.getElementById("continueToTestsButton");
+
+const noDamageInput =
+    document.getElementById("noDamage");
+
+const damageInputs =
+    Array.from(
+        document.querySelectorAll('input[name="damages"]')
+    );
 
 
 /* =========================================================
@@ -192,6 +206,8 @@ let map = null;
 let bridgeMarker = null;
 
 let selectedPhotos = [];
+
+let bridgeStructuralData = null;
 
 let cameraStream = null;
 
@@ -1222,7 +1238,7 @@ function getPhotoTitle() {
    17. PASAR A ENSAYOS
    ========================================================= */
 
-continueToTestsButton.addEventListener(
+continueToStructuralButton.addEventListener(
     "click",
     function () {
 
@@ -1230,6 +1246,29 @@ continueToTestsButton.addEventListener(
 
 
         photoForm.style.display =
+            "none";
+
+
+        structuralForm.style.display =
+            "block";
+
+    }
+);
+
+
+continueToTestsButton.addEventListener(
+    "click",
+    function () {
+
+        if (!validateStructuralForm()) {
+            return;
+        }
+
+
+        bridgeStructuralData = collectStructuralData();
+
+
+        structuralForm.style.display =
             "none";
 
 
@@ -1260,6 +1299,86 @@ continueToTestsButton.addEventListener(
 
     }
 );
+
+
+function validateStructuralForm() {
+
+    if (!structuralForm.reportValidity()) {
+        return false;
+    }
+
+    const hasDamageSelection = damageInputs.some(
+        function (input) {
+            return input.checked;
+        }
+    );
+
+    if (!hasDamageSelection) {
+        alert(
+            "Indica al menos un daño observado o marca “Sin daños observados”."
+        );
+
+        return false;
+    }
+
+    return true;
+
+}
+
+
+function collectStructuralData() {
+
+    const formData = new FormData(structuralForm);
+
+    return {
+        name: formData.get("bridgeName"),
+        structuralSystem: formData.get("structuralSystem"),
+        structuralDepth: formData.get("structuralDepth"),
+        deckPosition: formData.get("deckPosition"),
+        length: Number(formData.get("bridgeLength")),
+        width: Number(formData.get("bridgeWidth")),
+        pierHeight: formData.get("pierHeight") === ""
+            ? null
+            : Number(formData.get("pierHeight")),
+        numberOfSpans: Number(formData.get("numberOfSpans")),
+        supportType: formData.get("supportType"),
+        deckType: formData.get("deckType"),
+        deckSection: formData.get("deckSection"),
+        deckMaterial: formData.get("deckMaterial"),
+        substructureMaterial: formData.get("substructureMaterial"),
+        use: formData.get("bridgeUse"),
+        condition: formData.get("bridgeCondition"),
+        damages: formData.getAll("damages")
+    };
+
+}
+
+
+damageInputs.forEach(function (input) {
+
+    input.addEventListener("change", function () {
+
+        if (input === noDamageInput && input.checked) {
+
+            damageInputs.forEach(function (damageInput) {
+
+                if (damageInput !== noDamageInput) {
+                    damageInput.checked = false;
+                }
+
+            });
+
+            return;
+
+        }
+
+        if (input !== noDamageInput && input.checked) {
+            noDamageInput.checked = false;
+        }
+
+    });
+
+});
 
 
 /* =========================================================
