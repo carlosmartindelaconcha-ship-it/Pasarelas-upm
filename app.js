@@ -152,6 +152,9 @@ const spectrumCanvas =
 const rmsCanvas =
     document.getElementById("rmsChart");
 
+const psdCanvas =
+    document.getElementById("psdChart");
+
 const resetTemporalZoomButton =
     document.getElementById("resetTemporalZoom");
 
@@ -160,6 +163,24 @@ const resetSpectrumZoomButton =
 
 const resetRmsZoomButton =
     document.getElementById("resetRmsZoom");
+
+const resetPsdZoomButton =
+    document.getElementById("resetPsdZoom");
+
+const resultSummaryElements = {
+    axPeak: document.getElementById("axPeakValue"),
+    ayPeak: document.getElementById("ayPeakValue"),
+    azPeak: document.getElementById("azPeakValue"),
+    axRms: document.getElementById("axRmsPeakValue"),
+    ayRms: document.getElementById("ayRmsPeakValue"),
+    azRms: document.getElementById("azRmsPeakValue"),
+    axFrequency: document.getElementById("axPeakFrequency"),
+    ayFrequency: document.getElementById("ayPeakFrequency"),
+    azFrequency: document.getElementById("azPeakFrequency"),
+    duration: document.getElementById("totalDurationValue"),
+    samples: document.getElementById("totalSamplesValue"),
+    dt: document.getElementById("averageDtValue")
+};
 
 
 /* =========================================================
@@ -204,7 +225,12 @@ let accelerationChart = null;
 
 let spectrumChart = null;
 
+/* Límite vertical de referencia de la gráfica de resultados. */
+let spectrumInitialYLimit = 0.1;
+
 let rmsChart = null;
+
+let psdChart = null;
 
 let lastChartUpdate = 0;
 
@@ -964,16 +990,12 @@ continueToTestsButton.addEventListener(
             "block";
 
 
-        if (
-            accelerationChart === null
-        ) {
-
+        if (accelerationChart === null) {
             createAccelerationChart();
+        }
 
+        if (spectrumChart === null) {
             createSpectrumChart();
-
-            createRmsChart();
-
         }
 
     }
@@ -1400,7 +1422,19 @@ function resetTemporalView() {
 function getSpectrumInitialYLimit() {
 
     if (!spectrumChart) {
-        return 1;
+        return spectrumInitialYLimit;
+    }
+
+    const resultView =
+        testForm &&
+        testForm.classList.contains("result-ready");
+
+    if (
+        resultView &&
+        Number.isFinite(spectrumInitialYLimit) &&
+        spectrumInitialYLimit > 0
+    ) {
+        return spectrumInitialYLimit;
     }
 
     const maximum = Math.max(
@@ -1412,7 +1446,24 @@ function getSpectrumInitialYLimit() {
         })
     );
 
-    return roundedUpperLimit(maximum * 1.2);
+    return resultView
+        ? roundUpToScale(maximum * 1.2, 0.1)
+        : roundedUpperLimit(maximum * 1.2);
+
+}
+
+
+function roundUpToScale(value, scale) {
+
+    const safeScale = Number(scale) > 0 ? Number(scale) : 0.01;
+    const safeValue = Number.isFinite(Number(value))
+        ? Math.max(0, Number(value))
+        : 0;
+
+    return Math.max(
+        safeScale,
+        Math.ceil((safeValue - Number.EPSILON) / safeScale) * safeScale
+    );
 
 }
 
@@ -1430,14 +1481,18 @@ function resetSpectrumView() {
         spectrumChart.resetZoom("none");
     }
 
-    spectrumChart.options.scales.x.min = 0;
-    spectrumChart.options.scales.x.max = 30;
-    spectrumChart.options.scales.y.min = 0;
-    spectrumChart.options.scales.y.max = yMax;
-    spectrumChart.scales.x.options.min = 0;
-    spectrumChart.scales.x.options.max = 30;
-    spectrumChart.scales.y.options.min = 0;
-    spectrumChart.scales.y.options.max = yMax;
+    applyChartZoomScale(
+        spectrumChart,
+        "x",
+        0,
+        30
+    );
+    applyChartZoomScale(
+        spectrumChart,
+        "y",
+        0,
+        yMax
+    );
     spectrumChart.setActiveElements([]);
     spectrumChart.tooltip.setActiveElements([], { x: 0, y: 0 });
     spectrumChart.update("none");
@@ -1445,7 +1500,35 @@ function resetSpectrumView() {
 }
 
 
+function applyChartZoomScale(chart, axis, min, max) {
+
+    if (
+        chart &&
+        typeof chart.zoomScale === "function"
+    ) {
+        chart.zoomScale(
+            axis,
+            {
+                min: min,
+                max: max
+            },
+            "none"
+        );
+    }
+
+    chart.options.scales[axis].min = min;
+    chart.options.scales[axis].max = max;
+    chart.scales[axis].options.min = min;
+    chart.scales[axis].options.max = max;
+
+}
+
+
 function createRmsChart() {
+
+    if (!rmsCanvas) {
+        return;
+    }
 
     rmsChart = new Chart(
         rmsCanvas.getContext("2d"),
@@ -1576,6 +1659,140 @@ function createRmsChart() {
 }
 
 
+function createPsdChart() {
+
+    if (!psdCanvas) {
+        return;
+    }
+
+    psdChart = new Chart(
+        psdCanvas.getContext("2d"),
+        {
+            type: "line",
+            data: {
+                datasets: [
+                    {
+                        label: "X",
+                        data: [],
+                        borderColor: "#1565c0",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: "Y",
+                        data: [],
+                        borderColor: "#c62828",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: "Z",
+                        data: [],
+                        borderColor: "#2e7d32",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                parsing: false,
+                onClick: function (event, elements, chart) {
+                    showClickedValue(event, elements, chart);
+                },
+                scales: {
+                    x: {
+                        type: "linear",
+                        min: 0,
+                        max: 30,
+                        title: {
+                            display: true,
+                            text: "Frecuencia (Hz)"
+                        },
+                        grid: {
+                            color: "rgba(0,0,0,0.08)"
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 1,
+                        title: {
+                            display: true,
+                            text: "PSD"
+                        },
+                        grid: {
+                            color: "rgba(0,0,0,0.08)"
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function (items) {
+                                return "f = " +
+                                    items[0].parsed.x.toFixed(3) +
+                                    " Hz";
+                            },
+                            label: function (item) {
+                                return item.dataset.label +
+                                    ": " +
+                                    item.parsed.y.toExponential(4);
+                            }
+                        }
+                    },
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: "xy",
+                            onPan: function (context) {
+                                clampSpectrumAxes(context.chart);
+                            },
+                            onPanComplete: function (context) {
+                                clampSpectrumAxes(context.chart);
+                            }
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: "xy",
+                            onZoom: function (context) {
+                                clampSpectrumAxes(context.chart);
+                            },
+                            onZoomComplete: function (context) {
+                                clampSpectrumAxes(context.chart);
+                            }
+                        },
+                        limits: {
+                            x: {
+                                min: 0,
+                                max: 30
+                            },
+                            y: {
+                                min: 0,
+                                max: 1
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    );
+
+}
+
+
 function clampRmsAxes(chart) {
 
     const duration =
@@ -1585,7 +1802,7 @@ function clampRmsAxes(chart) {
 
     const yLimit = Math.max(
         chart.options.plugins.zoom.limits.y.max || 0.01,
-        0.01
+        0.1
     );
 
     chart.options.plugins.zoom.limits.x.min = 0;
@@ -1643,6 +1860,51 @@ function resetRmsView() {
 }
 
 
+function getPsdInitialYLimit() {
+
+    if (!psdChart) {
+        return 1;
+    }
+
+    const maximum = Math.max(
+        0,
+        ...psdChart.data.datasets.flatMap(function (dataset) {
+            return dataset.data.map(function (point) {
+                return Number(point.y) || 0;
+            });
+        })
+    );
+
+    return Math.max(
+        Number.EPSILON,
+        maximum * 1.2
+    );
+
+}
+
+
+function resetPsdView() {
+
+    const yMax = getPsdInitialYLimit();
+
+    psdChart.options.plugins.zoom.limits.x.min = 0;
+    psdChart.options.plugins.zoom.limits.x.max = 30;
+    psdChart.options.plugins.zoom.limits.y.min = 0;
+    psdChart.options.plugins.zoom.limits.y.max = yMax;
+
+    if (typeof psdChart.resetZoom === "function") {
+        psdChart.resetZoom("none");
+    }
+
+    applyChartZoomScale(psdChart, "x", 0, 30);
+    applyChartZoomScale(psdChart, "y", 0, yMax);
+    psdChart.setActiveElements([]);
+    psdChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    psdChart.update("none");
+
+}
+
+
 resetTemporalZoomButton.addEventListener("click", function () {
 
     if (accelerationChart) {
@@ -1661,13 +1923,26 @@ resetSpectrumZoomButton.addEventListener("click", function () {
 });
 
 
-resetRmsZoomButton.addEventListener("click", function () {
+if (resetRmsZoomButton) {
+    resetRmsZoomButton.addEventListener("click", function () {
 
-    if (rmsChart) {
-        resetRmsView();
-    }
+        if (rmsChart) {
+            resetRmsView();
+        }
 
-});
+    });
+}
+
+
+if (resetPsdZoomButton) {
+    resetPsdZoomButton.addEventListener("click", function () {
+
+        if (psdChart) {
+            resetPsdView();
+        }
+
+    });
+}
 
 
 /* =========================================================
@@ -1810,6 +2085,21 @@ async function startRecording() {
     }
 
 
+    [rmsChart, psdChart].forEach(function (chart) {
+
+        if (!chart) {
+            return;
+        }
+
+        chart.data.datasets.forEach(function (dataset) {
+            dataset.data = [];
+        });
+
+        chart.update("none");
+
+    });
+
+
     /*
        Reiniciamos indicadores.
     */
@@ -1899,6 +2189,10 @@ async function startRecording() {
         "measurement-active"
     );
 
+    testForm.classList.remove(
+        "result-ready"
+    );
+
 
     testDescription.disabled =
         true;
@@ -1920,9 +2214,10 @@ async function startRecording() {
     setTimeout(
         function () {
 
-            accelerationChart.resize();
-            spectrumChart.resize();
-            rmsChart.resize();
+            if (accelerationChart) accelerationChart.resize();
+            if (spectrumChart) spectrumChart.resize();
+            if (rmsChart) rmsChart.resize();
+            if (psdChart) psdChart.resize();
 
         },
         50
@@ -3268,6 +3563,18 @@ function stopRecording() {
         "measurement-active"
     );
 
+    testForm.classList.add(
+        "result-ready"
+    );
+
+    if (rmsChart === null) {
+        createRmsChart();
+    }
+
+    if (psdChart === null) {
+        createPsdChart();
+    }
+
 
     if (currentTestData.length > 0) {
 
@@ -3287,9 +3594,10 @@ function stopRecording() {
     setTimeout(
         function () {
 
-            accelerationChart.resize();
-            spectrumChart.resize();
-            rmsChart.resize();
+            if (accelerationChart) accelerationChart.resize();
+            if (spectrumChart) spectrumChart.resize();
+            if (rmsChart) rmsChart.resize();
+            if (psdChart) psdChart.resize();
 
         },
         50
@@ -3360,6 +3668,13 @@ function stopRecording() {
 
         updateRmsChart(processedTestData);
 
+        updatePsdChart(processedTestData);
+
+        updateResultSummary(
+            currentTestData,
+            processedTestData
+        );
+
 
         /*
            Mostramos:
@@ -3403,7 +3718,7 @@ function disableChartNavigation() {
 
 function setChartNavigationEnabled(enabled) {
 
-    [accelerationChart, spectrumChart, rmsChart].forEach(function (chart) {
+    [accelerationChart, spectrumChart, rmsChart, psdChart].forEach(function (chart) {
 
         if (!chart) {
             return;
@@ -3572,14 +3887,18 @@ function clampSpectrumAxes(chart) {
         yMax = yMin + yRange;
     }
 
-    chart.options.scales.x.min = xMin;
-    chart.options.scales.x.max = xMax;
-    chart.options.scales.y.min = yMin;
-    chart.options.scales.y.max = yMax;
-    x.options.min = xMin;
-    x.options.max = xMax;
-    y.options.min = yMin;
-    y.options.max = yMax;
+    applyChartZoomScale(
+        chart,
+        "x",
+        xMin,
+        xMax
+    );
+    applyChartZoomScale(
+        chart,
+        "y",
+        yMin,
+        yMax
+    );
     chart.update("none");
 
 }
@@ -3670,15 +3989,25 @@ function updateSpectrumChart(data, resetZoom = true) {
         })
     );
 
+    const calculatedSpectrumYLimit = roundUpToScale(
+        maximumSpectrumAmplitude * 1.2,
+        0.1
+    );
+
+    /*
+       El límite inicial se fija al terminar el ensayo. Durante la
+       adquisición no se sustituye, para que Restablecer zoom vuelva
+       exactamente a la vista inicial de resultados.
+    */
+    if (resetZoom) {
+        spectrumInitialYLimit = calculatedSpectrumYLimit;
+    }
+
     const spectrumYLimit = resetZoom
-        ? roundedUpperLimit(
-              maximumSpectrumAmplitude *
-              1.2
-          )
+        ? spectrumInitialYLimit
         : Math.max(
               0.01,
-              maximumSpectrumAmplitude *
-              1.2
+              maximumSpectrumAmplitude * 1.2
           );
 
     spectrumChart.options.scales.x.min = 0;
@@ -3696,6 +4025,222 @@ function updateSpectrumChart(data, resetZoom = true) {
         spectrumChart.resetZoom();
     }
     spectrumChart.update("none");
+
+}
+
+
+function calculateWelchPsd(source, component, sampleRate) {
+
+    const windowCount = 5;
+    const segmentLength = Math.floor(
+        source.length / (1 + 0.5 * (windowCount - 1))
+    );
+
+    if (segmentLength < 4 || !Number.isFinite(sampleRate) || sampleRate <= 0) {
+        return [];
+    }
+
+    const step = Math.max(
+        1,
+        Math.floor(segmentLength * 0.5)
+    );
+    const fftLength = nextPowerOfTwo(segmentLength);
+    const window = new Array(segmentLength);
+    let windowPower = 0;
+
+    for (let index = 0; index < segmentLength; index += 1) {
+        window[index] = 0.5 -
+            0.5 * Math.cos(2 * Math.PI * index / (segmentLength - 1));
+        windowPower += window[index] * window[index];
+    }
+
+    const accumulated = new Array(
+        Math.floor(fftLength / 2) + 1
+    ).fill(0);
+    let usedWindows = 0;
+
+    for (
+        let start = 0;
+        start + segmentLength <= source.length && usedWindows < windowCount;
+        start += step
+    ) {
+        const values = new Array(fftLength).fill(0);
+        let mean = 0;
+
+        for (let index = 0; index < segmentLength; index += 1) {
+            mean += Number(source[start + index][component]) || 0;
+        }
+        mean /= segmentLength;
+
+        for (let index = 0; index < segmentLength; index += 1) {
+            values[index] =
+                ((Number(source[start + index][component]) || 0) - mean) *
+                window[index];
+        }
+
+        const real = values;
+        const imag = new Array(fftLength).fill(0);
+        fft(real, imag);
+
+        for (let bin = 0; bin <= fftLength / 2; bin += 1) {
+            const power =
+                (real[bin] * real[bin] + imag[bin] * imag[bin]) /
+                (sampleRate * windowPower);
+            accumulated[bin] += power;
+        }
+
+        usedWindows += 1;
+    }
+
+    if (usedWindows === 0) {
+        return [];
+    }
+
+    const resolution = sampleRate / fftLength;
+    const points = [];
+
+    for (let bin = 0; bin < accumulated.length; bin += 1) {
+        const frequency = bin * resolution;
+
+        if (frequency > 30) {
+            break;
+        }
+
+        let value = accumulated[bin] / usedWindows;
+
+        if (bin > 0 && bin < fftLength / 2) {
+            value *= 2;
+        }
+
+        points.push({
+            x: frequency,
+            y: value
+        });
+    }
+
+    return points;
+
+}
+
+
+function updatePsdChart(data) {
+
+    if (!psdChart || !data || data.length < 2) {
+        return;
+    }
+
+    const duration =
+        data[data.length - 1].time - data[0].time;
+    const sampleRate =
+        duration > 0
+            ? (data.length - 1) / duration
+            : 0;
+    const components = ["ax", "ay", "az"];
+
+    components.forEach(function (component, index) {
+        psdChart.data.datasets[index].data =
+            calculateWelchPsd(data, component, sampleRate);
+    });
+
+    const maximum = Math.max(
+        0,
+        ...psdChart.data.datasets.flatMap(function (dataset) {
+            return dataset.data.map(function (point) {
+                return point.y;
+            });
+        })
+    );
+    const yLimit = Math.max(
+        Number.EPSILON,
+        maximum * 1.2
+    );
+
+    psdChart.options.scales.x.min = 0;
+    psdChart.options.scales.x.max = 30;
+    psdChart.options.scales.y.min = 0;
+    psdChart.options.scales.y.max = yLimit;
+    psdChart.options.plugins.zoom.limits.x.min = 0;
+    psdChart.options.plugins.zoom.limits.x.max = 30;
+    psdChart.options.plugins.zoom.limits.y.min = 0;
+    psdChart.options.plugins.zoom.limits.y.max = yLimit;
+    psdChart.update("none");
+
+}
+
+
+function getPeakAbsolute(data, component) {
+
+    return Math.max.apply(
+        null,
+        data.map(function (sample) {
+            return Math.abs(Number(sample[component]) || 0);
+        })
+    );
+
+}
+
+
+function getPeakFrequency(data, component) {
+
+    if (!data || data.length < 2) {
+        return 0;
+    }
+
+    const duration =
+        data[data.length - 1].time - data[0].time;
+    const sampleRate =
+        duration > 0
+            ? (data.length - 1) / duration
+            : 0;
+    const spectrum = calculateSpectrum(data, component, sampleRate)
+        .filter(function (point) {
+            return point.x > 0;
+        });
+
+    if (spectrum.length === 0) {
+        return 0;
+    }
+
+    return spectrum.reduce(function (best, point) {
+        return point.y > best.y ? point : best;
+    }).x;
+
+}
+
+
+function updateResultSummary(rawData, processedData) {
+
+    if (!rawData || rawData.length === 0 || !processedData.length) {
+        return;
+    }
+
+    const components = ["ax", "ay", "az"];
+    const rmsData = calculateMovingRms(processedData, 1);
+    const peakIds = ["axPeak", "ayPeak", "azPeak"];
+    const rmsIds = ["axRms", "ayRms", "azRms"];
+    const frequencyIds = ["axFrequency", "ayFrequency", "azFrequency"];
+
+    components.forEach(function (component, index) {
+        resultSummaryElements[peakIds[index]].textContent =
+            getPeakAbsolute(processedData, component).toFixed(4);
+        resultSummaryElements[rmsIds[index]].textContent =
+            Math.max.apply(null, rmsData.map(function (sample) {
+                return sample[component];
+            })).toFixed(4);
+        resultSummaryElements[frequencyIds[index]].textContent =
+            getPeakFrequency(processedData, component).toFixed(3);
+    });
+
+    const duration =
+        rawData[rawData.length - 1].time - rawData[0].time;
+    const dt = getUniformSampleInterval(rawData);
+
+    resultSummaryElements.duration.textContent =
+        duration.toFixed(3) + " s";
+    resultSummaryElements.samples.textContent =
+        rawData.length.toString();
+    resultSummaryElements.dt.textContent =
+        (dt * 1000).toFixed(3) + " ms";
 
 }
 
@@ -3929,9 +4474,20 @@ newTestButton.addEventListener(
             rmsChart.update("none");
         }
 
+        if (psdChart) {
+            psdChart.data.datasets.forEach(function (dataset) {
+                dataset.data = [];
+            });
+            psdChart.update("none");
+        }
+
 
         finishedTestButtons.style.display =
             "none";
+
+        testForm.classList.remove(
+            "result-ready"
+        );
 
 
         testDescription.focus();
