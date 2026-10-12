@@ -1065,6 +1065,10 @@ function createAccelerationChart() {
                     animation:
                         false,
 
+                    onClick: function (event, elements, chart) {
+                        showClickedValue(event, elements, chart);
+                    },
+
 
                     /*
                        Chart.js no necesita recibir
@@ -1074,6 +1078,22 @@ function createAccelerationChart() {
                         [],
 
                     plugins: {
+
+                        tooltip: {
+                            callbacks: {
+                                title: function (items) {
+                                    return "t = " +
+                                        items[0].parsed.x.toFixed(3) +
+                                        " s";
+                                },
+                                label: function (item) {
+                                    return item.dataset.label +
+                                        ": " +
+                                        item.parsed.y.toFixed(4) +
+                                        " m/s²";
+                                }
+                            }
+                        },
 
                         zoom: {
 
@@ -1241,6 +1261,9 @@ function createSpectrumChart() {
                 maintainAspectRatio: false,
                 animation: false,
                 parsing: false,
+                onClick: function (event, elements, chart) {
+                    showClickedValue(event, elements, chart);
+                },
                 scales: {
                     x: {
                         type: "linear",
@@ -1268,6 +1291,20 @@ function createSpectrumChart() {
                 plugins: {
                     legend: {
                         display: true
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function (items) {
+                                return "f = " +
+                                    items[0].parsed.x.toFixed(3) +
+                                    " Hz";
+                            },
+                            label: function (item) {
+                                return item.dataset.label +
+                                    ": " +
+                                    item.parsed.y.toFixed(4);
+                            }
+                        }
                     },
                     zoom: {
                         pan: {
@@ -2347,29 +2384,14 @@ function updateRealSamplingFrequency() {
 
 function roundedUpperLimit(value) {
 
-    if (!Number.isFinite(value) || value <= 0) {
-        return 0.1;
-    }
-
-    const exponent = Math.pow(
-        10,
-        Math.floor(Math.log10(value))
+    return Math.max(
+        1,
+        Math.ceil(
+            Number.isFinite(value) && value > 0
+                ? value
+                : 0
+        )
     );
-
-    const normalized = value / exponent;
-    let step;
-
-    if (normalized <= 1) {
-        step = 1;
-    } else if (normalized <= 2) {
-        step = 2;
-    } else if (normalized <= 5) {
-        step = 5;
-    } else {
-        step = 10;
-    }
-
-    return step * exponent;
 
 }
 
@@ -2826,7 +2848,8 @@ function setChartNavigationEnabled(enabled) {
                 "mouseup",
                 "touchstart",
                 "touchmove",
-                "touchend"
+                "touchend",
+                "click"
             ]
             : [];
 
@@ -2836,6 +2859,39 @@ function setChartNavigationEnabled(enabled) {
         chart.update("none");
 
     });
+
+}
+
+
+function showClickedValue(event, elements, chart) {
+
+    let activeElements = elements || [];
+
+    if (activeElements.length === 0) {
+        activeElements = chart.getElementsAtEventForMode(
+            event,
+            "nearest",
+            { intersect: false },
+            true
+        );
+    }
+
+    if (activeElements.length === 0) {
+        return;
+    }
+
+    const element = activeElements[0];
+    const point = element.element;
+
+    chart.setActiveElements([element]);
+    chart.tooltip.setActiveElements(
+        [element],
+        {
+            x: point.x,
+            y: point.y
+        }
+    );
+    chart.update("none");
 
 }
 
