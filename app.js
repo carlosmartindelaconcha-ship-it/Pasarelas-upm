@@ -1538,6 +1538,54 @@ function createPsdChart() {
 }
 
 
+/*
+   La vista restablecida se adapta únicamente a las series que
+   el usuario mantiene visibles en la leyenda.
+*/
+function getVisibleDatasetMaximum(chart, useAbsoluteValues = false) {
+
+    if (!chart || !chart.data || !chart.data.datasets) {
+        return 0;
+    }
+
+    return chart.data.datasets.reduce(
+        function (maximum, dataset, datasetIndex) {
+
+            if (!chart.isDatasetVisible(datasetIndex)) {
+                return maximum;
+            }
+
+            return dataset.data.reduce(
+                function (datasetMaximum, point) {
+
+                    const rawValue =
+                        point && typeof point === "object"
+                            ? point.y
+                            : point;
+
+                    const numericValue = Number(rawValue);
+
+                    if (!Number.isFinite(numericValue)) {
+                        return datasetMaximum;
+                    }
+
+                    const value = useAbsoluteValues
+                        ? Math.abs(numericValue)
+                        : numericValue;
+
+                    return Math.max(datasetMaximum, value);
+
+                },
+                maximum
+            );
+
+        },
+        0
+    );
+
+}
+
+
 function resetTemporalView() {
 
     const xMax = Math.max(
@@ -1545,10 +1593,12 @@ function resetTemporalView() {
         0.001
     );
 
-    const yMax = Math.max(
-        accelerationChart.options.plugins.zoom.limits.y.max,
-        0.01
+    const yMax = roundedUpperLimit(
+        getVisibleDatasetMaximum(accelerationChart, true)
     );
+
+    accelerationChart.options.plugins.zoom.limits.y.min = -yMax;
+    accelerationChart.options.plugins.zoom.limits.y.max = yMax;
 
     if (typeof accelerationChart.resetZoom === "function") {
         accelerationChart.resetZoom("none");
@@ -1575,14 +1625,7 @@ function getSpectrumInitialYLimit() {
         return 1;
     }
 
-    const maximum = Math.max(
-        0,
-        ...spectrumChart.data.datasets.flatMap(function (dataset) {
-            return dataset.data.map(function (point) {
-                return Number(point.y) || 0;
-            });
-        })
-    );
+    const maximum = getVisibleDatasetMaximum(spectrumChart);
 
     return roundedSpectrumUpperLimit(maximum);
 
@@ -1623,14 +1666,7 @@ function getPsdInitialYLimit() {
         return 0.01;
     }
 
-    const maximum = Math.max(
-        0,
-        ...psdChart.data.datasets.flatMap(function (dataset) {
-            return dataset.data.map(function (point) {
-                return Number(point.y) || 0;
-            });
-        })
-    );
+    const maximum = getVisibleDatasetMaximum(psdChart);
 
     return roundedPsdUpperLimit(maximum);
 
@@ -1842,9 +1878,12 @@ function resetRmsView() {
         0.001
     );
 
-    const yMax =
-        rmsChart.options.plugins.zoom.limits.y.max ||
-        0.01;
+    const yMax = roundedUpperLimit(
+        getVisibleDatasetMaximum(rmsChart)
+    );
+
+    rmsChart.options.plugins.zoom.limits.y.min = 0;
+    rmsChart.options.plugins.zoom.limits.y.max = yMax;
 
     if (typeof rmsChart.resetZoom === "function") {
         rmsChart.resetZoom("none");
