@@ -561,8 +561,38 @@ button:hover {
 
 
 /* =========================================================
-   VALORES INSTANTÁNEOS
+   RESUMEN DE RESULTADOS Y VALORES INSTANTÁNEOS
    ========================================================= */
+
+.result-metrics {
+
+    display: none;
+    margin-top: 20px;
+
+}
+
+
+.result-metric-row {
+
+    margin-top: 18px;
+
+}
+
+
+.result-metric-row h3 {
+
+    margin: 0;
+    text-align: left;
+    font-size: 17px;
+
+}
+
+
+.result-metric-row .live-values {
+
+    margin-top: 8px;
+
+}
 
 .live-values {
 
@@ -938,6 +968,13 @@ body.recording-lock main {
 
 
 #testForm.measurement-active #liveValues {
+
+    display: none;
+
+}
+
+
+#testForm.measurement-active #resultMetrics {
 
     display: none;
 
