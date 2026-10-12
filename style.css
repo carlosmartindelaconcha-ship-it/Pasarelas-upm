@@ -561,7 +561,7 @@ button:hover {
 
 
 /* =========================================================
-   RESUMEN DE RESULTADOS Y VALORES INSTANTÁNEOS
+   RESUMEN DE RESULTADOS
    ========================================================= */
 
 .result-metrics {
@@ -968,13 +968,6 @@ body.recording-lock main {
    - botones posteriores.
 */
 #testForm.measurement-active #testSetup {
-
-    display: none;
-
-}
-
-
-#testForm.measurement-active #liveValues {
 
     display: none;
 

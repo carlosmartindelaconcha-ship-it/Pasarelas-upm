@@ -137,15 +137,6 @@ const sensorModeElement =
 const targetFrequencyElement =
     document.getElementById("targetFrequency");
 
-const axValue =
-    document.getElementById("axValue");
-
-const ayValue =
-    document.getElementById("ayValue");
-
-const azValue =
-    document.getElementById("azValue");
-
 const resultMetricElements = {
     acceleration: ["X", "Y", "Z"].map(function (axis) {
         return document.getElementById("peakAcceleration" + axis);
@@ -2737,21 +2728,6 @@ function processAccelerationSample(
 
 
     /*
-       Valores instantáneos.
-    */
-    axValue.textContent =
-        ax.toFixed(3);
-
-
-    ayValue.textContent =
-        ay.toFixed(3);
-
-
-    azValue.textContent =
-        az.toFixed(3);
-
-
-    /*
        Tiempo.
     */
     elapsedTimeElement.textContent =
@@ -4363,18 +4339,6 @@ newTestButton.addEventListener(
 
         targetFrequencyElement.textContent =
             "--";
-
-
-        axValue.textContent =
-            "0.000";
-
-
-        ayValue.textContent =
-            "0.000";
-
-
-        azValue.textContent =
-            "0.000";
 
 
         /*
