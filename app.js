@@ -2602,7 +2602,7 @@ function updateChart(
        Autoescala vertical.
     */
     let maximumAcceleration =
-        0.1;
+        0;
 
 
     visibleData.forEach(
@@ -2637,10 +2637,16 @@ function updateChart(
        15 % de margen.
     */
     const yLimit =
-        roundedUpperLimit(
-            maximumAcceleration *
-            1.2
-        );
+        complete
+            ? roundedUpperLimit(
+                  maximumAcceleration *
+                  1.2
+              )
+            : Math.max(
+                  0.01,
+                  maximumAcceleration *
+                  1.2
+              );
 
 
     accelerationChart
@@ -3169,9 +3175,16 @@ function updateSpectrumChart(data, resetZoom = true) {
         })
     );
 
-    const spectrumYLimit = roundedUpperLimit(
-        maximumSpectrumAmplitude * 1.2
-    );
+    const spectrumYLimit = resetZoom
+        ? roundedUpperLimit(
+              maximumSpectrumAmplitude *
+              1.2
+          )
+        : Math.max(
+              0.01,
+              maximumSpectrumAmplitude *
+              1.2
+          );
 
     spectrumChart.options.scales.x.min = 0;
     spectrumChart.options.scales.x.max = 30;

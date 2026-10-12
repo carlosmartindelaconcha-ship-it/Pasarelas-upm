@@ -885,13 +885,7 @@ body.recording-lock main {
 /* Título */
 #testForm.measurement-active h2 {
 
-    margin: 2px 0 6px 0;
-
-    font-size: 20px;
-
-    line-height: 1.2;
-
-    flex: 0 0 auto;
+    display: none;
 
 }
 
@@ -930,7 +924,9 @@ body.recording-lock main {
 
 #testForm.measurement-active .chart-card {
 
-    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
 
     min-height: 0;
 
@@ -945,18 +941,47 @@ body.recording-lock main {
 }
 
 
-#testForm.measurement-active .temporal-chart-wrap {
+#testForm.measurement-active .measurement-chart-panel,
+#testForm.measurement-active #spectrumPanel {
 
-    flex: 1 1 auto;
-    min-height: 190px;
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+}
+
+
+#testForm.measurement-active .temporal-panel {
+
+    margin: 0;
+
+}
+
+
+#testForm.measurement-active .temporal-chart-wrap,
+#testForm.measurement-active .spectrum-chart-wrap {
+
+    flex: 1 1 0;
+    min-height: 0;
     height: auto;
+
+}
+
+
+#testForm.measurement-active .measurement-chart-panel .chart-heading,
+#testForm.measurement-active #spectrumPanel .chart-heading {
+
+    display: none;
 
 }
 
 
 #testForm.measurement-active #timeSignalTitle {
 
-    display: none;
+    display: block;
+    font-size: 14px;
+    line-height: 1.2;
 
 }
 
@@ -970,9 +995,9 @@ body.recording-lock main {
 
 #testForm.measurement-active #spectrumPanel {
 
-    display: block;
     margin-top: 6px;
-    padding-top: 5px;
+    padding-top: 0;
+    border-top: 0;
 
 }
 
@@ -987,15 +1012,8 @@ body.recording-lock main {
 
 #testForm.measurement-active #spectrumPanel h3 {
 
-    font-size: 13px;
-
-}
-
-
-#testForm.measurement-active .spectrum-chart-wrap {
-
-    flex: 0 0 120px;
-    height: 120px;
+    font-size: 14px;
+    line-height: 1.2;
 
 }
 
@@ -1104,15 +1122,15 @@ body.recording-lock main {
 
     #testForm.measurement-active .temporal-chart-wrap {
 
-        min-height: 145px;
+        min-height: 0;
 
     }
 
 
     #testForm.measurement-active .spectrum-chart-wrap {
 
-        flex-basis: 95px;
-        height: 95px;
+        flex-basis: auto;
+        min-height: 0;
 
     }
 
