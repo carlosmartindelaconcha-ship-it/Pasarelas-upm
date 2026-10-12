@@ -885,13 +885,7 @@ body.recording-lock main {
 /* Título */
 #testForm.measurement-active h2 {
 
-    margin: 2px 0 6px 0;
-
-    font-size: 20px;
-
-    line-height: 1.2;
-
-    flex: 0 0 auto;
+    display: none;
 
 }
 
@@ -978,8 +972,7 @@ body.recording-lock main {
 #testForm.measurement-active .measurement-chart-panel .chart-heading,
 #testForm.measurement-active #spectrumPanel .chart-heading {
 
-    min-height: 22px;
-    margin-bottom: 3px;
+    display: none;
 
 }
 
@@ -1003,7 +996,8 @@ body.recording-lock main {
 #testForm.measurement-active #spectrumPanel {
 
     margin-top: 6px;
-    padding-top: 5px;
+    padding-top: 0;
+    border-top: 0;
 
 }
 
