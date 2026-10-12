@@ -1121,6 +1121,11 @@ function createAccelerationChart() {
                             x: {
                                 min: 0,
                                 max: 1
+                            },
+
+                            y: {
+                                min: -1,
+                                max: 1
                             }
 
                             },
@@ -1446,6 +1451,10 @@ async function startRecording() {
     accelerationChart.update(
         "none"
     );
+
+    if (typeof accelerationChart.resetZoom === "function") {
+        accelerationChart.resetZoom();
+    }
 
 
     if (spectrumChart) {
@@ -2336,8 +2345,38 @@ function updateRealSamplingFrequency() {
    29. ACTUALIZAR GRÁFICA
    ========================================================= */
 
+function roundedUpperLimit(value) {
+
+    if (!Number.isFinite(value) || value <= 0) {
+        return 0.1;
+    }
+
+    const exponent = Math.pow(
+        10,
+        Math.floor(Math.log10(value))
+    );
+
+    const normalized = value / exponent;
+    let step;
+
+    if (normalized <= 1) {
+        step = 1;
+    } else if (normalized <= 2) {
+        step = 2;
+    } else if (normalized <= 5) {
+        step = 5;
+    } else {
+        step = 10;
+    }
+
+    return step * exponent;
+
+}
+
+
 function updateChart(
-    currentTime
+    currentTime,
+    complete = false
 ) {
 
     /*
@@ -2359,7 +2398,9 @@ function updateChart(
        los últimos 5 segundos.
     */
     const visibleData =
-        currentTestData.filter(
+        complete
+            ? currentTestData
+            : currentTestData.filter(
 
             function (sample) {
 
@@ -2456,7 +2497,9 @@ function updateChart(
         .scales
         .x
         .min =
-        minimumTime;
+        complete
+            ? 0
+            : minimumTime;
 
 
     accelerationChart
@@ -2464,13 +2507,12 @@ function updateChart(
         .scales
         .x
         .max =
-        Math.max(
-
-            visibleWindowSeconds,
-
-            currentTime
-
-        );
+        complete
+            ? currentTime
+            : Math.max(
+                visibleWindowSeconds,
+                currentTime
+            );
 
 
     accelerationChart.options.plugins.zoom.limits.x.max =
@@ -2516,8 +2558,10 @@ function updateChart(
        15 % de margen.
     */
     const yLimit =
-        maximumAcceleration *
-        1.15;
+        roundedUpperLimit(
+            maximumAcceleration *
+            1.2
+        );
 
 
     accelerationChart
@@ -2533,6 +2577,13 @@ function updateChart(
         .scales
         .y
         .max =
+        yLimit;
+
+
+    accelerationChart.options.plugins.zoom.limits.y.min =
+        -yLimit;
+
+    accelerationChart.options.plugins.zoom.limits.y.max =
         yLimit;
 
 
@@ -2637,7 +2688,8 @@ function stopRecording() {
     if (currentTestData.length > 0) {
 
         updateChart(
-            currentTestData[currentTestData.length - 1].time
+            currentTestData[currentTestData.length - 1].time,
+            true
         );
 
     }
@@ -2795,11 +2847,14 @@ function keepTemporalYAxisCentered(chart) {
     }
 
     const scale = chart.scales.y;
-    const halfRange = Math.max(
+    const maximumRange =
+        chart.options.plugins.zoom.limits.y.max;
+
+    const halfRange = Math.min(maximumRange, Math.max(
         Math.abs(scale.min),
         Math.abs(scale.max),
         0.000001
-    );
+    ));
 
     chart.options.scales.y.min = -halfRange;
     chart.options.scales.y.max = halfRange;
@@ -2885,9 +2940,22 @@ function clampSpectrumAxes(chart) {
     let yMin = y.min;
     let yMax = y.max;
 
+    const yUpper =
+        chart.options.plugins.zoom.limits.y.max;
+
+    if (yMax - yMin >= yUpper) {
+        yMin = 0;
+        yMax = yUpper;
+    }
+
     if (yMin < 0) {
         yMax -= yMin;
         yMin = 0;
+    }
+
+    if (yMax > yUpper) {
+        yMax = yUpper;
+        yMin = Math.max(0, yMax - (y.max - y.min));
     }
 
     chart.options.scales.x.min = xMin;
@@ -2978,8 +3046,26 @@ function updateSpectrumChart(data, resetZoom = true) {
     spectrumChart.data.datasets[0].data = calculateSpectrum(source, "ax", sampleRate);
     spectrumChart.data.datasets[1].data = calculateSpectrum(source, "ay", sampleRate);
     spectrumChart.data.datasets[2].data = calculateSpectrum(source, "az", sampleRate);
+
+    const maximumSpectrumAmplitude = Math.max(
+        0,
+        ...spectrumChart.data.datasets.flatMap(function (dataset) {
+            return dataset.data.map(function (point) {
+                return point.y;
+            });
+        })
+    );
+
+    const spectrumYLimit = roundedUpperLimit(
+        maximumSpectrumAmplitude * 1.2
+    );
+
     spectrumChart.options.scales.x.min = 0;
     spectrumChart.options.scales.x.max = 30;
+    spectrumChart.options.scales.y.min = 0;
+    spectrumChart.options.scales.y.max = spectrumYLimit;
+    spectrumChart.options.plugins.zoom.limits.y.min = 0;
+    spectrumChart.options.plugins.zoom.limits.y.max = spectrumYLimit;
     if (
         resetZoom &&
         typeof spectrumChart.resetZoom === "function"
