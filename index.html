@@ -14,7 +14,7 @@
     <title>Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261012-visible-series-reset">
+    <link rel="stylesheet" href="style.css?v=20261012-map-location-selection">
 
     <!-- MapLibre -->
     <link
@@ -121,14 +121,17 @@
             </h2>
 
             <p>
-                Obtén tu ubicación actual para situar
-                la pasarela en el mapa.
+                Sitúa la pasarela con tu ubicación actual o
+                eligiendo un punto directamente en el mapa.
             </p>
 
             <button id="gpsButton">
-                Obtener ubicación
+                Usar ubicación actual
             </button>
 
+            <button id="mapLocationButton" class="secondary-button">
+                Elegir en el mapa
+            </button>
 
             <div class="gps-data">
 
@@ -143,8 +146,8 @@
                 </p>
 
                 <p>
-                    Precisión:
-                    <span id="accuracy">-</span> m
+                    Precisión / método:
+                    <span id="accuracy">-</span>
                 </p>
 
             </div>
@@ -513,7 +516,7 @@
     </script>
 
     <!-- Nuestro JavaScript -->
-    <script src="app.js?v=20261012-visible-series-reset"></script>
+    <script src="app.js?v=20261012-map-location-selection"></script>
 
 
 </body>

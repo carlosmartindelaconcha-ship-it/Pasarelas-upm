@@ -173,6 +173,9 @@ const resetPsdZoomButton =
 const resetRmsZoomButton =
     document.getElementById("resetRmsZoom");
 
+const mapLocationButton =
+    document.getElementById("mapLocationButton");
+
 
 /* =========================================================
    3. VARIABLES GENERALES
@@ -196,6 +199,8 @@ let bestPosition = null;
 let gpsWatchId = null;
 
 let gpsTimeoutId = null;
+
+let isSelectingLocationOnMap = false;
 
 
 /* =========================================================
@@ -309,6 +314,23 @@ registerBridgeButton.addEventListener(
                 new maplibregl.NavigationControl()
             );
 
+
+            map.on(
+                "click",
+                function (event) {
+
+                    if (!isSelectingLocationOnMap) {
+                        return;
+                    }
+
+                    updateManualMapLocation(
+                        event.lngLat.lat,
+                        event.lngLat.lng
+                    );
+
+                }
+            );
+
         }
 
 
@@ -332,6 +354,14 @@ registerBridgeButton.addEventListener(
 gpsButton.addEventListener(
     "click",
     function () {
+
+        isSelectingLocationOnMap = false;
+        map.getCanvas().style.cursor = "";
+        mapLocationButton.classList.remove(
+            "location-button-active"
+        );
+        mapLocationButton.textContent =
+            "Elegir en el mapa";
 
         if (!navigator.geolocation) {
 
@@ -496,6 +526,28 @@ gpsButton.addEventListener(
 );
 
 
+mapLocationButton.addEventListener(
+    "click",
+    function () {
+
+        if (!map) {
+            return;
+        }
+
+        stopGPSWatch();
+
+        isSelectingLocationOnMap = true;
+        map.getCanvas().style.cursor = "crosshair";
+        mapLocationButton.classList.add(
+            "location-button-active"
+        );
+        mapLocationButton.textContent =
+            "Toca el punto de la pasarela";
+
+    }
+);
+
+
 /* =========================================================
    8. ACTUALIZAR GPS
    ========================================================= */
@@ -529,7 +581,7 @@ function updateGPSPosition(
     document
         .getElementById("accuracy")
         .textContent =
-        accuracy.toFixed(1);
+        accuracy.toFixed(1) + " m";
 
 
     map.flyTo({
@@ -582,6 +634,62 @@ function updateGPSPosition(
 }
 
 
+function updateManualMapLocation(latitude, longitude) {
+
+    stopGPSWatch();
+
+    isSelectingLocationOnMap = false;
+    map.getCanvas().style.cursor = "";
+    mapLocationButton.classList.remove(
+        "location-button-active"
+    );
+    mapLocationButton.textContent =
+        "Cambiar ubicación en el mapa";
+
+    document
+        .getElementById("latitude")
+        .textContent =
+        latitude.toFixed(6);
+
+    document
+        .getElementById("longitude")
+        .textContent =
+        longitude.toFixed(6);
+
+    document
+        .getElementById("accuracy")
+        .textContent =
+        "Selección manual";
+
+    if (bridgeMarker !== null) {
+        bridgeMarker.remove();
+    }
+
+    bridgeMarker =
+        new maplibregl.Marker()
+
+            .setLngLat([
+                longitude,
+                latitude
+            ])
+
+            .setPopup(
+
+                new maplibregl.Popup()
+                    .setHTML(
+
+                        "<strong>Ubicación de la pasarela</strong><br>" +
+                        "Seleccionada en el mapa"
+
+                    )
+
+            )
+
+            .addTo(map);
+
+}
+
+
 /* =========================================================
    9. DETENER GPS
    ========================================================= */
@@ -621,7 +729,7 @@ function stopGPSWatch() {
 
 
     gpsButton.textContent =
-        "Obtener ubicación";
+        "Usar ubicación actual";
 
 
     gpsButton.disabled =
