@@ -987,18 +987,12 @@ continueToTestsButton.addEventListener(
             "block";
 
 
-        if (
-            accelerationChart === null
-        ) {
-
+        if (accelerationChart === null) {
             createAccelerationChart();
+        }
 
+        if (spectrumChart === null) {
             createSpectrumChart();
-
-            createRmsChart();
-
-            createPsdChart();
-
         }
 
     }
@@ -2047,6 +2041,21 @@ async function startRecording() {
     }
 
 
+    [rmsChart, psdChart].forEach(function (chart) {
+
+        if (!chart) {
+            return;
+        }
+
+        chart.data.datasets.forEach(function (dataset) {
+            dataset.data = [];
+        });
+
+        chart.update("none");
+
+    });
+
+
     /*
        Reiniciamos indicadores.
     */
@@ -2161,10 +2170,10 @@ async function startRecording() {
     setTimeout(
         function () {
 
-            accelerationChart.resize();
-            spectrumChart.resize();
-            rmsChart.resize();
-            psdChart.resize();
+            if (accelerationChart) accelerationChart.resize();
+            if (spectrumChart) spectrumChart.resize();
+            if (rmsChart) rmsChart.resize();
+            if (psdChart) psdChart.resize();
 
         },
         50
@@ -3514,6 +3523,14 @@ function stopRecording() {
         "result-ready"
     );
 
+    if (rmsChart === null) {
+        createRmsChart();
+    }
+
+    if (psdChart === null) {
+        createPsdChart();
+    }
+
 
     if (currentTestData.length > 0) {
 
@@ -3533,10 +3550,10 @@ function stopRecording() {
     setTimeout(
         function () {
 
-            accelerationChart.resize();
-            spectrumChart.resize();
-            rmsChart.resize();
-            psdChart.resize();
+            if (accelerationChart) accelerationChart.resize();
+            if (spectrumChart) spectrumChart.resize();
+            if (rmsChart) rmsChart.resize();
+            if (psdChart) psdChart.resize();
 
         },
         50
