@@ -225,6 +225,9 @@ let accelerationChart = null;
 
 let spectrumChart = null;
 
+/* Límite vertical de referencia de la gráfica de resultados. */
+let spectrumInitialYLimit = 0.01;
+
 let rmsChart = null;
 
 let psdChart = null;
@@ -1419,7 +1422,19 @@ function resetTemporalView() {
 function getSpectrumInitialYLimit() {
 
     if (!spectrumChart) {
-        return 1;
+        return spectrumInitialYLimit;
+    }
+
+    const resultView =
+        testForm &&
+        testForm.classList.contains("result-ready");
+
+    if (
+        resultView &&
+        Number.isFinite(spectrumInitialYLimit) &&
+        spectrumInitialYLimit > 0
+    ) {
+        return spectrumInitialYLimit;
     }
 
     const maximum = Math.max(
@@ -1431,7 +1446,24 @@ function getSpectrumInitialYLimit() {
         })
     );
 
-    return roundedUpperLimit(maximum * 1.2);
+    return resultView
+        ? roundUpToScale(maximum * 1.2, 0.01)
+        : roundedUpperLimit(maximum * 1.2);
+
+}
+
+
+function roundUpToScale(value, scale) {
+
+    const safeScale = Number(scale) > 0 ? Number(scale) : 0.01;
+    const safeValue = Number.isFinite(Number(value))
+        ? Math.max(0, Number(value))
+        : 0;
+
+    return Math.max(
+        safeScale,
+        Math.ceil((safeValue - Number.EPSILON) / safeScale) * safeScale
+    );
 
 }
 
@@ -3957,15 +3989,25 @@ function updateSpectrumChart(data, resetZoom = true) {
         })
     );
 
+    const calculatedSpectrumYLimit = roundUpToScale(
+        maximumSpectrumAmplitude * 1.2,
+        0.01
+    );
+
+    /*
+       El límite inicial se fija al terminar el ensayo. Durante la
+       adquisición no se sustituye, para que Restablecer zoom vuelva
+       exactamente a la vista inicial de resultados.
+    */
+    if (resetZoom) {
+        spectrumInitialYLimit = calculatedSpectrumYLimit;
+    }
+
     const spectrumYLimit = resetZoom
-        ? roundedUpperLimit(
-              maximumSpectrumAmplitude *
-              1.2
-          )
+        ? spectrumInitialYLimit
         : Math.max(
               0.01,
-              maximumSpectrumAmplitude *
-              1.2
+              maximumSpectrumAmplitude * 1.2
           );
 
     spectrumChart.options.scales.x.min = 0;
