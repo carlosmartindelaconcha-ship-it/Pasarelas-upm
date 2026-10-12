@@ -930,7 +930,7 @@ body.recording-lock main {
 
 #testForm.measurement-active .chart-card {
 
-    flex: 0 0 auto;
+    flex: 1 1 auto;
 
     min-height: 0;
 
@@ -947,8 +947,9 @@ body.recording-lock main {
 
 #testForm.measurement-active .temporal-chart-wrap {
 
-    flex: 0 0 auto;
-    height: 320px;
+    flex: 1 1 auto;
+    min-height: 190px;
+    height: auto;
 
 }
 
@@ -993,7 +994,8 @@ body.recording-lock main {
 
 #testForm.measurement-active .spectrum-chart-wrap {
 
-    height: 150px;
+    flex: 0 0 120px;
+    height: 120px;
 
 }
 
@@ -1102,14 +1104,15 @@ body.recording-lock main {
 
     #testForm.measurement-active .temporal-chart-wrap {
 
-        height: 220px;
+        min-height: 145px;
 
     }
 
 
     #testForm.measurement-active .spectrum-chart-wrap {
 
-        height: 105px;
+        flex-basis: 95px;
+        height: 95px;
 
     }
 

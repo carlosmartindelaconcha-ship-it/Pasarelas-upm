@@ -1455,6 +1455,10 @@ async function startRecording() {
         recordingStartTime;
 
 
+    lastSpectrumUpdate =
+        recordingStartTime;
+
+
     isRecording =
         true;
 
