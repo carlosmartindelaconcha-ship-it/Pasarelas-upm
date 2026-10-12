@@ -493,7 +493,8 @@ button:hover {
 }
 
 
-#spectrumPanel {
+#spectrumPanel,
+#psdPanel {
 
     margin-top: 18px;
     border-top: 1px solid #dddddd;
@@ -502,7 +503,8 @@ button:hover {
 }
 
 
-#spectrumPanel h3 {
+#spectrumPanel h3,
+#psdPanel h3 {
 
     margin: 0;
     text-align: left;
@@ -514,14 +516,16 @@ button:hover {
 }
 
 
-#spectrumChart {
+#spectrumChart,
+#psdChart {
 
     max-width: 100%;
 
 }
 
 
-.spectrum-chart-wrap {
+.spectrum-chart-wrap,
+.psd-chart-wrap {
 
     height: 320px;
 
@@ -947,7 +951,8 @@ body.recording-lock main {
 }
 
 
-#testForm.measurement-active #rmsPanel {
+#testForm.measurement-active #rmsPanel,
+#testForm.measurement-active #psdPanel {
 
     display: none;
 
