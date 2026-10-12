@@ -321,6 +321,8 @@
 
             <div class="chart-card">
 
+                <!-- Resultados: señal temporal, RMS, espectro y PSD. -->
+
                 <div class="measurement-chart-panel temporal-panel">
                     <div class="chart-heading">
                         <h3 id="timeSignalTitle">Señal temporal</h3>
@@ -330,6 +332,18 @@
                     </div>
                     <div class="chart-canvas-wrap temporal-chart-wrap">
                         <canvas id="accelerationChart"></canvas>
+                    </div>
+                </div>
+
+                <div id="rmsPanel" class="rms-panel">
+                    <div class="chart-heading">
+                        <h3>RMS móvil</h3>
+                        <button id="resetRmsZoom" class="chart-control" type="button">
+                            Restablecer zoom
+                        </button>
+                    </div>
+                    <div class="chart-canvas-wrap rms-chart-wrap">
+                        <canvas id="rmsChart"></canvas>
                     </div>
                 </div>
 
@@ -354,18 +368,6 @@
                     </div>
                     <div class="chart-canvas-wrap psd-chart-wrap">
                         <canvas id="psdChart"></canvas>
-                    </div>
-                </div>
-
-                <div id="rmsPanel" class="rms-panel">
-                    <div class="chart-heading">
-                        <h3>RMS móvil</h3>
-                        <button id="resetRmsZoom" class="chart-control" type="button">
-                            Restablecer zoom
-                        </button>
-                    </div>
-                    <div class="chart-canvas-wrap rms-chart-wrap">
-                        <canvas id="rmsChart"></canvas>
                     </div>
                 </div>
 
