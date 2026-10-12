@@ -3989,13 +3989,9 @@ function updateSpectrumChart(data, resetZoom = true) {
         })
     );
 
-    /*
-       El límite de la vista inicial se conserva con su valor real.
-       No se vuelve a redondear al pulsar "Restablecer zoom".
-    */
-    const calculatedSpectrumYLimit = Math.max(
-        0.01,
-        maximumSpectrumAmplitude * 1.2
+    const calculatedSpectrumYLimit = roundUpToScale(
+        maximumSpectrumAmplitude * 1.2,
+        0.1
     );
 
     /*
