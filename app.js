@@ -241,12 +241,56 @@ let currentSensorMode = "";
 let currentSensorType = "";
 
 
+const legendTouchTogglePlugin = {
+
+    id: "legendTouchToggle",
+
+    afterEvent: function (chart, args) {
+
+        if (args.event.type !== "touchend") {
+            return;
+        }
+
+        const legend = chart.legend;
+
+        if (!legend || !legend.legendHitBoxes) {
+            return;
+        }
+
+        const datasetIndex = legend.legendHitBoxes.findIndex(
+            function (box) {
+                return (
+                    args.event.x >= box.left &&
+                    args.event.x <= box.left + box.width &&
+                    args.event.y >= box.top &&
+                    args.event.y <= box.top + box.height
+                );
+            }
+        );
+
+        if (datasetIndex < 0) {
+            return;
+        }
+
+        chart.$legendTouchTime =
+            performance.now();
+
+        toggleLegendDataset(chart, datasetIndex);
+
+        args.changed = true;
+
+    }
+
+};
+
+
 /* Tipografía coherente y nítida para todos los textos de Chart.js. */
 if (typeof Chart !== "undefined") {
 
     Chart.defaults.font.family = "Arial, sans-serif";
     Chart.defaults.font.size = 12;
     Chart.defaults.font.lineHeight = 1.2;
+    Chart.register(legendTouchTogglePlugin);
 
 }
 
@@ -3730,17 +3774,32 @@ function enableLegendToggling(chart) {
     chart.options.plugins.legend.onClick =
         function (event, legendItem, legend) {
 
-            const datasetIndex =
-                legendItem.datasetIndex;
+            if (
+                Number.isFinite(chart.$legendTouchTime) &&
+                performance.now() -
+                chart.$legendTouchTime < 500
+            ) {
+                return;
+            }
 
-            chart.setDatasetVisibility(
-                datasetIndex,
-                !chart.isDatasetVisible(datasetIndex)
+            toggleLegendDataset(
+                chart,
+                legendItem.datasetIndex
             );
 
-            chart.update("none");
-
         };
+
+}
+
+
+function toggleLegendDataset(chart, datasetIndex) {
+
+    chart.setDatasetVisibility(
+        datasetIndex,
+        !chart.isDatasetVisible(datasetIndex)
+    );
+
+    chart.update("none");
 
 }
 
