@@ -792,6 +792,18 @@ openCameraButton.addEventListener(
     "click",
     async function () {
 
+        if (!getPhotoTitle()) {
+
+            alert(
+                "Escribe un título antes de abrir la cámara."
+            );
+
+            photoTitleInput.focus();
+
+            return;
+
+        }
+
         try {
 
             cameraStream =
@@ -860,6 +872,9 @@ capturePhotoButton.addEventListener(
             alert(
                 "Escribe un título antes de capturar la fotografía."
             );
+
+
+            stopCamera();
 
             photoTitleInput.focus();
 
