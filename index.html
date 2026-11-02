@@ -776,12 +776,15 @@
                 </div>
             </div>
             <dialog id="jointPairDialog" aria-labelledby="jointPairTitle"><div class="joint-dialog-heading"><h3 id="jointPairTitle">Conectar móvil</h3><button id="jointPairClose" class="joint-secondary" type="button">Cerrar</button></div>
-                <p id="jointPairHelp"></p><div id="jointQr"></div><textarea id="jointPairOutput" rows="3" readonly aria-label="Código para compartir" hidden></textarea><button id="jointCopyCode" type="button" class="joint-secondary" hidden>Copiar código</button>
+                <p id="jointPairHelp"></p>
+                <label>Modo de conexión<select id="jointNetworkMode"><option value="stun" selected>Compatibilidad con punto de acceso (STUN)</option><option value="local">Solo red local, sin STUN</option></select></label>
+                <p class="joint-help">El maestro elige el modo y la invitación lo aplica al participante. STUN consulta servidores de Google por Internet para descubrir direcciones de conexión: esos servidores ven la IP pública, pero no reciben las medidas. Puede ayudar con un hotspot, sin garantizar la conexión. Para cambiar de modo, reinicia el emparejamiento.</p>
+                <div id="jointQr"></div><textarea id="jointPairOutput" rows="3" readonly aria-label="Código para compartir" hidden></textarea><button id="jointCopyCode" type="button" class="joint-secondary" hidden>Copiar código</button>
                 <label for="jointPairInput">Invitación o respuesta</label><textarea id="jointPairInput" rows="4" placeholder="Pega el código o el enlace recibido" autocomplete="off" spellcheck="false"></textarea>
                 <div class="joint-actions"><button id="jointReadCode" type="button">Leer código</button><button id="jointScanCode" type="button" class="joint-secondary">Escanear QR</button><button id="jointStopScan" type="button" class="joint-secondary" hidden>Parar cámara</button></div>
                 <video id="jointScanner" playsinline muted hidden></video><p id="jointPairStatus" role="status" aria-live="polite"></p>
                 <button id="jointRetryPair" type="button" class="joint-secondary">Reiniciar emparejamiento</button>
-                <p class="joint-help">Emparejamiento sin servidor: el participante lee la invitación y el maestro lee su respuesta. Cada invitación sirve para un móvil. Los códigos contienen información de conexión: compártelos solo con los participantes.</p>
+                <p class="joint-help">Emparejamiento mediante dos códigos: el participante lee la invitación y el maestro lee su respuesta. Cada invitación sirve para un móvil. No hay servidor de retransmisión TURN. Los códigos contienen información de conexión: compártelos solo con los participantes. Versión de conexión 2 · STUN.</p>
             </dialog>
         </section>
 
@@ -810,7 +813,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261102-pairing-fix"></script>
+    <script defer src="app.js?v=20261102-hotspot-stun"></script>
 
 
 </body>

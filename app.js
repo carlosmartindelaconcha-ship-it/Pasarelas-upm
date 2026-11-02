@@ -5398,7 +5398,7 @@ function formatTime(
 /* =========================================================
    MEDIDA CONJUNTA — prototipo estático sin servidor de señalización.
    Relojes de página y eventos DOM, NO timestamps hardware certificados.
-   El emparejamiento requiere invitación + respuesta; sin STUN ni TURN.
+   Invitación + respuesta; STUN opcional, sin servidor de retransmisión TURN.
    Todas las duraciones y marcas internas están expresadas en ms.
    ========================================================= */
 (() => {
@@ -5406,7 +5406,9 @@ function formatTime(
     const $ = id => document.getElementById(id);
     const root = $('jointApp');
     if (!root) return;
-    const VERSION = 1;
+    const VERSION = 2;
+    // Only these app-owned endpoints are used; invitation codes cannot inject servers.
+    const STUN_SERVERS = [{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}];
     const MAX_PEERS = 8, MAX_POINTS = 64, MAX_SAMPLES = 500000;
     const MAX_TOKEN = 50000, MAX_MESSAGE = 90000;
     const activeStates = new Set(['preparing', 'armed', 'recording']);
@@ -5571,9 +5573,11 @@ function formatTime(
         }
         const t=JSON.parse(new TextDecoder().decode(decoded));
         if(t.v!==VERSION || !['offer','answer'].includes(t.kind) || typeof t.session!=='string' || typeof t.peer!=='string' || typeof t.host!=='string' || !t.sdp || t.sdp.type!==t.kind || typeof t.sdp.sdp!=='string' || t.sdp.sdp.length>60000 || !finite(t.expires) || Date.now()>t.expires) throw Error('Código caducado o incompatible. Genera una nueva invitación.');
-        // Require host candidates only. A hostname can be mDNS; it does not prove SSID.
+        if(!['local','stun'].includes(t.network))throw Error('Modo de conexión incompatible. Recarga la web en ambos móviles y crea una invitación nueva.');
+        // STUN discovers addresses; it does not relay measurement data or prove LAN routing.
         const candidates=t.sdp.sdp.split(/\r?\n/).filter(l=>l.startsWith('a=candidate:'));
-        if(!candidates.length || candidates.some(l=>! / typ host(?: |$)/.test(l))) throw Error('La invitación no contiene candidatos directos admitidos.');
+        const allowed=t.network==='local'?/ typ host(?: |$)/:/ typ (?:host|srflx|prflx)(?: |$)/;
+        if(!candidates.length || candidates.some(l=>!allowed.test(l))) throw Error('El código no contiene direcciones admitidas para ese modo de conexión.');
         return t;
     }
     async function showToken(payload) {
@@ -5589,18 +5593,31 @@ function formatTime(
         $('jointPairTitle').textContent=mode==='offer'?'Invitar a un móvil':'Leer invitación o respuesta';
         $('jointPairHelp').textContent=mode==='offer'?'El participante lee esta invitación. Después, lee aquí su respuesta para completar la conexión.':'Escanea el QR o pega el código completo del otro móvil.';
         $('jointPairOutput').hidden=true; $('jointCopyCode').hidden=true; $('jointQr').replaceChildren(); $('jointPairInput').value=''; $('jointPairStatus').textContent='';
+        $('jointNetworkMode').disabled=s.role==='guest';
         if(!$('jointPairDialog').open)$('jointPairDialog').showModal();
     }
     async function gather(pc) {
-        if(pc.iceGatheringState==='complete') return;
-        await new Promise((resolve,reject)=>{
-            const timer=setTimeout(()=>{pc.removeEventListener('icegatheringstatechange',listener);reject(Error('No se pudo obtener la conexión. Revisa el Wi-Fi y vuelve a invitar.'));},12000);
-            function listener(){if(pc.iceGatheringState==='complete'){clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',listener);resolve();}}
+        if(pc.iceGatheringState==='complete') return true;
+        return await new Promise((resolve,reject)=>{
+            const timer=setTimeout(()=>{
+                pc.removeEventListener('icegatheringstatechange',listener);
+                // An unreachable STUN server must not discard usable local candidates.
+                if(/^a=candidate:/m.test(pc.localDescription?.sdp||''))resolve(false);
+                else reject(Error('No se han encontrado direcciones de conexión. Revisa la conexión a Internet y los permisos de red local, si aparecen, y vuelve a invitar.'));
+            },20000);
+            function listener(){if(pc.iceGatheringState==='complete'){clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',listener);resolve(true);}}
             pc.addEventListener('icegatheringstatechange',listener); listener();
         });
     }
+    function candidateSummary(description) {
+        const rows=(description?.sdp||'').split(/\r?\n/).filter(l=>l.startsWith('a=candidate:'));
+        const host=rows.filter(l=>/ typ host(?: |$)/.test(l));
+        const mdns=host.filter(l=>/\.local(?: |$)/i.test(l)).length;
+        const srflx=rows.filter(l=>/ typ srflx(?: |$)/.test(l)).length;
+        return 'locales '+host.length+' (mDNS '+mdns+'), STUN '+srflx;
+    }
     function pairingDetails(p) {
-        return 'ICE: '+p.pc.iceConnectionState+' · enlace: '+p.pc.connectionState+' · canal: '+(p.channel?.readyState||'pendiente');
+        return 'ICE: '+p.pc.iceConnectionState+' · enlace: '+p.pc.connectionState+' · canal: '+(p.channel?.readyState||'pendiente')+' · modo: '+p.network+' · este móvil: '+candidateSummary(p.pc.localDescription)+' · otro móvil: '+candidateSummary(p.pc.remoteDescription);
     }
     function pairStatus(p, message) {
         if(s.peers.get(p.id)!==p || p.pairFailed)return;
@@ -5617,7 +5634,8 @@ function formatTime(
     }
     function failPair(p, reason) {
         if(s.peers.get(p.id)!==p||p.pairFailed||p.opened)return;
-        const message=reason+' ('+pairingDetails(p)+'). Mantén ambas páginas abiertas en la misma red Wi-Fi y comprueba que la red permita comunicación entre dispositivos. Pulsa Reiniciar emparejamiento y vuelve a intercambiar los dos códigos.';
+        const next=p.network==='local'?'Prueba el modo Compatibilidad con punto de acceso (STUN), con Internet disponible.':'Si utilizas un punto de acceso, prueba ambos móviles en un router Wi-Fi común para comparar. STUN no puede superar todos los bloqueos; esta versión no dispone de retransmisión TURN.';
+        const message=reason+' ('+pairingDetails(p)+'). '+next+' Mantén ambas páginas abiertas. Pulsa Reiniciar emparejamiento y vuelve a intercambiar los dos códigos.';
         pairStatus(p,message);p.pairFailed=true;disposePeer(p);
         if(s.role==='guest'||s.currentInvite===p.id)tell(message,true);
         renderDevices();
@@ -5629,8 +5647,9 @@ function formatTime(
     }
     function localDescription(p) {
         const description=p.pc.localDescription;
-        if(!description || !/^a=candidate:.* typ host(?: |\r?$)/m.test(description.sdp))
-            throw Error('El navegador no ha proporcionado direcciones de conexión local. No se puede crear un código utilizable. Comprueba los permisos de red local del navegador, si aparecen, y reinicia el emparejamiento.');
+        const allowed=p.network==='local'?/^a=candidate:.* typ host(?: |\r?$)/m:/^a=candidate:.* typ (?:host|srflx|prflx)(?: |\r?$)/m;
+        if(!description || !allowed.test(description.sdp))
+            throw Error('El navegador no ha proporcionado direcciones de conexión utilizables. Comprueba Internet y los permisos de red local, si aparecen, o selecciona el modo STUN y reinicia el emparejamiento.');
         return {type:description.type,sdp:description.sdp};
     }
     async function pairingAction(action) {
@@ -5665,9 +5684,10 @@ function formatTime(
         p.pc.onconnectionstatechange=changed;p.pc.oniceconnectionstatechange=changed;
         p.pc.ondatachannel=e=>wireChannel(p,e.channel);
     }
-    function newPeer(id) {
+    function newPeer(id, network=$('jointNetworkMode').value) {
         if(typeof RTCPeerConnection==='undefined') throw Error('WebRTC no está disponible en este navegador.');
-        const p={id,name:'Móvil '+(s.peers.size+1),pc:new RTCPeerConnection({iceServers:[]}),requests:new Map(),samples:[],status:null,model:null,route:null,lastSeen:now(),incoming:null,acks:new Map()};
+        if(!['local','stun'].includes(network))throw Error('Selecciona un modo de conexión válido.');
+        const p={id,network,name:'Móvil '+(s.peers.size+1),pc:new RTCPeerConnection({iceServers:network==='stun'?STUN_SERVERS:[]}),requests:new Map(),samples:[],status:null,model:null,route:null,lastSeen:now(),incoming:null,acks:new Map()};
         s.peers.set(id,p);wirePeer(p);return p;
     }
     function send(p,msg) {
@@ -5687,7 +5707,7 @@ function formatTime(
             }
             p.lastSeen=now();send(p,{type:'HELLO',id:s.id,name:s.name,status:localStatus()});
             if(s.role==='host'){send(p,{type:'PLAN',plan:s.plan});startSync(p);}
-            tell('Conexión directa establecida. Asigna el móvil a un punto y activa su acelerómetro.');
+            tell('Canal de datos establecido. Asigna el móvil a un punto y activa su acelerómetro.');
             checkRoute(p);renderDevices();renderPlan();
         };
         channel.onclose=()=>{incident('connection','Canal cerrado: '+p.name);if(!p.opened)failPair(p,'El canal se ha cerrado antes de conectar');else tell('Se ha cerrado la conexión con '+p.name+'.',true);renderDevices();};
@@ -5710,7 +5730,10 @@ function formatTime(
             stats.forEach(r=>{if(r.type==='transport'&&r.selectedCandidatePairId)pair=stats.get(r.selectedCandidatePairId);});
             if(!pair)stats.forEach(r=>{if(r.type==='candidate-pair'&&r.state==='succeeded'&&r.nominated)pair=r;});
             const a=pair&&stats.get(pair.localCandidateId),b=pair&&stats.get(pair.remoteCandidateId);
-            p.route=a?.candidateType==='host'&&b?.candidateType==='host'?'Ruta directa (candidatos host)':'Ruta no verificable con las estadísticas disponibles';
+            if(a&&b){
+                const types=[a.candidateType,b.candidateType];
+                p.route=types.includes('relay')?'Ruta con retransmisión TURN':types.every(t=>t==='host')?'Ruta entre candidatos locales (host)':types.some(t=>t==='srflx'||t==='prflx')?'Ruta directa con descubrimiento de direcciones; no certifica recorrido por Wi-Fi':'Ruta no verificable con las estadísticas disponibles';
+            }else p.route='Ruta no verificable con las estadísticas disponibles';
         }catch(e){p.route='Ruta pendiente de verificación';}
         renderDevices();
     }
@@ -5721,11 +5744,11 @@ function formatTime(
         openPair('offer'); $('jointPairStatus').textContent='Preparando invitación…';
         const p=newPeer(uid());s.currentInvite=p.id;wireChannel(p,p.pc.createDataChannel('upm-joint',{ordered:true}));
         try {
-            await p.pc.setLocalDescription(await p.pc.createOffer());await gather(p.pc);
+            await p.pc.setLocalDescription(await p.pc.createOffer());p.gatherComplete=await gather(p.pc);
             const expires=Date.now()+10*60*1000; p.expires=expires;
             if(s.peers.get(p.id)!==p)return;
-            await showToken({v:VERSION,kind:'offer',session:s.session,host:s.id,peer:p.id,name:s.name,expires,sdp:localDescription(p)});
-            pairStatus(p,'Invitación válida durante 10 minutos. Esperando respuesta del participante.');
+            await showToken({v:VERSION,kind:'offer',network:p.network,session:s.session,host:s.id,peer:p.id,name:s.name,expires,sdp:localDescription(p)});
+            pairStatus(p,'Invitación válida durante 10 minutos. Esperando respuesta del participante. Direcciones: '+candidateSummary(p.pc.localDescription)+(p.gatherComplete?'':'. Búsqueda limitada a 20 s; se utilizan las direcciones disponibles.'));
             watchPair(p,10*60*1000);
         }catch(e){disposePeer(p);s.peers.delete(p.id);throw e;}
     }
@@ -5736,19 +5759,21 @@ function formatTime(
             if(s.role==='host')throw Error('El maestro debe leer una respuesta, no otra invitación.');
             if(s.peers.size)throw Error('Ya existe una conexión. Sal de la sesión antes de unirte a otra.');
             s.role='guest';s.id=t.peer;s.session=t.session;s.name='Participante';
-            const p=newPeer(t.host);p.name=String(t.name||'Maestro').slice(0,40);workspace();
+            $('jointNetworkMode').value=t.network;$('jointNetworkMode').disabled=true;
+            const p=newPeer(t.host,t.network);p.name=String(t.name||'Maestro').slice(0,40);workspace();
             try {
                 pairStatus(p,'Preparando respuesta…');
-                await p.pc.setRemoteDescription(t.sdp);await p.pc.setLocalDescription(await p.pc.createAnswer());await gather(p.pc);
+                await p.pc.setRemoteDescription(t.sdp);await p.pc.setLocalDescription(await p.pc.createAnswer());p.gatherComplete=await gather(p.pc);
                 if(s.peers.get(p.id)!==p||p.pairFailed)return;
                 $('jointPairHelp').textContent='Muestra esta respuesta al maestro para que la escanee, o envíale el código completo. Mantén esta página abierta.';
-                await showToken({v:VERSION,kind:'answer',session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:localDescription(p)});
-                if(!p.opened)pairStatus(p,'Respuesta preparada. El maestro debe leerla en los próximos 2 minutos.');
+                await showToken({v:VERSION,kind:'answer',network:p.network,session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:localDescription(p)});
+                if(!p.opened)pairStatus(p,'Respuesta preparada. El maestro debe leerla en los próximos 2 minutos. Direcciones: '+candidateSummary(p.pc.localDescription)+(p.gatherComplete?'':'. Búsqueda limitada a 20 s.'));
                 watchPair(p,120000);
             }catch(e){disposePeer(p);s.peers.delete(p.id);throw e;}
         } else {
             if(s.role!=='host'||t.session!==s.session||t.host!==s.id)throw Error('Esta respuesta pertenece a otra sesión.');
             const p=s.peers.get(t.peer);if(!p || p.pc.signalingState!=='have-local-offer')throw Error('Invitación no disponible o ya utilizada.');
+            if(t.network!==p.network)throw Error('La respuesta usa otro modo de conexión. Genera una invitación nueva.');
             s.currentInvite=p.id;p.answerAccepted=true;watchPair(p);
             try {
                 await p.pc.setRemoteDescription(t.sdp);
@@ -6148,6 +6173,7 @@ function formatTime(
     });
     $('jointJoin').onclick=()=>openPair();$('jointPair').onclick=guard(()=>pairingAction(invite));
     $('jointRetryPair').onclick=guard(retryPair);
+    $('jointNetworkMode').onchange=()=>{$('jointPairStatus').textContent='Pulsa Reiniciar emparejamiento para generar una invitación nueva con este modo.';};
     $('jointPairClose').onclick=()=>{$('jointPairDialog').close();stopScan();};
     $('jointPairDialog').addEventListener('close',stopScan);
     $('jointReadCode').onclick=guard(()=>pairingAction(()=>readCode()));$('jointScanCode').onclick=guard(scanCode);$('jointStopScan').onclick=stopScan;
