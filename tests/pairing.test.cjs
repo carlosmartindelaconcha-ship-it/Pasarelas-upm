@@ -55,7 +55,7 @@ test('host retry preserves connected participants',async()=>{
  const {a,peer}=setup();const connected=peer('kept');connected.channel.readyState='open';const bad=peer('failed');a.failPair(bad,'Test');await a.retryPair();assert.equal(a.s.peers.get('kept'),connected);assert.equal(a.s.peers.has('failed'),false);assert.equal(a.s.peers.size,2);
 });
 test('missing local candidates produces no unusable invitation and cleans peer',async()=>{
- const {a}=setup({noCandidates:true});await assert.rejects(a.invite(),/direcciones de conexión utilizables/);assert.equal(a.s.peers.size,0);
+ const {a,el}=setup({noCandidates:true});await assert.rejects(a.invite(),/direcciones utilizables/);assert.equal(a.s.peers.size,0);assert.equal(el('jointPairDiagnostics').hidden,false);assert.match(el('jointPairDiagnosticsText').textContent,/creación de invitación|preparación del código/);
 });
 test('pairing action prevents overlapping submissions and releases controls on failure',async()=>{
  const {a,el}=setup();let release;const task=a.pairingAction(()=>new Promise(resolve=>release=resolve));await assert.rejects(a.pairingAction(()=>{}),/Espera/);release();await task;await assert.rejects(a.pairingAction(()=>{throw Error('test')}),/test/);assert.equal(a.s.pairBusy,false);assert.equal(el('jointRetryPair').disabled,false);
@@ -90,4 +90,16 @@ test('gather timeout without candidates rejects instead of generating unusable Q
 });
 test('diagnostic summaries expose counts without revealing addresses',()=>{
  const {a}=setup();const summary=a.candidateSummary({sdp:sdp+srflx+'a=candidate:3 1 udp 123 secret.local 5000 typ host\r\n'});assert.equal(summary,'locales 2 (mDNS 1), STUN 1');assert.doesNotMatch(summary,/192\.168|198\.51|secret/);
+});
+test('STUN 701 is translated and kept in the visible diagnostic',()=>{
+ const {el,peer}=setup();const p=peer();p.pc.onicecandidateerror({errorCode:701,errorText:'STUN host lookup received error'});
+ assert.equal(el('jointPairDiagnostics').hidden,false);
+ assert.match(el('jointPairDiagnosticsText').textContent,/701 · no se pudo alcanzar el servidor STUN/);
+ assert.match(el('jointPairDiagnosticsText').textContent,/El código 701 significa/);
+ assert.doesNotMatch(el('jointPairDiagnosticsText').textContent,/192\.168\.1\.2/);
+});
+test('connection failure preserves candidate events in diagnostic',()=>{
+ const {el,peer}=setup();const p=peer();p.pc.onicecandidate({candidate:{candidate:'candidate:1 1 udp 123 192.168.1.2 5000 typ host',type:'host',protocol:'udp'}});p.pc.iceConnectionState='failed';p.pc.oniceconnectionstatechange();
+ const diagnostic=el('jointPairDiagnosticsText').textContent;
+ assert.match(diagnostic,/candidato · host · udp/);assert.match(diagnostic,/conexión fallida/);assert.doesNotMatch(diagnostic,/192\.168\.1\.2/);
 });

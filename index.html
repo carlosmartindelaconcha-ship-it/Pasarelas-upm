@@ -783,8 +783,10 @@
                 <label for="jointPairInput">Invitación o respuesta</label><textarea id="jointPairInput" rows="4" placeholder="Pega el código o el enlace recibido" autocomplete="off" spellcheck="false"></textarea>
                 <div class="joint-actions"><button id="jointReadCode" type="button">Leer código</button><button id="jointScanCode" type="button" class="joint-secondary">Escanear QR</button><button id="jointStopScan" type="button" class="joint-secondary" hidden>Parar cámara</button></div>
                 <video id="jointScanner" playsinline muted hidden></video><p id="jointPairStatus" role="status" aria-live="polite"></p>
-                <button id="jointRetryPair" type="button" class="joint-secondary">Reiniciar emparejamiento</button>
-                <p class="joint-help">Emparejamiento mediante dos códigos: el participante lee la invitación y el maestro lee su respuesta. Cada invitación sirve para un móvil. No hay servidor de retransmisión TURN. Los códigos contienen información de conexión: compártelos solo con los participantes. Versión de conexión 2 · STUN.</p>
+                <div class="joint-actions"><button id="jointRetryPair" type="button" class="joint-secondary">Reiniciar emparejamiento</button><button id="jointPrepareSafari" type="button" class="joint-secondary">Preparar Safari/iPhone</button></div>
+                <p class="joint-help">Preparar Safari solicita acceso a la cámara y la detiene inmediatamente; no graba. Ese permiso puede permitir que Safari ofrezca direcciones locales para WebRTC.</p>
+                <details id="jointPairDiagnostics" class="joint-diagnostics" hidden><summary>Diagnóstico técnico</summary><pre id="jointPairDiagnosticsText" tabindex="0"></pre><button id="jointCopyDiagnostics" type="button" class="joint-secondary">Copiar diagnóstico</button></details>
+                <p class="joint-help">Emparejamiento mediante dos códigos: el participante lee la invitación y el maestro lee su respuesta. Cada invitación sirve para un móvil. No hay servidor de retransmisión TURN. Los códigos contienen información de conexión: compártelos solo con los participantes. Versión de conexión 2.</p>
             </dialog>
         </section>
 
@@ -813,7 +815,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261102-hotspot-stun"></script>
+    <script defer src="app.js?v=20261102-ice-diagnostics"></script>
 
 
 </body>

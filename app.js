@@ -5422,7 +5422,8 @@ function formatTime(
         plan: {length:30, width:3, name:'Ensayo multipunto', points:[]}, selected:null,
         sensor:false, sensorEnabled:false, lastSample:0, recent:[], rateTimes:[],
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
-        scan:null, scanFrame:null, currentInvite:null, pairBusy:false, adding:false, drag:null,
+        scan:null, scanFrame:null, currentInvite:null, pairBusy:false, capturePermission:false,
+        lastPairDiagnostic:'', adding:false, drag:null,
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
         storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null
@@ -5593,19 +5594,68 @@ function formatTime(
         $('jointPairTitle').textContent=mode==='offer'?'Invitar a un móvil':'Leer invitación o respuesta';
         $('jointPairHelp').textContent=mode==='offer'?'El participante lee esta invitación. Después, lee aquí su respuesta para completar la conexión.':'Escanea el QR o pega el código completo del otro móvil.';
         $('jointPairOutput').hidden=true; $('jointCopyCode').hidden=true; $('jointQr').replaceChildren(); $('jointPairInput').value=''; $('jointPairStatus').textContent='';
+        $('jointPairDiagnostics').hidden=true;$('jointPairDiagnosticsText').textContent='';
         $('jointNetworkMode').disabled=s.role==='guest';
         if(!$('jointPairDialog').open)$('jointPairDialog').showModal();
     }
+    function browserLabel() {
+        const ua=navigator.userAgent||'';
+        if(/iPhone|iPad|iPod/.test(ua))return 'Safari/WebKit en iPhone o iPad';
+        if(/Android/.test(ua)&&/Chrome\//.test(ua))return 'Chrome en Android';
+        if(/Safari\//.test(ua)&&!/Chrome\//.test(ua))return 'Safari/WebKit';
+        return 'Navegador no identificado';
+    }
+    function diagnosticEvent(p,event,detail='') {
+        if(!p)return;
+        if(!p.diagnostics)p.diagnostics=[];
+        p.diagnostics.push({ms:Math.max(0,Math.round(now()-(p.createdAt||now()))),event:String(event),detail:String(detail).slice(0,240)});
+        if(p.diagnostics.length>80)p.diagnostics.shift();
+    }
+    function diagnosticText(p,stage,error='') {
+        const stunErrors=(p?.diagnostics||[]).filter(row=>row.event==='error STUN');
+        const explanation=stunErrors.some(row=>/^701\b/.test(row.detail))?'El código 701 significa que este móvil no pudo alcanzar el servidor STUN.':'';
+        const lines=[
+            'Diagnóstico de conexión v2',
+            'Etapa: '+stage,
+            'Navegador: '+browserLabel(),
+            'Modo: '+(p?.network||$('jointNetworkMode').value),
+            'Permiso de cámara concedido en esta sesión: '+(s.capturePermission?'sí':'no o desconocido'),
+            'Estado: '+(p?pairingDetails(p):'sin conexión creada'),
+            error?'Error: '+error:'',
+            explanation,
+            '',
+            'Eventos:',
+            ...(p?.diagnostics||[]).map(row=>'+'+row.ms+' ms · '+row.event+(row.detail?' · '+row.detail:''))
+        ];
+        return lines.filter((line,index)=>line||index>=8).join('\n').trim();
+    }
+    function showPairDiagnostic(p,stage,error='') {
+        const value=diagnosticText(p,stage,error);s.lastPairDiagnostic=value;
+        $('jointPairDiagnosticsText').textContent=value;$('jointPairDiagnostics').hidden=false;
+        return value;
+    }
+    function pairingError(p,stage,message) {
+        showPairDiagnostic(p,stage,message);
+        const error=Error(message);error.pairDiagnostic=true;return error;
+    }
     async function gather(pc) {
-        if(pc.iceGatheringState==='complete') return true;
+        const p=pc.__jointPeer;diagnosticEvent(p,'búsqueda ICE',pc.iceGatheringState);
+        if(pc.iceGatheringState==='complete'){diagnosticEvent(p,'búsqueda ICE terminada',candidateSummary(pc.localDescription));return true;}
         return await new Promise((resolve,reject)=>{
             const timer=setTimeout(()=>{
                 pc.removeEventListener('icegatheringstatechange',listener);
                 // An unreachable STUN server must not discard usable local candidates.
-                if(/^a=candidate:/m.test(pc.localDescription?.sdp||''))resolve(false);
-                else reject(Error('No se han encontrado direcciones de conexión. Revisa la conexión a Internet y los permisos de red local, si aparecen, y vuelve a invitar.'));
+                if(/^a=candidate:/m.test(pc.localDescription?.sdp||'')){
+                    diagnosticEvent(p,'límite de 20 s',candidateSummary(pc.localDescription));resolve(false);
+                }else reject(pairingError(p,'búsqueda de direcciones','No se han encontrado direcciones de conexión. Abre el diagnóstico para comprobar si Safari ha filtrado las direcciones o si STUN ha devuelto un error.'));
             },20000);
-            function listener(){if(pc.iceGatheringState==='complete'){clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',listener);resolve(true);}}
+            function listener(){
+                diagnosticEvent(p,'estado de búsqueda ICE',pc.iceGatheringState);
+                if(pc.iceGatheringState==='complete'){
+                    clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',listener);
+                    diagnosticEvent(p,'búsqueda ICE terminada',candidateSummary(pc.localDescription));resolve(true);
+                }
+            }
             pc.addEventListener('icegatheringstatechange',listener); listener();
         });
     }
@@ -5628,7 +5678,8 @@ function formatTime(
     function disposePeer(p) {
         clearTimeout(p.pairTimer);p.pairTimer=null;
         p.pc.onconnectionstatechange=null;p.pc.oniceconnectionstatechange=null;
-        p.pc.onicecandidateerror=null;p.pc.ondatachannel=null;
+        p.pc.onicegatheringstatechange=null;p.pc.onsignalingstatechange=null;
+        p.pc.onicecandidate=null;p.pc.onicecandidateerror=null;p.pc.ondatachannel=null;
         if(p.channel){p.channel.onopen=null;p.channel.onclose=null;p.channel.onerror=null;}
         p.pc.close();
     }
@@ -5636,6 +5687,7 @@ function formatTime(
         if(s.peers.get(p.id)!==p||p.pairFailed||p.opened)return;
         const next=p.network==='local'?'Prueba el modo Compatibilidad con punto de acceso (STUN), con Internet disponible.':'Si utilizas un punto de acceso, prueba ambos móviles en un router Wi-Fi común para comparar. STUN no puede superar todos los bloqueos; esta versión no dispone de retransmisión TURN.';
         const message=reason+' ('+pairingDetails(p)+'). '+next+' Mantén ambas páginas abiertas. Pulsa Reiniciar emparejamiento y vuelve a intercambiar los dos códigos.';
+        diagnosticEvent(p,'conexión fallida',reason);showPairDiagnostic(p,'apertura del canal',message);
         pairStatus(p,message);p.pairFailed=true;disposePeer(p);
         if(s.role==='guest'||s.currentInvite===p.id)tell(message,true);
         renderDevices();
@@ -5649,8 +5701,20 @@ function formatTime(
         const description=p.pc.localDescription;
         const allowed=p.network==='local'?/^a=candidate:.* typ host(?: |\r?$)/m:/^a=candidate:.* typ (?:host|srflx|prflx)(?: |\r?$)/m;
         if(!description || !allowed.test(description.sdp))
-            throw Error('El navegador no ha proporcionado direcciones de conexión utilizables. Comprueba Internet y los permisos de red local, si aparecen, o selecciona el modo STUN y reinicia el emparejamiento.');
+            throw pairingError(p,'preparación del código de respuesta','El navegador no ha proporcionado direcciones utilizables. Abre el diagnóstico. En Safari puede ayudar pulsar «Preparar Safari/iPhone» antes de leer de nuevo la invitación.');
         return {type:description.type,sdp:description.sdp};
+    }
+    async function prepareSafariConnection() {
+        if(!navigator.mediaDevices?.getUserMedia)throw Error('Este navegador no permite solicitar acceso a la cámara.');
+        $('jointPairStatus').textContent='Solicitando permiso de cámara…';
+        let stream;
+        try {
+            stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});s.capturePermission=true;
+            $('jointPairStatus').textContent='Cámara autorizada y detenida. No se está grabando. Lee ahora una invitación nueva.';
+        }catch(e){
+            const message=e?.name==='NotAllowedError'?'No se ha concedido el permiso de cámara. Safari puede seguir filtrando las direcciones locales.':'No se pudo preparar Safari: '+(e.message||e);
+            $('jointPairStatus').textContent=message;throw Error(message);
+        }finally{if(stream)stream.getTracks().forEach(track=>track.stop());}
     }
     async function pairingAction(action) {
         if(s.pairBusy)throw Error('Espera a que termine la operación de emparejamiento.');
@@ -5674,6 +5738,7 @@ function formatTime(
     function wirePeer(p) {
         const changed=()=>{
             if(s.peers.get(p.id)!==p||p.pairFailed)return;
+            diagnosticEvent(p,'estado de conexión','ICE '+p.pc.iceConnectionState+'; enlace '+p.pc.connectionState);
             if(p.pc.connectionState==='failed'||p.pc.iceConnectionState==='failed')failPair(p,'La conexión directa ha fallado');
             else if(!p.opened&&p.answerAccepted)pairStatus(p,'Estableciendo conexión… '+pairingDetails(p));
             if(['disconnected','failed','closed'].includes(p.pc.connectionState)) {
@@ -5682,12 +5747,28 @@ function formatTime(
             renderDevices();
         };
         p.pc.onconnectionstatechange=changed;p.pc.oniceconnectionstatechange=changed;
+        p.pc.onicegatheringstatechange=()=>diagnosticEvent(p,'estado ICE',p.pc.iceGatheringState);
+        p.pc.onsignalingstatechange=()=>diagnosticEvent(p,'señalización',p.pc.signalingState);
+        p.pc.onicecandidate=e=>{
+            if(!e.candidate){diagnosticEvent(p,'fin de candidatos');return;}
+            const line=e.candidate.candidate||'',type=e.candidate.type||line.match(/ typ (\w+)/)?.[1]||'desconocido';
+            const protocol=e.candidate.protocol||line.split(' ')[2]||'protocolo desconocido';
+            diagnosticEvent(p,'candidato',type+' · '+protocol);
+        };
+        p.pc.onicecandidateerror=e=>{
+            const code=Number(e.errorCode)||0;
+            const meaning=code===701?'no se pudo alcanzar el servidor STUN':String(e.errorText||'error de servidor ICE');
+            diagnosticEvent(p,'error STUN',code+' · '+meaning);
+            showPairDiagnostic(p,'búsqueda de direcciones',meaning);
+        };
         p.pc.ondatachannel=e=>wireChannel(p,e.channel);
     }
     function newPeer(id, network=$('jointNetworkMode').value) {
         if(typeof RTCPeerConnection==='undefined') throw Error('WebRTC no está disponible en este navegador.');
         if(!['local','stun'].includes(network))throw Error('Selecciona un modo de conexión válido.');
-        const p={id,network,name:'Móvil '+(s.peers.size+1),pc:new RTCPeerConnection({iceServers:network==='stun'?STUN_SERVERS:[]}),requests:new Map(),samples:[],status:null,model:null,route:null,lastSeen:now(),incoming:null,acks:new Map()};
+        const pc=new RTCPeerConnection({iceServers:network==='stun'?STUN_SERVERS:[]});
+        const p={id,network,name:'Móvil '+(s.peers.size+1),pc,createdAt:now(),diagnostics:[],requests:new Map(),samples:[],status:null,model:null,route:null,lastSeen:now(),incoming:null,acks:new Map()};
+        pc.__jointPeer=p;diagnosticEvent(p,'conexión creada',network);
         s.peers.set(id,p);wirePeer(p);return p;
     }
     function send(p,msg) {
@@ -5699,7 +5780,7 @@ function formatTime(
         p.channel=channel;
         channel.onopen=()=>{
             if(p.opened||p.pairFailed||s.peers.get(p.id)!==p)return;
-            p.opened=true;clearTimeout(p.pairTimer);p.pairTimer=null;
+            p.opened=true;clearTimeout(p.pairTimer);p.pairTimer=null;diagnosticEvent(p,'canal de datos','abierto');
             pairStatus(p,'Conexión establecida. Canal de datos abierto.');
             if(s.role==='guest'||s.currentInvite===p.id){
                 if($('jointPairDialog').open)$('jointPairDialog').close();
@@ -5750,7 +5831,7 @@ function formatTime(
             await showToken({v:VERSION,kind:'offer',network:p.network,session:s.session,host:s.id,peer:p.id,name:s.name,expires,sdp:localDescription(p)});
             pairStatus(p,'Invitación válida durante 10 minutos. Esperando respuesta del participante. Direcciones: '+candidateSummary(p.pc.localDescription)+(p.gatherComplete?'':'. Búsqueda limitada a 20 s; se utilizan las direcciones disponibles.'));
             watchPair(p,10*60*1000);
-        }catch(e){disposePeer(p);s.peers.delete(p.id);throw e;}
+        }catch(e){if(!e.pairDiagnostic)showPairDiagnostic(p,'creación de invitación',e.message||String(e));disposePeer(p);s.peers.delete(p.id);throw e;}
     }
     async function readCode(raw=$('jointPairInput').value) {
         if(running()||s.transaction)throw Error('No se pueden incorporar móviles durante un ensayo.');
@@ -5769,7 +5850,7 @@ function formatTime(
                 await showToken({v:VERSION,kind:'answer',network:p.network,session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:localDescription(p)});
                 if(!p.opened)pairStatus(p,'Respuesta preparada. El maestro debe leerla en los próximos 2 minutos. Direcciones: '+candidateSummary(p.pc.localDescription)+(p.gatherComplete?'':'. Búsqueda limitada a 20 s.'));
                 watchPair(p,120000);
-            }catch(e){disposePeer(p);s.peers.delete(p.id);throw e;}
+            }catch(e){if(!e.pairDiagnostic)showPairDiagnostic(p,'creación de respuesta',e.message||String(e));disposePeer(p);s.peers.delete(p.id);throw e;}
         } else {
             if(s.role!=='host'||t.session!==s.session||t.host!==s.id)throw Error('Esta respuesta pertenece a otra sesión.');
             const p=s.peers.get(t.peer);if(!p || p.pc.signalingState!=='have-local-offer')throw Error('Invitación no disponible o ya utilizada.');
@@ -5785,7 +5866,7 @@ function formatTime(
     async function scanCode() {
         if(typeof jsQR!=='function')throw Error('El lector QR no se ha cargado. Puedes pegar el código.');
         await stopScan();
-        s.scan=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+        s.scan=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});s.capturePermission=true;
         const video=$('jointScanner');video.srcObject=s.scan;video.hidden=false;$('jointStopScan').hidden=false;await video.play();
         const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
         const frame=()=>{
@@ -6173,6 +6254,13 @@ function formatTime(
     });
     $('jointJoin').onclick=()=>openPair();$('jointPair').onclick=guard(()=>pairingAction(invite));
     $('jointRetryPair').onclick=guard(retryPair);
+    $('jointPrepareSafari').onclick=guard(prepareSafariConnection);
+    $('jointCopyDiagnostics').onclick=guard(async()=>{
+        const value=$('jointPairDiagnosticsText').textContent||s.lastPairDiagnostic;
+        if(!value)throw Error('Todavía no hay un diagnóstico disponible.');
+        try{await navigator.clipboard.writeText(value);$('jointPairStatus').textContent='Diagnóstico copiado. Pégalo en el chat.';}
+        catch(e){$('jointPairDiagnosticsText').focus();$('jointPairStatus').textContent='Mantén pulsado el diagnóstico para copiarlo.';}
+    });
     $('jointNetworkMode').onchange=()=>{$('jointPairStatus').textContent='Pulsa Reiniciar emparejamiento para generar una invitación nueva con este modo.';};
     $('jointPairClose').onclick=()=>{$('jointPairDialog').close();stopScan();};
     $('jointPairDialog').addEventListener('close',stopScan);
