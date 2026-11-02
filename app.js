@@ -6391,6 +6391,26 @@ function formatTime(
         }
         return data;
     }
+    function median(values) {
+        const a=values.filter(finite).sort((x,y)=>x-y),n=a.length;if(!n)return null;
+        return n%2?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2;
+    }
+    function samplePeriodMs(record,start,end) {
+        const times=record.samples.map(s=>s.masterTimeMs).filter(t=>finite(t)&&t>=start-1000&&t<=end+1000).sort((a,b)=>a-b);
+        return median(times.slice(1).map((t,i)=>t-times[i]).filter(dt=>dt>=5&&dt<=250));
+    }
+    function resampleAxis(samples,column,grid) {
+        const source=samples.filter(s=>finite(s.masterTimeMs)&&finite(s.raw[column])).sort((a,b)=>a.masterTimeMs-b.masterTimeMs),out=[];
+        let i=0;
+        for(const t of grid) {
+            while(i+1<source.length&&source[i+1].masterTimeMs<t)i++;
+            const a=source[i],b=source[i+1];
+            if(!a||!b||b.masterTimeMs===a.masterTimeMs||t<a.masterTimeMs||t>b.masterTimeMs)continue;
+            const r=(t-a.masterTimeMs)/(b.masterTimeMs-a.masterTimeMs);
+            out.push({x:t,y:a.raw[column]+r*(b.raw[column]-a.raw[column])});
+        }
+        return out;
+    }
     function renderComparison() {
         const canvas=$('jointCompareCanvas'),status=$('jointCompareStatus'),data=comparisonExport();
         if(s.compareChart){s.compareChart.destroy();s.compareChart=null;}
@@ -6401,17 +6421,21 @@ function formatTime(
         });
         if(!records.length) {status.textContent='El ensayo no contiene muestras para representar.';return;}
         if(typeof Chart==='undefined') {status.textContent='No se ha cargado la librería de gráficas. Recarga la página con conexión.';return;}
-        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),axes=[['X',3,'#1565c0'],['Y',4,'#c62828'],['Z',5,'#2e7d32']],dashes=[[],[8,5],[3,4],[11,4,2,4]];
+        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),axes=[['X',3,'#1565c0'],['Y',4,'#c62828'],['Z',5,'#2e7d32']],dashes=[[],[8,5],[3,4],[11,4,2,4]],view=$('jointCompareView').value;
+        const periods=records.map(r=>samplePeriodMs(r,start,end)).filter(finite),commonPeriod=periods.length?Math.max(...periods):null,grid=[];
+        if(view==='common'&&!finite(commonPeriod)){status.textContent='No hay suficientes marcas temporales válidas para construir la rejilla común.';return;}
+        if(view==='common'&&finite(commonPeriod))for(let t=start;t<=end+.1;t+=commonPeriod)grid.push(t);
         const datasets=[];
         records.forEach((record,deviceIndex)=>{
             const point=data.plan.points?.find(p=>p.device===record.device.id),name=(record.device.name||'Móvil')+(point?' · '+point.name:'');
             axes.forEach(([axis,column,color])=>{
                 const valid=record.samples.filter(sample=>finite(sample.masterTimeMs)&&finite(sample.raw[column])&&sample.masterTimeMs>=start&&sample.masterTimeMs<=end);
-                const stride=Math.max(1,Math.ceil(valid.length/4500));
-                datasets.push({label:name+' · '+axis,data:valid.filter((_,i)=>i%stride===0).map(sample=>({x:(sample.masterTimeMs-start)/1000,y:sample.raw[column]})),borderColor:color,borderDash:dashes[deviceIndex%dashes.length],borderWidth:deviceIndex?1.35:2.15,pointRadius:0,tension:0,parsing:false});
+                const points=view==='common'?resampleAxis(record.samples,column,grid).map(p=>({x:(p.x-start)/1000,y:p.y})):valid.map(sample=>({x:(sample.masterTimeMs-start)/1000,y:sample.raw[column]}));
+                const stride=Math.max(1,Math.ceil(points.length/4500));
+                datasets.push({label:name+' · '+axis,data:points.filter((_,i)=>i%stride===0),borderColor:color,borderDash:dashes[deviceIndex%dashes.length],borderWidth:deviceIndex?1.35:2.15,pointRadius:0,tension:0,parsing:false});
             });
         });
-        status.textContent=`${records.length} móviles · X, Y y Z superpuestos · ventana ${(span/1000).toFixed(2)} s · tiempo referido al reloj del maestro.`;
+        status.textContent=view==='common'?`${records.length} móviles · rejilla común de ${commonPeriod.toFixed(2)} ms (${(1000/commonPeriod).toFixed(1)} Hz) · interpolación lineal a partir de las marcas temporales corregidas al reloj maestro.`:`${records.length} móviles · marcas temporales originales ya referidas al reloj del maestro; sin remuestreo.`;
         s.compareChart=new Chart(canvas.getContext('2d'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:14,font:{size:11}}},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²'}},zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:span/1000},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:span/1000,title:{display:true,text:'Tiempo en el reloj maestro (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:'Aceleración (m/s²)'},grid:{color:'rgba(0,0,0,.08)'}}}}});
         enableLegendToggling(s.compareChart);
     }
@@ -6523,6 +6547,7 @@ function formatTime(
     $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Estimando desfases mediante nuevos intercambios de mensajes…');});
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
+    $('jointCompareView').onchange=renderComparison;
     $('jointCompareResetZoom').onclick=()=>s.compareChart?.resetZoom('none');
     $('jointImportSession').onchange=guard(async e=>{
         const file=e.target.files[0];if(!file)return;

@@ -777,8 +777,8 @@
                 </div>
                 <div id="jointPanelCompare" role="tabpanel" aria-labelledby="jointTabCompare" hidden>
                     <h3>Señales sincronizadas</h3>
-                    <p class="joint-help">X azul, Y rojo y Z verde. La línea del maestro es continua; las de los participantes son discontinuas. Todas comparten el tiempo estimado del maestro. Puedes ampliar con dos dedos o rueda y desplazar la ventana en horizontal.</p>
-                    <div class="joint-actions"><button id="jointCompareResetZoom" type="button" class="joint-secondary">Restablecer zoom</button><label class="joint-file">Abrir ensayo JSON del maestro<input id="jointImportSession" type="file" accept="application/json,.json"></label></div>
+                    <p class="joint-help">X azul, Y rojo y Z verde. La línea del maestro es continua; las de los participantes son discontinuas. Puedes ampliar con dos dedos o rueda y desplazar la ventana en horizontal.</p>
+                    <div class="joint-actions"><label>Representación<select id="jointCompareView"><option value="common" selected>Rejilla temporal común</option><option value="raw">Marcas originales</option></select></label><button id="jointCompareResetZoom" type="button" class="joint-secondary">Restablecer zoom</button><label class="joint-file">Abrir ensayo JSON del maestro<input id="jointImportSession" type="file" accept="application/json,.json"></label></div>
                     <p id="jointCompareStatus" class="joint-help">Termina un ensayo y recibe los registros de los participantes para compararlos aquí.</p>
                     <div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvas" aria-label="Aceleraciones X Y Z de maestro y participantes alineadas en el reloj maestro"></canvas></div>
                 </div>
@@ -825,7 +825,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261102-joint-compare-zoom"></script>
+    <script defer src="app.js?v=20261102-joint-common-grid"></script>
 
 
 </body>
