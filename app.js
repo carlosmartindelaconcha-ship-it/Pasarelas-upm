@@ -5739,22 +5739,28 @@ function formatTime(
         const address=String(candidate?.address||candidate?.ip||'?'),port=candidate?.port??'?';
         return address.includes(':')?'['+address+']:'+port:address+':'+port;
     }
-    function candidateLabel(candidate) {
+    function candidateLabel(candidate, fallbacks=[]) {
         if(!candidate)return 'sin candidato';
-        return [String(candidate.protocol||'?').toUpperCase(),String(candidate.candidateType||candidate.type||'?').toLowerCase(),candidateEndpoint(candidate),candidate.tcpType].filter(Boolean).join(' · ');
+        const port=String(candidate.port??'');
+        const protocol=String(candidate.protocol||'').toLowerCase();
+        const type=String(candidate.candidateType||candidate.type||'').toLowerCase();
+        const fallback=fallbacks.find(row=>String(row.port)===port&&String(row.protocol||'').toLowerCase()===protocol&&(!type||row.type===type));
+        const display=(String(candidate.address||candidate.ip||'')&&String(candidate.address||candidate.ip||'')!=='?')?candidate:(fallback?{...candidate,address:fallback.address,port:fallback.port,type:fallback.type,tcpType:candidate.tcpType||fallback.tcpType}:candidate);
+        return [String(display.protocol||'?').toUpperCase(),String(display.candidateType||display.type||'?').toLowerCase(),candidateEndpoint(display),display.tcpType].filter(Boolean).join(' · ');
     }
     function candidateDetails(description) {
-        const rows=parsedCandidates(description);return rows.length?rows.map(candidateLabel):['ninguno'];
+        const rows=parsedCandidates(description);return rows.length?rows.map(row=>candidateLabel(row)):['ninguno'];
     }
-    function icePairSnapshot(stats) {
+    function icePairSnapshot(stats, localDescription, remoteDescription) {
         const reports=new Map();stats.forEach(report=>reports.set(report.id,report));
+        const localFallbacks=parsedCandidates(localDescription),remoteFallbacks=parsedCandidates(remoteDescription);
         const rank={succeeded:0,'in-progress':1,inprogress:1,waiting:2,frozen:3,failed:4};
         const pairs=[];
         stats.forEach(report=>{
             if(report.type!=='candidate-pair')return;
             const state=String(report.state||'desconocido'),local=reports.get(report.localCandidateId),remote=reports.get(report.remoteCandidateId);
             const sent=Number.isFinite(report.requestsSent)?report.requestsSent:'—',received=Number.isFinite(report.responsesReceived)?report.responsesReceived:'—';
-            pairs.push({rank:rank[state]??5,text:state+(report.nominated?' · nominada':'')+' · '+candidateLabel(local)+' → '+candidateLabel(remote)+' · comprobaciones '+sent+' / respuestas '+received});
+            pairs.push({rank:rank[state]??5,text:state+(report.nominated?' · nominada':'')+' · '+candidateLabel(local,localFallbacks)+' → '+candidateLabel(remote,remoteFallbacks)+' · comprobaciones '+sent+' / respuestas '+received});
         });
         return pairs.sort((a,b)=>a.rank-b.rank).slice(0,16).map(pair=>pair.text);
     }
@@ -5762,7 +5768,7 @@ function formatTime(
         if(!p?.pc?.getStats||p.iceStatsPending)return;
         p.iceStatsPending=true;
         try {
-            const pairs=icePairSnapshot(await p.pc.getStats());
+            const pairs=icePairSnapshot(await p.pc.getStats(),p.pc.localDescription,p.pc.remoteDescription);
             // Algunos navegadores vacían getStats() al cerrar RTCPeerConnection.
             // Conservamos la última instantánea útil: es la que explica el fallo.
             if(pairs.length||!p.iceStats?.pairs?.length){
@@ -5777,6 +5783,12 @@ function formatTime(
             if(p.pairFailed)showPairDiagnostic(p,p.failureStage||'apertura del canal',p.failureMessage||'');
         }
     }
+    function scheduleIceStats(p) {
+        if(p.iceStatsTimers)return;
+        p.iceStatsTimers=[300,1200,3500,8000,14000].map(delay=>setTimeout(()=>{
+            if(s.peers.get(p.id)===p&&!p.pairFailed&&!p.opened)captureIceStats(p,'muestra '+(delay/1000)+' s');
+        },delay));
+    }
     function pairingDetails(p) {
         return 'ICE: '+p.pc.iceConnectionState+' · enlace: '+p.pc.connectionState+' · canal: '+(p.channel?.readyState||'pendiente')+' · modo: '+p.network+' · este móvil: '+candidateSummary(p.pc.localDescription)+' · otro móvil: '+candidateSummary(p.pc.remoteDescription);
     }
@@ -5788,6 +5800,7 @@ function formatTime(
     }
     function disposePeer(p) {
         clearTimeout(p.pairTimer);p.pairTimer=null;
+        (p.iceStatsTimers||[]).forEach(clearTimeout);p.iceStatsTimers=null;
         p.pc.onconnectionstatechange=null;p.pc.oniceconnectionstatechange=null;
         p.pc.onicegatheringstatechange=null;p.pc.onsignalingstatechange=null;
         p.pc.onicecandidate=null;p.pc.onicecandidateerror=null;p.pc.ondatachannel=null;
@@ -5964,6 +5977,7 @@ function formatTime(
             pairStatus(p,'Generando respuesta local completa…');
             await p.pc.setRemoteDescription(t.sdp);
             await p.pc.setLocalDescription(await p.pc.createAnswer());
+            scheduleIceStats(p);
             p.gatherComplete=await gather(p.pc);
             if(s.peers.get(p.id)!==p||p.pairFailed)return;
             if(['failed','closed'].includes(p.pc.iceConnectionState)||['failed','closed'].includes(p.pc.connectionState)){
@@ -6001,6 +6015,7 @@ function formatTime(
             s.currentInvite=p.id;p.answerAccepted=true;watchPair(p);
             try {
                 await p.pc.setRemoteDescription(t.sdp);
+                scheduleIceStats(p);
                 if(!p.opened)pairStatus(p,'Respuesta aceptada. Estableciendo conexión… '+pairingDetails(p));
             }catch(e){failPair(p,'No se pudo aceptar la respuesta: '+e.message);throw e;}
         }
