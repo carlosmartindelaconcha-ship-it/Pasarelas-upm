@@ -5420,7 +5420,7 @@ function formatTime(
         plan: {length:30, width:3, name:'Ensayo multipunto', points:[]}, selected:null,
         sensor:false, sensorEnabled:false, lastSample:0, recent:[], rateTimes:[],
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
-        scan:null, scanFrame:null, currentInvite:null, adding:false, drag:null,
+        scan:null, scanFrame:null, currentInvite:null, pairBusy:false, adding:false, drag:null,
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
         storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null
@@ -5599,13 +5599,70 @@ function formatTime(
             pc.addEventListener('icegatheringstatechange',listener); listener();
         });
     }
+    function pairingDetails(p) {
+        return 'ICE: '+p.pc.iceConnectionState+' · enlace: '+p.pc.connectionState+' · canal: '+(p.channel?.readyState||'pendiente');
+    }
+    function pairStatus(p, message) {
+        if(s.peers.get(p.id)!==p || p.pairFailed)return;
+        p.pairStatus=message;
+        // A background participant must not replace another invitation's status.
+        if(s.role==='guest'||s.currentInvite===p.id)$('jointPairStatus').textContent=message;
+    }
+    function disposePeer(p) {
+        clearTimeout(p.pairTimer);p.pairTimer=null;
+        p.pc.onconnectionstatechange=null;p.pc.oniceconnectionstatechange=null;
+        p.pc.onicecandidateerror=null;p.pc.ondatachannel=null;
+        if(p.channel){p.channel.onopen=null;p.channel.onclose=null;p.channel.onerror=null;}
+        p.pc.close();
+    }
+    function failPair(p, reason) {
+        if(s.peers.get(p.id)!==p||p.pairFailed||p.opened)return;
+        const message=reason+' ('+pairingDetails(p)+'). Mantén ambas páginas abiertas en la misma red Wi-Fi y comprueba que la red permita comunicación entre dispositivos. Pulsa Reiniciar emparejamiento y vuelve a intercambiar los dos códigos.';
+        pairStatus(p,message);p.pairFailed=true;disposePeer(p);
+        if(s.role==='guest'||s.currentInvite===p.id)tell(message,true);
+        renderDevices();
+    }
+    function watchPair(p, timeout=30000) {
+        clearTimeout(p.pairTimer);
+        if(p.opened||p.pairFailed||s.peers.get(p.id)!==p)return;
+        p.pairTimer=setTimeout(()=>failPair(p,'No se ha abierto el canal en '+Math.round(timeout/1000)+' segundos'),timeout);
+    }
+    function localDescription(p) {
+        const description=p.pc.localDescription;
+        if(!description || !/^a=candidate:.* typ host(?: |\r?$)/m.test(description.sdp))
+            throw Error('El navegador no ha proporcionado direcciones de conexión local. No se puede crear un código utilizable. Comprueba los permisos de red local del navegador, si aparecen, y reinicia el emparejamiento.');
+        return {type:description.type,sdp:description.sdp};
+    }
+    async function pairingAction(action) {
+        if(s.pairBusy)throw Error('Espera a que termine la operación de emparejamiento.');
+        s.pairBusy=true;$('jointReadCode').disabled=true;$('jointRetryPair').disabled=true;
+        try{return await action();}finally{s.pairBusy=false;$('jointReadCode').disabled=false;$('jointRetryPair').disabled=false;}
+    }
+    async function retryPair() {
+        if(s.pairBusy||running()||s.transaction)throw Error('Espera a que termine la operación actual.');
+        await stopScan();
+        for(const [id,p] of s.peers)if(p.channel?.readyState!=='open'){
+            disposePeer(p);s.peers.delete(id);
+            if(s.role==='host')for(const point of s.plan.points)if(point.device===id)point.device=null;
+        }
+        s.currentInvite=null;
+        if(s.role==='host'){savePlan();return pairingAction(invite);}
+        if(s.peers.size)throw Error('La conexión ya está abierta. Cierra este cuadro para continuar.');
+        s.role=null;s.session=null;s.id=uid();
+        $('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
+        openPair();$('jointPairStatus').textContent='Pide al maestro una invitación nueva. No reutilices la respuesta anterior.';
+    }
     function wirePeer(p) {
-        p.pc.onconnectionstatechange=()=>{
+        const changed=()=>{
+            if(s.peers.get(p.id)!==p||p.pairFailed)return;
+            if(p.pc.connectionState==='failed'||p.pc.iceConnectionState==='failed')failPair(p,'La conexión directa ha fallado');
+            else if(!p.opened&&p.answerAccepted)pairStatus(p,'Estableciendo conexión… '+pairingDetails(p));
             if(['disconnected','failed','closed'].includes(p.pc.connectionState)) {
                 if(s.run) incident('connection',p.name+': '+p.pc.connectionState);
-                renderDevices();
             }
+            renderDevices();
         };
+        p.pc.onconnectionstatechange=changed;p.pc.oniceconnectionstatechange=changed;
         p.pc.ondatachannel=e=>wireChannel(p,e.channel);
     }
     function newPeer(id) {
@@ -5621,13 +5678,20 @@ function formatTime(
     function wireChannel(p,channel) {
         p.channel=channel;
         channel.onopen=()=>{
+            if(p.opened||p.pairFailed||s.peers.get(p.id)!==p)return;
+            p.opened=true;clearTimeout(p.pairTimer);p.pairTimer=null;
+            pairStatus(p,'Conexión establecida. Canal de datos abierto.');
+            if(s.role==='guest'||s.currentInvite===p.id){
+                if($('jointPairDialog').open)$('jointPairDialog').close();
+                stopScan();tab('Devices');
+            }
             p.lastSeen=now();send(p,{type:'HELLO',id:s.id,name:s.name,status:localStatus()});
             if(s.role==='host'){send(p,{type:'PLAN',plan:s.plan});startSync(p);}
             tell('Conexión directa establecida. Asigna el móvil a un punto y activa su acelerómetro.');
             checkRoute(p);renderDevices();renderPlan();
         };
-        channel.onclose=()=>{incident('connection','Canal cerrado: '+p.name);renderDevices();};
-        channel.onerror=()=>{incident('connection','Error de canal: '+p.name);};
+        channel.onclose=()=>{incident('connection','Canal cerrado: '+p.name);if(!p.opened)failPair(p,'El canal se ha cerrado antes de conectar');else tell('Se ha cerrado la conexión con '+p.name+'.',true);renderDevices();};
+        channel.onerror=()=>{incident('connection','Error de canal: '+p.name);if(!p.opened)failPair(p,'No se ha podido abrir el canal de datos');};
         channel.onmessage=e=>{
             const received=now();
             try {
@@ -5637,6 +5701,8 @@ function formatTime(
                 Promise.resolve(onMessage(p,msg,received)).catch(error=>{incident('protocol',error.message);tell(error.message,true);});
             } catch(error){incident('protocol',error.message);}
         };
+        // The remote data channel can already be open when datachannel is delivered.
+        if(channel.readyState==='open')channel.onopen();
     }
     async function checkRoute(p) {
         try {
@@ -5650,16 +5716,18 @@ function formatTime(
     }
     async function invite() {
         requireHostEdit();
-        for(const [id,p] of s.peers) if(p.channel?.readyState!=='open' && p.pc.connectionState!=='connecting'){p.pc.close();s.peers.delete(id);}
+        for(const [id,p] of s.peers) if(p.channel?.readyState!=='open' && p.pc.connectionState!=='connecting'){disposePeer(p);s.peers.delete(id);}
         if(s.peers.size>=MAX_PEERS)throw Error('Máximo 8 participantes en este prototipo.');
         openPair('offer'); $('jointPairStatus').textContent='Preparando invitación…';
         const p=newPeer(uid());s.currentInvite=p.id;wireChannel(p,p.pc.createDataChannel('upm-joint',{ordered:true}));
         try {
             await p.pc.setLocalDescription(await p.pc.createOffer());await gather(p.pc);
             const expires=Date.now()+10*60*1000; p.expires=expires;
-            await showToken({v:VERSION,kind:'offer',session:s.session,host:s.id,peer:p.id,name:s.name,expires,sdp:{type:p.pc.localDescription.type,sdp:p.pc.localDescription.sdp}});
-            $('jointPairStatus').textContent='Invitación válida durante 10 minutos. Esperando respuesta del participante.';
-        }catch(e){p.pc.close();s.peers.delete(p.id);throw e;}
+            if(s.peers.get(p.id)!==p)return;
+            await showToken({v:VERSION,kind:'offer',session:s.session,host:s.id,peer:p.id,name:s.name,expires,sdp:localDescription(p)});
+            pairStatus(p,'Invitación válida durante 10 minutos. Esperando respuesta del participante.');
+            watchPair(p,10*60*1000);
+        }catch(e){disposePeer(p);s.peers.delete(p.id);throw e;}
     }
     async function readCode(raw=$('jointPairInput').value) {
         if(running()||s.transaction)throw Error('No se pueden incorporar móviles durante un ensayo.');
@@ -5669,14 +5737,23 @@ function formatTime(
             if(s.peers.size)throw Error('Ya existe una conexión. Sal de la sesión antes de unirte a otra.');
             s.role='guest';s.id=t.peer;s.session=t.session;s.name='Participante';
             const p=newPeer(t.host);p.name=String(t.name||'Maestro').slice(0,40);workspace();
-            await p.pc.setRemoteDescription(t.sdp);await p.pc.setLocalDescription(await p.pc.createAnswer());await gather(p.pc);
-            $('jointPairHelp').textContent='Muestra esta respuesta al maestro para que la escanee, o envíale el código completo.';
-            await showToken({v:VERSION,kind:'answer',session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:{type:p.pc.localDescription.type,sdp:p.pc.localDescription.sdp}});
-            $('jointPairStatus').textContent='Respuesta preparada. La conexión se abrirá cuando el maestro la lea.';
+            try {
+                pairStatus(p,'Preparando respuesta…');
+                await p.pc.setRemoteDescription(t.sdp);await p.pc.setLocalDescription(await p.pc.createAnswer());await gather(p.pc);
+                if(s.peers.get(p.id)!==p||p.pairFailed)return;
+                $('jointPairHelp').textContent='Muestra esta respuesta al maestro para que la escanee, o envíale el código completo. Mantén esta página abierta.';
+                await showToken({v:VERSION,kind:'answer',session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:localDescription(p)});
+                if(!p.opened)pairStatus(p,'Respuesta preparada. El maestro debe leerla en los próximos 2 minutos.');
+                watchPair(p,120000);
+            }catch(e){disposePeer(p);s.peers.delete(p.id);throw e;}
         } else {
             if(s.role!=='host'||t.session!==s.session||t.host!==s.id)throw Error('Esta respuesta pertenece a otra sesión.');
             const p=s.peers.get(t.peer);if(!p || p.pc.signalingState!=='have-local-offer')throw Error('Invitación no disponible o ya utilizada.');
-            await p.pc.setRemoteDescription(t.sdp);$('jointPairStatus').textContent='Respuesta aceptada. Estableciendo conexión…';
+            s.currentInvite=p.id;p.answerAccepted=true;watchPair(p);
+            try {
+                await p.pc.setRemoteDescription(t.sdp);
+                if(!p.opened)pairStatus(p,'Respuesta aceptada. Estableciendo conexión… '+pairingDetails(p));
+            }catch(e){failPair(p,'No se pudo aceptar la respuesta: '+e.message);throw e;}
         }
     }
     async function stopScan() {if(s.scanFrame)cancelAnimationFrame(s.scanFrame);s.scanFrame=null;if(s.scan)s.scan.getTracks().forEach(t=>t.stop());s.scan=null;$('jointScanner').srcObject=null;$('jointScanner').hidden=true;$('jointStopScan').hidden=true;}
@@ -5691,7 +5768,7 @@ function formatTime(
             if(video.readyState>=2) {
                 const scale=Math.min(1,1000/video.videoWidth);canvas.width=video.videoWidth*scale;canvas.height=video.videoHeight*scale;
                 ctx.drawImage(video,0,0,canvas.width,canvas.height);const img=ctx.getImageData(0,0,canvas.width,canvas.height),result=jsQR(img.data,img.width,img.height);
-                if(result){$('jointPairInput').value=result.data;stopScan();guard(()=>readCode(result.data))();return;}
+                if(result){$('jointPairInput').value=result.data;stopScan();guard(()=>pairingAction(()=>readCode(result.data)))();return;}
             }
             s.scanFrame=requestAnimationFrame(frame);
         };frame();
@@ -6044,7 +6121,7 @@ function formatTime(
         if(running()||s.transaction)stopRun('Salida de la sesión');
         if(s.run){if(running())s.run.state='cancelled';persist();}
         stopScan();if($('jointPairDialog').open)$('jointPairDialog').close();
-        for(const p of s.peers.values())p.pc.close();s.peers.clear();
+        for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
         window.removeEventListener('devicemotion',motion);s.sensor=false;s.sensorEnabled=false;releaseWake();
         s.role=null;s.session=null;s.run=null;s.results.clear();s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
@@ -6069,10 +6146,11 @@ function formatTime(
         else {s.plan.points.forEach(p=>p.device=null);s.plan.points[0].device=s.id;}
         s.selected=s.plan.points[0].id;workspace();tell('Define el plano y pulsa Invitar móvil para incorporar un participante.');
     });
-    $('jointJoin').onclick=()=>openPair();$('jointPair').onclick=guard(invite);
+    $('jointJoin').onclick=()=>openPair();$('jointPair').onclick=guard(()=>pairingAction(invite));
+    $('jointRetryPair').onclick=guard(retryPair);
     $('jointPairClose').onclick=()=>{$('jointPairDialog').close();stopScan();};
     $('jointPairDialog').addEventListener('close',stopScan);
-    $('jointReadCode').onclick=guard(()=>readCode());$('jointScanCode').onclick=guard(scanCode);$('jointStopScan').onclick=stopScan;
+    $('jointReadCode').onclick=guard(()=>pairingAction(()=>readCode()));$('jointScanCode').onclick=guard(scanCode);$('jointStopScan').onclick=stopScan;
     $('jointCopyCode').onclick=guard(async()=>{const text=$('jointPairOutput').value;try{await navigator.clipboard.writeText(text);$('jointPairStatus').textContent='Código copiado.';}catch(e){$('jointPairOutput').focus();$('jointPairOutput').select();$('jointPairStatus').textContent='Selecciona y copia el código completo.';}});
     $('jointApplyGeometry').onclick=guard(()=>{
         requireHostEdit();const candidate={...s.plan,name:$('jointName').value,length:Number($('jointLength').value),width:Number($('jointWidth').value)};

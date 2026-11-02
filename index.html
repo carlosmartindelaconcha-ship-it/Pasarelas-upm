@@ -780,6 +780,7 @@
                 <label for="jointPairInput">Invitación o respuesta</label><textarea id="jointPairInput" rows="4" placeholder="Pega el código o el enlace recibido" autocomplete="off" spellcheck="false"></textarea>
                 <div class="joint-actions"><button id="jointReadCode" type="button">Leer código</button><button id="jointScanCode" type="button" class="joint-secondary">Escanear QR</button><button id="jointStopScan" type="button" class="joint-secondary" hidden>Parar cámara</button></div>
                 <video id="jointScanner" playsinline muted hidden></video><p id="jointPairStatus" role="status" aria-live="polite"></p>
+                <button id="jointRetryPair" type="button" class="joint-secondary">Reiniciar emparejamiento</button>
                 <p class="joint-help">Emparejamiento sin servidor: el participante lee la invitación y el maestro lee su respuesta. Cada invitación sirve para un móvil. Los códigos contienen información de conexión: compártelos solo con los participantes.</p>
             </dialog>
         </section>
@@ -809,7 +810,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261101-joint-plan"></script>
+    <script defer src="app.js?v=20261102-pairing-fix"></script>
 
 
 </body>
