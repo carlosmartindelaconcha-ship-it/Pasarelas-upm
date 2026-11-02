@@ -5763,7 +5763,13 @@ function formatTime(
         p.iceStatsPending=true;
         try {
             const pairs=icePairSnapshot(await p.pc.getStats());
-            p.iceStats={label,pairs,note:pairs.length?'':'El navegador no expuso parejas ICE todavía.'};
+            // Algunos navegadores vacían getStats() al cerrar RTCPeerConnection.
+            // Conservamos la última instantánea útil: es la que explica el fallo.
+            if(pairs.length||!p.iceStats?.pairs?.length){
+                p.iceStats={label,pairs,note:pairs.length?'':'El navegador no expuso parejas ICE todavía.'};
+            }else{
+                p.iceStats={...p.iceStats,note:'La consulta final ya no expuso parejas ICE; se conserva la última instantánea útil ('+p.iceStats.label+').'};
+            }
             diagnosticEvent(p,'instantánea de pares ICE',label+' · '+pairs.length+' parejas');
         } catch(error) {p.iceStats={label,pairs:[],note:'No se pudieron consultar las parejas ICE: '+String(error?.name||'error')};}
         finally {
