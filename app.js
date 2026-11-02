@@ -5393,3 +5393,731 @@ function formatTime(
     );
 
 }
+
+
+/* =========================================================
+   MEDIDA CONJUNTA — prototipo estático sin servidor de señalización.
+   Relojes de página y eventos DOM, NO timestamps hardware certificados.
+   El emparejamiento requiere invitación + respuesta; sin STUN ni TURN.
+   Todas las duraciones y marcas internas están expresadas en ms.
+   ========================================================= */
+(() => {
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const root = $('jointApp');
+    if (!root) return;
+    const VERSION = 1;
+    const MAX_PEERS = 8, MAX_POINTS = 64, MAX_SAMPLES = 500000;
+    const MAX_TOKEN = 50000, MAX_MESSAGE = 90000;
+    const activeStates = new Set(['preparing', 'armed', 'recording']);
+    const uid = () => crypto.randomUUID();
+    const now = () => performance.now();
+    const finite = Number.isFinite;
+    const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const s = {
+        id: uid(), name: 'Mi móvil', role: null, session: null, peers: new Map(),
+        plan: {length:30, width:3, name:'Ensayo multipunto', points:[]}, selected:null,
+        sensor:false, sensorEnabled:false, lastSample:0, recent:[], rateTimes:[],
+        run:null, pending:null, results:new Map(), preview:[], transfer:null,
+        scan:null, scanFrame:null, currentInvite:null, adding:false, drag:null,
+        syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
+        syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
+        storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null
+    };
+    const running = () => s.run && activeStates.has(s.run.state);
+    function tell(message, error=false) { $('jointNotice').textContent=message; $('jointNotice').dataset.error=String(error); }
+    function incident(kind, detail) {
+        const item={kind, detail:String(detail), time:now()}; s.incidents.push(item);
+        if (s.run) s.run.incidents.push(item);
+    }
+    function guard(fn) { return async (...args) => {try {await fn(...args);} catch(e) {tell(e.message || String(e),true); $('jointPairStatus').textContent=e.message || String(e);}}; }
+    function download(name, value, mime='application/json') {
+        const blob=new Blob([typeof value==='string'?value:JSON.stringify(value,null,2)],{type:mime});
+        const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download=name;
+        document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
+    }
+    function tab(name) {
+        for (const n of ['Plan','Devices','Measure','Results']) {
+            $('jointPanel'+n).hidden=n!==name; $('jointTab'+n).setAttribute('aria-selected',String(n===name));
+        }
+    }
+    function open() {
+        if (typeof isRecording!=='undefined' && isRecording) throw Error('Detén primero el ensayo individual.');
+        if (root.hidden) {
+            s.returnTo=[...document.querySelectorAll('main > section, main > form')].find(el=>el!==root && getComputedStyle(el).display!=='none');
+            for (const el of document.querySelectorAll('main > section, main > form')) if(el!==root) el.style.display='none';
+        }
+        root.hidden=false; window.scrollTo({top:0});
+    }
+    function workspace() {
+        $('jointLanding').hidden=true; $('jointWorkspace').hidden=false;
+        $('jointRole').textContent=s.role==='host'?'Maestro':'Participante';
+        $('jointPair').hidden=s.role!=='host'; $('jointSessionLabel').textContent=s.session.slice(0,8);
+        $('jointDeviceName').value=s.name;
+        renderPlan(); renderDevices(); tab('Plan');
+    }
+    function requireHostEdit() {
+        if (s.role!=='host') throw Error('El plano lo edita el maestro.');
+        if (running() || s.transaction) throw Error('El plano queda bloqueado durante el ensayo.');
+    }
+    function checkPlan(plan) {
+        if (!plan || !finite(plan.length) || !finite(plan.width) || plan.length<.1 || plan.width<.1 || plan.length>10000 || plan.width>10000 || !Array.isArray(plan.points) || plan.points.length>MAX_POINTS) throw Error('Plano no válido: revisa dimensiones y puntos.');
+        const ids=new Set(), devices=new Set();
+        const points=plan.points.map(p=>{
+            if (!p || typeof p.id!=='string' || p.id.length>80 || ids.has(p.id) || !finite(p.x) || !finite(p.y) || p.x<0 || p.x>plan.length || p.y<0 || p.y>plan.width || !['x','y','z'].includes(p.axis) || !finite(p.angle) || Math.abs(p.angle)>360) throw Error('Coordenadas, eje u orientación del plano no válidos.');
+            ids.add(p.id); const device=typeof p.device==='string'?p.device:null;
+            if(device && devices.has(device)) throw Error('Un móvil no puede estar asignado a dos puntos a la vez.');
+            if(device) devices.add(device);
+            return {id:p.id,name:String(p.name||p.id).slice(0,40),x:p.x,y:p.y,axis:p.axis,angle:p.angle,device};
+        });
+        return {length:plan.length,width:plan.width,name:String(plan.name||'Ensayo multipunto').slice(0,80),points};
+    }
+    function savePlan() {
+        s.plan=checkPlan(s.plan);
+        try {localStorage.setItem('upm-joint-plan-v1',JSON.stringify({...s.plan,points:s.plan.points.map(p=>({...p,device:null}))}));} catch(e){tell('Plano en memoria. No se ha podido guardar en este navegador.',true);}
+        broadcast({type:'PLAN',plan:s.plan}); renderPlan();
+    }
+    function pointFor(device=s.id, plan=s.plan) {return plan.points.find(p=>p.device===device);}
+    function deviceName(id) {return id===s.id?s.name:(s.peers.get(id)?.name||'Sin conectar');}
+    function geometry() {
+        // Equal metric scale in X/Y; a minimum visual height is not substituted.
+        const scale=Math.min(660/s.plan.length,245/s.plan.width);
+        return {scale,left:(800-s.plan.length*scale)/2,top:(325-s.plan.width*scale)/2,w:s.plan.length*scale,h:s.plan.width*scale};
+    }
+    function renderPlan() {
+        const edit=s.role==='host'&&!running()&&!s.transaction;
+        $('jointGeometry').disabled=!edit; $('jointPointEditor').disabled=!edit;
+        $('jointPlanTools').hidden=s.role!=='host';
+        for(const id of ['jointAddPoint','jointRemovePoint','jointImportPlan']) $(id).disabled=!edit;
+        $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
+        const g=geometry(), selected=s.plan.points.find(p=>p.id===s.selected);
+        let svg=`<title>Planta de ${escape(s.plan.name)}</title><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
+        for(let i=1;i<4;i++) svg+=`<line x1="${g.left+g.w*i/4}" y1="${g.top}" x2="${g.left+g.w*i/4}" y2="${g.top+g.h}" stroke="#c5d6e3" stroke-dasharray="4 5"/>`;
+        svg+=`<text x="400" y="${g.top+g.h+39}" text-anchor="middle">X · ${s.plan.length} m</text><text x="${Math.max(8,g.left-12)}" y="${g.top-13}">Y · ${s.plan.width} m</text><text x="${g.left}" y="${g.top+g.h+20}">O (0, 0)</text>`;
+        for(const p of s.plan.points) {
+            const x=g.left+p.x*g.scale,y=g.top+(s.plan.width-p.y)*g.scale;
+            const color=p.device===s.id?'#087cc3':p.device?'#00897b':'#788c9e';
+            svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.name)}, X ${p.x}, Y ${p.y}"><title>${escape(p.name)} · ${p.device?escape(deviceName(p.device)):'Sin asignar'}</title><circle cx="${x}" cy="${y}" r="12" fill="${color}" stroke="white" stroke-width="2"/><path d="M ${x} ${y-5} l 0 -16 m -4 5 l 4 -5 l 4 5" fill="none" stroke="${color}" stroke-width="2" transform="rotate(${-p.angle} ${x} ${y})"/><text x="${x}" y="${y+29}" text-anchor="middle">${escape(p.name)}</text></g>`;
+        }
+        $('jointPlan').innerHTML=svg;
+        $('jointPlanHelp').textContent=s.adding?'Toca dentro del rectángulo para colocar el nuevo punto.':s.role==='host'?'Selecciona y arrastra un punto, o edita sus coordenadas. Azul: este móvil · verde: asignado · gris: sin asignar.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
+        $('jointPointEditor').hidden=!selected;
+        if(selected) {
+            $('jointPointLegend').textContent='Editar '+selected.id;
+            $('jointPointName').value=selected.name; $('jointPointX').value=selected.x; $('jointPointY').value=selected.y;
+            $('jointPointX').max=s.plan.length; $('jointPointY').max=s.plan.width;
+            $('jointPointAxis').value=selected.axis; $('jointPointAngle').value=selected.angle;
+            const ds=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
+            // Participant also sees the host; host is not a potential new assignment unless connected.
+            $('jointPointDevice').innerHTML='<option value="">Sin asignar</option>'+ds.map(d=>`<option value="${escape(d.id)}">${escape(d.name)}${d.id===s.id?' (este móvil)':''}</option>`).join('');
+            $('jointPointDevice').value=selected.device||'';
+        }
+        $('jointPointsTable').innerHTML=s.plan.points.map(p=>`<tr><td><button type="button" data-select-point="${escape(p.id)}" class="joint-secondary">${escape(p.name)}</button></td><td>${p.x.toFixed(2)}</td><td>${p.y.toFixed(2)}</td><td>${p.axis.toUpperCase()}</td><td>${p.device?escape(deviceName(p.device)):'Sin asignar'}</td></tr>`).join('');
+        $('jointMyPoint').textContent=pointFor()?.name||'Sin asignar';
+    }
+    function svgPosition(e) {
+        const svg=$('jointPlan'), matrix=svg.getScreenCTM(); if(!matrix) return null;
+        const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(matrix.inverse()),g=geometry();
+        return {x:(q.x-g.left)/g.scale,y:s.plan.width-(q.y-g.top)/g.scale};
+    }
+    function addPoint(x=s.plan.length/2,y=s.plan.width/2) {
+        requireHostEdit(); if(s.plan.points.length>=MAX_POINTS) throw Error('Máximo 64 puntos por plano.');
+        let n=1; while(s.plan.points.some(p=>p.id==='P'+n)) n++;
+        const p={id:'P'+n,name:'P'+n,x:Number(x.toFixed(2)),y:Number(y.toFixed(2)),angle:0,axis:'z',device:null};
+        s.plan.points.push(p); s.selected=p.id; s.adding=false; savePlan();
+    }
+    function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle'};}
+    function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}
+    function renderDevices() {
+        const local=localStatus();
+        let html=`<article class="joint-device-card"><strong>${escape(s.name)} · ${s.role==='host'?'Maestro':'Este móvil'}</strong><p>${local.sensor?'Sensor activo':'Sensor sin datos recientes'} · ${local.rate?local.rate.toFixed(1)+' Hz':'— Hz'} · ${escape(pointFor()?.name||'Sin punto asignado')}</p><small>${local.visible?'Página visible':'Página oculta'}</small></article>`;
+        for(const p of s.peers.values()) {
+            const st=p.status||{},m=p.model;
+            html+=`<article class="joint-device-card"><strong>${escape(p.name||'Conectando…')}</strong><p>${p.channel?.readyState==='open'?'Conectado':'Desconectado'} · ${st.sensor?'Sensor activo':'Sensor sin confirmar'} · ${finite(st.rate)?st.rate.toFixed(1)+' Hz':'— Hz'}</p><p>${escape(pointFor(p.id)?.name||'Sin punto asignado')} · ${escape(p.route||'Ruta pendiente de comprobar')}</p><small>${m?.count?'RTT mínimo: '+m.rtt.toFixed(2)+' ms · desfase estimado: '+m.offset.toFixed(2)+' ms · '+m.count+' intercambios':'Relojes pendientes de estimación'}</small></article>`;
+        }
+        if(s.role==='guest'&&s.syncModel.count) html+=`<p class="joint-help">Mi reloj respecto al maestro: ${s.syncModel.offset.toFixed(2)} ms (estimado). RTT mínimo: ${s.syncModel.rtt.toFixed(2)} ms.</p>`;
+        $('jointDevices').innerHTML=html;
+        $('jointStart').hidden=s.role!=='host'; $('jointSync').hidden=s.role!=='host';
+        $('jointStart').disabled=!!running()||!!s.transaction;
+        $('jointDuration').disabled=s.role!=='host'||!!running()||!!s.transaction;
+        $('jointEnableSensor').disabled=s.sensorEnabled;
+        $('jointStop').disabled=!running()&&!s.transaction;
+        $('jointPair').disabled=!!running()||!!s.transaction;
+    }
+
+    // Bidirectional manual signaling, compressible QR; never send SDP to a service.
+    async function encodeToken(payload) {
+        const bytes=new TextEncoder().encode(JSON.stringify(payload));
+        let data=bytes, prefix='J1.';
+        if(typeof CompressionStream!=='undefined') {
+            data=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer()); prefix='J1z.';
+        }
+        return prefix+btoa(String.fromCharCode(...data)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+    async function decodeToken(raw) {
+        let token=raw.trim();
+        if(token.startsWith('https://')||token.startsWith('http://')) token=new URL(token).hash.replace(/^#joint=/,'');
+        if(token.length>MAX_TOKEN || !/^J1z?\.[\w-]+$/.test(token)) throw Error('El código no es una invitación o respuesta válida.');
+        const [prefix,b64]=token.split('.');
+        const data=Uint8Array.from(atob(b64.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
+        let decoded=data;
+        if(prefix==='J1z') {
+            if(typeof DecompressionStream==='undefined') throw Error('Este navegador no admite códigos comprimidos. Actualiza el navegador.');
+            const reader=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate')).getReader();
+            const chunks=[]; let count=0;
+            while(true) {const {done,value}=await reader.read();if(done)break;count+=value.length;if(count>100000){await reader.cancel();throw Error('Código demasiado grande.');}chunks.push(value);}
+            decoded=new Uint8Array(count);let offset=0;for(const chunk of chunks){decoded.set(chunk,offset);offset+=chunk.length;}
+        }
+        const t=JSON.parse(new TextDecoder().decode(decoded));
+        if(t.v!==VERSION || !['offer','answer'].includes(t.kind) || typeof t.session!=='string' || typeof t.peer!=='string' || typeof t.host!=='string' || !t.sdp || t.sdp.type!==t.kind || typeof t.sdp.sdp!=='string' || t.sdp.sdp.length>60000 || !finite(t.expires) || Date.now()>t.expires) throw Error('Código caducado o incompatible. Genera una nueva invitación.');
+        // Require host candidates only. A hostname can be mDNS; it does not prove SSID.
+        const candidates=t.sdp.sdp.split(/\r?\n/).filter(l=>l.startsWith('a=candidate:'));
+        if(!candidates.length || candidates.some(l=>! / typ host(?: |$)/.test(l))) throw Error('La invitación no contiene candidatos directos admitidos.');
+        return t;
+    }
+    async function showToken(payload) {
+        const code=await encodeToken(payload);
+        const link=payload.kind==='offer'?location.href.split('#')[0]+'#joint='+code:code;
+        $('jointPairOutput').value=link; $('jointPairOutput').hidden=false; $('jointCopyCode').hidden=false;
+        $('jointQr').replaceChildren();
+        if(typeof qrcode==='function' && link.length<2900) {
+            try {const qr=qrcode(0,'L');qr.addData(link);qr.make();$('jointQr').innerHTML=qr.createSvgTag({cellSize:3,margin:4,scalable:true});} catch(e){$('jointQr').textContent='Código grande: utiliza Copiar código.';}
+        } else $('jointQr').textContent='Utiliza Copiar código para compartir esta conexión.';
+    }
+    function openPair(mode='join') {
+        $('jointPairTitle').textContent=mode==='offer'?'Invitar a un móvil':'Leer invitación o respuesta';
+        $('jointPairHelp').textContent=mode==='offer'?'El participante lee esta invitación. Después, lee aquí su respuesta para completar la conexión.':'Escanea el QR o pega el código completo del otro móvil.';
+        $('jointPairOutput').hidden=true; $('jointCopyCode').hidden=true; $('jointQr').replaceChildren(); $('jointPairInput').value=''; $('jointPairStatus').textContent='';
+        if(!$('jointPairDialog').open)$('jointPairDialog').showModal();
+    }
+    async function gather(pc) {
+        if(pc.iceGatheringState==='complete') return;
+        await new Promise((resolve,reject)=>{
+            const timer=setTimeout(()=>{pc.removeEventListener('icegatheringstatechange',listener);reject(Error('No se pudo obtener la conexión. Revisa el Wi-Fi y vuelve a invitar.'));},12000);
+            function listener(){if(pc.iceGatheringState==='complete'){clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',listener);resolve();}}
+            pc.addEventListener('icegatheringstatechange',listener); listener();
+        });
+    }
+    function wirePeer(p) {
+        p.pc.onconnectionstatechange=()=>{
+            if(['disconnected','failed','closed'].includes(p.pc.connectionState)) {
+                if(s.run) incident('connection',p.name+': '+p.pc.connectionState);
+                renderDevices();
+            }
+        };
+        p.pc.ondatachannel=e=>wireChannel(p,e.channel);
+    }
+    function newPeer(id) {
+        if(typeof RTCPeerConnection==='undefined') throw Error('WebRTC no está disponible en este navegador.');
+        const p={id,name:'Móvil '+(s.peers.size+1),pc:new RTCPeerConnection({iceServers:[]}),requests:new Map(),samples:[],status:null,model:null,route:null,lastSeen:now(),incoming:null,acks:new Map()};
+        s.peers.set(id,p);wirePeer(p);return p;
+    }
+    function send(p,msg) {
+        if(p.channel?.readyState!=='open') return false;
+        try {p.channel.send(JSON.stringify({...msg,v:VERSION,session:s.session}));return true;} catch(e){incident('send',e.message);return false;}
+    }
+    function broadcast(msg) {for(const p of s.peers.values()) send(p,msg);}
+    function wireChannel(p,channel) {
+        p.channel=channel;
+        channel.onopen=()=>{
+            p.lastSeen=now();send(p,{type:'HELLO',id:s.id,name:s.name,status:localStatus()});
+            if(s.role==='host'){send(p,{type:'PLAN',plan:s.plan});startSync(p);}
+            tell('Conexión directa establecida. Asigna el móvil a un punto y activa su acelerómetro.');
+            checkRoute(p);renderDevices();renderPlan();
+        };
+        channel.onclose=()=>{incident('connection','Canal cerrado: '+p.name);renderDevices();};
+        channel.onerror=()=>{incident('connection','Error de canal: '+p.name);};
+        channel.onmessage=e=>{
+            const received=now();
+            try {
+                if(typeof e.data!=='string'||e.data.length>MAX_MESSAGE) throw Error('Mensaje no admitido.');
+                const msg=JSON.parse(e.data);if(msg.v!==VERSION||msg.session!==s.session)return;
+                p.lastSeen=received;
+                Promise.resolve(onMessage(p,msg,received)).catch(error=>{incident('protocol',error.message);tell(error.message,true);});
+            } catch(error){incident('protocol',error.message);}
+        };
+    }
+    async function checkRoute(p) {
+        try {
+            const stats=await p.pc.getStats();let pair;
+            stats.forEach(r=>{if(r.type==='transport'&&r.selectedCandidatePairId)pair=stats.get(r.selectedCandidatePairId);});
+            if(!pair)stats.forEach(r=>{if(r.type==='candidate-pair'&&r.state==='succeeded'&&r.nominated)pair=r;});
+            const a=pair&&stats.get(pair.localCandidateId),b=pair&&stats.get(pair.remoteCandidateId);
+            p.route=a?.candidateType==='host'&&b?.candidateType==='host'?'Ruta directa (candidatos host)':'Ruta no verificable con las estadísticas disponibles';
+        }catch(e){p.route='Ruta pendiente de verificación';}
+        renderDevices();
+    }
+    async function invite() {
+        requireHostEdit();
+        for(const [id,p] of s.peers) if(p.channel?.readyState!=='open' && p.pc.connectionState!=='connecting'){p.pc.close();s.peers.delete(id);}
+        if(s.peers.size>=MAX_PEERS)throw Error('Máximo 8 participantes en este prototipo.');
+        openPair('offer'); $('jointPairStatus').textContent='Preparando invitación…';
+        const p=newPeer(uid());s.currentInvite=p.id;wireChannel(p,p.pc.createDataChannel('upm-joint',{ordered:true}));
+        try {
+            await p.pc.setLocalDescription(await p.pc.createOffer());await gather(p.pc);
+            const expires=Date.now()+10*60*1000; p.expires=expires;
+            await showToken({v:VERSION,kind:'offer',session:s.session,host:s.id,peer:p.id,name:s.name,expires,sdp:{type:p.pc.localDescription.type,sdp:p.pc.localDescription.sdp}});
+            $('jointPairStatus').textContent='Invitación válida durante 10 minutos. Esperando respuesta del participante.';
+        }catch(e){p.pc.close();s.peers.delete(p.id);throw e;}
+    }
+    async function readCode(raw=$('jointPairInput').value) {
+        if(running()||s.transaction)throw Error('No se pueden incorporar móviles durante un ensayo.');
+        const t=await decodeToken(raw);
+        if(t.kind==='offer') {
+            if(s.role==='host')throw Error('El maestro debe leer una respuesta, no otra invitación.');
+            if(s.peers.size)throw Error('Ya existe una conexión. Sal de la sesión antes de unirte a otra.');
+            s.role='guest';s.id=t.peer;s.session=t.session;s.name='Participante';
+            const p=newPeer(t.host);p.name=String(t.name||'Maestro').slice(0,40);workspace();
+            await p.pc.setRemoteDescription(t.sdp);await p.pc.setLocalDescription(await p.pc.createAnswer());await gather(p.pc);
+            $('jointPairHelp').textContent='Muestra esta respuesta al maestro para que la escanee, o envíale el código completo.';
+            await showToken({v:VERSION,kind:'answer',session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:{type:p.pc.localDescription.type,sdp:p.pc.localDescription.sdp}});
+            $('jointPairStatus').textContent='Respuesta preparada. La conexión se abrirá cuando el maestro la lea.';
+        } else {
+            if(s.role!=='host'||t.session!==s.session||t.host!==s.id)throw Error('Esta respuesta pertenece a otra sesión.');
+            const p=s.peers.get(t.peer);if(!p || p.pc.signalingState!=='have-local-offer')throw Error('Invitación no disponible o ya utilizada.');
+            await p.pc.setRemoteDescription(t.sdp);$('jointPairStatus').textContent='Respuesta aceptada. Estableciendo conexión…';
+        }
+    }
+    async function stopScan() {if(s.scanFrame)cancelAnimationFrame(s.scanFrame);s.scanFrame=null;if(s.scan)s.scan.getTracks().forEach(t=>t.stop());s.scan=null;$('jointScanner').srcObject=null;$('jointScanner').hidden=true;$('jointStopScan').hidden=true;}
+    async function scanCode() {
+        if(typeof jsQR!=='function')throw Error('El lector QR no se ha cargado. Puedes pegar el código.');
+        await stopScan();
+        s.scan=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+        const video=$('jointScanner');video.srcObject=s.scan;video.hidden=false;$('jointStopScan').hidden=false;await video.play();
+        const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+        const frame=()=>{
+            if(!s.scan)return;
+            if(video.readyState>=2) {
+                const scale=Math.min(1,1000/video.videoWidth);canvas.width=video.videoWidth*scale;canvas.height=video.videoHeight*scale;
+                ctx.drawImage(video,0,0,canvas.width,canvas.height);const img=ctx.getImageData(0,0,canvas.width,canvas.height),result=jsQR(img.data,img.width,img.height);
+                if(result){$('jointPairInput').value=result.data;stopScan();guard(()=>readCode(result.data))();return;}
+            }
+            s.scanFrame=requestAnimationFrame(frame);
+        };frame();
+    }
+
+    // Four timestamps. Network asymmetry remains an unobservable error source.
+    function clockFit(samples) {
+        if(!samples.length)return null;
+        const recent=samples.slice(-240),sorted=[...recent].sort((a,b)=>a.rtt-b.rtt);
+        const cutoff=sorted[Math.max(0,Math.ceil(sorted.length*.3)-1)].rtt;
+        const chosen=recent.filter(v=>v.rtt<=cutoff);
+        const reference=chosen.reduce((a,v)=>a+v.local,0)/chosen.length;
+        const offset=chosen.reduce((a,v)=>a+v.offset,0)/chosen.length;
+        const span=Math.max(...chosen.map(v=>v.local))-Math.min(...chosen.map(v=>v.local));
+        let numerator=0,denominator=0;
+        for(const v of chosen){numerator+=(v.local-reference)*(v.offset-offset);denominator+=(v.local-reference)**2;}
+        const drift=span>=20000&&chosen.length>=6&&denominator>0?numerator/denominator:0;
+        // Grossly implausible fits are not used to schedule an acquisition.
+        if(!finite(drift)||Math.abs(drift)>.005)return null;
+        const residual=Math.sqrt(chosen.reduce((a,v)=>a+(v.offset-offset-drift*(v.local-reference))**2,0)/chosen.length);
+        return {reference,offset,drift,rtt:sorted[0].rtt,residual,count:samples.length,updated:now()};
+    }
+    const toMaster=(t,m=s.syncModel)=>t-m.offset-m.drift*(t-m.reference);
+    const fromMaster=(t,m)=> (t+m.offset-m.drift*m.reference)/(1-m.drift);
+    function syncOnce(p) {
+        if(p.channel?.readyState!=='open')return;
+        const id=uid(),t1=now();p.requests.set(id,t1);send(p,{type:'SYNC_REQUEST',id,t1});
+        for(const [key,time] of p.requests)if(t1-time>10000)p.requests.delete(key);
+    }
+    async function startSync(p) {
+        if(p.syncing)return;p.syncing=true;
+        try {for(let i=0;i<24&&p.channel?.readyState==='open';i++){syncOnce(p);await pause(100);}} finally{p.syncing=false;}
+    }
+
+    async function onMessage(p,m,received) {
+        if(m.type==='HELLO') {
+            if(m.id!==p.id)throw Error('Identificador de dispositivo inesperado.');
+            p.name=String(m.name||'Móvil').slice(0,40);p.status=m.status;renderPlan();renderDevices();return;
+        }
+        if(m.type==='STATUS'){p.status=m.status;p.name=String(m.status?.name||p.name).slice(0,40);return;}
+        if(m.type==='SYNC_REQUEST'&&s.role==='guest') {
+            if(typeof m.id!=='string'||!finite(m.t1))return;
+            send(p,{type:'SYNC_REPLY',id:m.id,t1:m.t1,t2:received,t3:now()});return;
+        }
+        if(m.type==='SYNC_REPLY'&&s.role==='host') {
+            const t1=p.requests.get(m.id);if(t1===undefined)return;p.requests.delete(m.id);
+            if(!finite(m.t2)||!finite(m.t3)||m.t3<m.t2)return;
+            const rtt=(received-t1)-(m.t3-m.t2);if(rtt<0||rtt>2000)return;
+            const row={t1,t2:m.t2,t3:m.t3,t4:received,rtt,offset:((m.t2-t1)+(m.t3-received))/2,local:(m.t2+m.t3)/2};
+            p.samples.push(row);if(p.samples.length>1200)p.samples.shift();p.model=clockFit(p.samples);
+            if(p.model){send(p,{type:'CLOCK_MODEL',model:p.model,exchange:row});}
+            return;
+        }
+        if(m.type==='CLOCK_MODEL'&&s.role==='guest') {
+            if(!validModel(m.model))return;
+            s.syncModel={...m.model,updated:now()};p.model=m.model;
+            if(m.exchange){s.syncLog.push(m.exchange);if(s.syncLog.length>1200)s.syncLog.shift();}
+            return;
+        }
+        if(m.type==='PLAN'&&s.role==='guest'&&!running()) {s.plan=checkPlan(m.plan);s.selected=pointFor()?.id||s.plan.points[0]?.id;renderPlan();return;}
+        if(m.type==='PREPARE'&&s.role==='guest') {
+            let reason='';
+            if(running())reason='Ya hay un ensayo activo.';
+            else if(!localStatus().sensor||document.hidden)reason='Sensor sin datos o página oculta.';
+            else if(!pointFor())reason='Falta asignación a un punto.';
+            else if(s.syncModel.count<8||now()-s.syncModel.updated>15000)reason='Sincronización no reciente.';
+            else if(typeof m.runId!=='string'||!finite(m.duration)||m.duration<5||m.duration>1800)reason='Duración no válida.';
+            if(!reason)s.pending={id:m.runId,duration:m.duration,expires:now()+15000};
+            send(p,{type:'READY',runId:m.runId,ok:!reason,reason});tell(reason||'Preparado. Esperando confirmación del maestro.',!!reason);return;
+        }
+        if(m.type==='READY'&&s.role==='host') {
+            if(s.transaction?.id===m.runId){s.transaction.ready.set(p.id,{ok:m.ok===true,reason:String(m.reason||'')});}return;
+        }
+        if(m.type==='START_AT'&&s.role==='guest') {
+            if(s.run?.id===m.runId){send(p,{type:'START_ACK',runId:m.runId});return;}
+            if(!s.pending||s.pending.id!==m.runId||s.pending.expires<now()||!finite(m.start)||!finite(m.end)||m.end-m.start!==s.pending.duration*1000||m.start-toMaster(now())<500||!localStatus().sensor) {send(p,{type:'START_REJECT',runId:m.runId});return;}
+            beginRun(m.runId,m.start,m.end,s.pending.duration);s.pending=null;send(p,{type:'START_ACK',runId:m.runId});return;
+        }
+        if(m.type==='START_ACK'&&s.role==='host'){if(s.transaction?.id===m.runId)s.transaction.acks.add(p.id);return;}
+        if(m.type==='START_REJECT'&&s.role==='host'){if(s.transaction?.id===m.runId)s.transaction.error='Un participante no pudo programar el inicio.';return;}
+        if(m.type==='STOP_REQUEST'&&s.role==='host'){stopRun('Solicitud de '+p.name);return;}
+        if(m.type==='STOP_AT'&&s.role==='guest') {
+            if(s.run?.id===m.runId&&running()&&finite(m.end)){s.run.end=Math.max(s.run.start,Math.min(s.run.end,m.end));incident('stop','Parada anticipada del maestro');}return;
+        }
+        if(m.type==='ABORT'&&s.role==='guest') {if(s.pending?.id===m.runId)s.pending=null;if(s.run?.id===m.runId&&running()){s.run.state='cancelled';incident('cancel',m.reason||'Ensayo cancelado');await finishRun(true);}return;}
+        if(m.type==='TRANSFER_BEGIN'&&s.role==='host') {
+            if(!s.run||s.run.id!==m.runId||!Number.isInteger(m.size)||m.size<1||m.size>80000000||!Number.isInteger(m.count)||m.count!==Math.ceil(m.size/12000)||typeof m.hash!=='string')throw Error('Transferencia no válida.');
+            p.incoming={id:m.transferId,runId:m.runId,size:m.size,count:m.count,hash:m.hash,parts:[],length:0,next:0};
+            send(p,{type:'TRANSFER_ACK',transferId:m.transferId,index:-1});return;
+        }
+        if(m.type==='TRANSFER_CHUNK'&&s.role==='host') {
+            const t=p.incoming;if(!t||t.id!==m.transferId)return;
+            if(m.index<t.next){send(p,{type:'TRANSFER_ACK',transferId:t.id,index:m.index});return;}
+            if(m.index!==t.next||typeof m.data!=='string'||m.data.length>12000||t.length+m.data.length>t.size)throw Error('Bloque de datos no válido.');
+            t.parts.push(m.data);t.length+=m.data.length;t.next++;send(p,{type:'TRANSFER_ACK',transferId:t.id,index:m.index});return;
+        }
+        if(m.type==='TRANSFER_END'&&s.role==='host') {
+            const t=p.incoming;
+            if(!t||t.id!==m.transferId){if(p.completedTransfer?.id===m.transferId)send(p,{type:'TRANSFER_ACK',transferId:m.transferId,index:p.completedTransfer.count});return;}
+            if(t.length!==t.size||t.next!==t.count)throw Error('Registro incompleto. Solicita el reenvío.');
+            const text=t.parts.join('');if(await hashText(text)!==t.hash)throw Error('La comprobación de integridad no coincide. Reenvía el registro.');
+            const record=JSON.parse(text);validateRecord(record,p.id,t.runId);
+            s.results.set(p.id,record);p.completedTransfer={id:t.id,count:t.count};p.incoming=null;send(p,{type:'TRANSFER_ACK',transferId:t.id,index:t.count});renderResults();return;
+        }
+        if(m.type==='TRANSFER_ACK') {const key=m.transferId+':'+m.index,resolve=p.acks.get(key);if(resolve){p.acks.delete(key);resolve();}return;}
+    }
+    function validModel(m) {return m&&['offset','drift','reference','count','rtt'].every(k=>finite(m[k]))&&Math.abs(m.drift)<=.005&&m.count>=1;}
+
+    // Local durable chunks. Sensor callbacks only push to memory; storage is batched.
+    async function db() {
+        if(s.db)return s.db;
+        s.db=await new Promise((resolve,reject)=>{
+            const req=indexedDB.open('upm-joint-v1',1);
+            req.onupgradeneeded=()=>{req.result.createObjectStore('runs',{keyPath:'key'});req.result.createObjectStore('chunks',{keyPath:'key'});};
+            req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+        });return s.db;
+    }
+    async function storeBatch(run,rows,index) {
+        const database=await db();
+        await new Promise((resolve,reject)=>{
+            const tx=database.transaction(['runs','chunks'],'readwrite');
+            tx.objectStore('runs').put({key:run.id+':'+run.device.id,meta:runMeta(run)});
+            if(rows.length)tx.objectStore('chunks').put({key:run.id+':'+run.device.id+':'+String(index).padStart(8,'0'),rows});
+            tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('Guardado interrumpido'));
+        });
+    }
+    function persist(run=s.run) {
+        if(!run)return s.writeChain;
+        if(run.device.role==='guest') run.sync=structuredClone(s.syncLog);
+        const start=run.persisted||0,rows=run.samples.slice(start);run.persisted=run.samples.length;
+        const index=run.chunkIndex||0;run.chunkIndex=index+1;
+        s.writeChain=s.writeChain.then(()=>storeBatch(run,rows,index)).catch(e=>{
+            if(!s.storageFailed){s.storageFailed=true;incident('storage','Guardado local fallido: '+e.message);tell('No se pudo guardar en el navegador. Conserva la página abierta y descarga el registro.',true);}
+        });return s.writeChain;
+    }
+    async function recover() {
+        const database=await db();
+        const entries=await new Promise((resolve,reject)=>{const req=database.transaction('runs').objectStore('runs').getAll();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+        $('jointRecoveryList').replaceChildren();
+        if(!entries.length){$('jointRecoveryList').textContent='No hay registros locales guardados.';return;}
+        for(const entry of entries.sort((a,b)=>b.meta.created.localeCompare(a.meta.created))) {
+            const b=document.createElement('button');b.type='button';b.className='joint-secondary';b.textContent=entry.meta.created.slice(0,19)+' · '+entry.meta.device.name;
+            b.onclick=guard(async()=>{
+                const range=IDBKeyRange.bound(entry.key+':',entry.key+':\uffff');
+                const chunks=await new Promise((resolve,reject)=>{const req=database.transaction('chunks').objectStore('chunks').getAll(range);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+                download('recuperado_'+entry.meta.id+'.json',{...entry.meta,recovered:true,samples:chunks.flatMap(v=>v.rows)});
+            });$('jointRecoveryList').append(b);
+        }
+    }
+    async function enableSensor() {
+        if(!window.isSecureContext)throw Error('Abre la web mediante HTTPS para usar el acelerómetro.');
+        if(typeof DeviceMotionEvent==='undefined')throw Error('Este navegador no ofrece eventos de movimiento.');
+        if(typeof DeviceMotionEvent.requestPermission==='function'&&await DeviceMotionEvent.requestPermission()!=='granted')throw Error('Debes permitir el acceso al movimiento.');
+        if(!s.sensorEnabled){window.addEventListener('devicemotion',motion);s.sensorEnabled=true;}
+        tell('Esperando datos del acelerómetro…');renderDevices();
+        setTimeout(()=>{if(s.sensorEnabled&&!s.sensor)tell('No llegan datos del sensor. Revisa los permisos y mantén la página visible.',true);},4000);
+    }
+    function motion(event) {
+        const received=now(),a=event.accelerationIncludingGravity;
+        if(!a||![a.x,a.y,a.z].every(finite))return;
+        const timestamp=finite(event.timeStamp)?event.timeStamp:null;
+        // Event creation time, not hardware sampling time. Preserve raw and receipt.
+        const used=timestamp!==null&&timestamp<=received+5&&timestamp>=received-1000?timestamp:received;
+        if(running()&&s.lastSample&&received-s.lastSample>250)incident('sample-gap','Sin eventos de movimiento durante '+Math.round(received-s.lastSample)+' ms.');
+        const sample=[0,timestamp,received,a.x,a.y,a.z,finite(event.interval)?event.interval:null,used];
+        s.sensor=true;s.lastSample=received;s.rateTimes.push(received);if(s.rateTimes.length>120)s.rateTimes.shift();
+        s.recent.push(sample);while(s.recent.length&&s.recent[0][2]<received-2000)s.recent.shift();
+        s.preview.push(sample);if(s.preview.length>600)s.preview.shift();
+        const run=s.run;
+        if(run&&activeStates.has(run.state)) {
+            const t=toMaster(used,run.initialClock);
+            if(t>=run.start-1000&&t<=run.end+1000)appendSample(run,sample);
+        }
+    }
+    function appendSample(run,sample) {
+        if(run.samples.length>=MAX_SAMPLES){if(!run.sampleLimit){run.sampleLimit=true;incident('limit','Se ha alcanzado el límite de muestras.');}run.end=Math.min(run.end,toMaster(now(),run.initialClock));return;}
+        const row=[...sample];row[0]=run.samples.length;run.samples.push(row);
+    }
+    async function requestWake() {try{if(navigator.wakeLock)s.wake=await navigator.wakeLock.request('screen');}catch(e){incident('screen','No se pudo mantener la pantalla activa.');}}
+    function releaseWake(){if(s.wake){s.wake.release().catch(()=>{});s.wake=null;}}
+    function beginRun(id,start,end,duration) {
+        s.results.clear();s.storageFailed=false;
+        const model=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
+        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,samples:[],incidents:[],persisted:0,chunkIndex:0,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null)},sync:[]};
+        for(const sample of s.recent){const t=toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
+        tab('Measure');requestWake();persist();renderPlan();renderDevices();tell('Inicio programado. Mantén la página visible y el teléfono inmóvil.');
+    }
+    async function startRun() {
+        requireHostEdit();
+        if(!localStatus().sensor||document.hidden)throw Error('Activa el acelerómetro del maestro y mantén la página visible.');
+        const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
+        if(!peers.length)throw Error('Conecta al menos otro móvil para realizar una medida conjunta.');
+        if(!pointFor())throw Error('Asigna el maestro a un punto del plano.');
+        if(s.plan.points.some(q=>q.device&&q.device!==s.id&&!peers.some(p=>p.id===q.device)))throw Error('Hay un punto asignado a un móvil desconectado. Conéctalo o elimina su asignación.');
+        for(const p of peers) {
+            if(!pointFor(p.id))throw Error('Asigna '+p.name+' a un punto del plano.');
+            if(!p.status?.sensor||!p.status.visible||now()-p.lastSeen>6000)throw Error(p.name+' no tiene el sensor preparado o la página visible.');
+            if(!p.model||p.model.count<8||now()-p.model.updated>15000)throw Error('Repite la sincronización de '+p.name+'.');
+        }
+        const duration=Number($('jointDuration').value);if(!finite(duration)||duration<5||duration>1800||!Number.isInteger(duration))throw Error('Introduce una duración entera entre 5 y 1800 segundos.');
+        const id=uid(),tx={id,ready:new Map(),acks:new Set(),error:null};s.transaction=tx;renderPlan();renderDevices();
+        broadcast({type:'PREPARE',runId:id,duration});tell('Solicitando confirmación a los participantes…');
+        try {
+            const limit=now()+5000;
+            while(tx.ready.size<peers.length&&now()<limit&&s.transaction===tx)await pause(50);
+            if(s.transaction!==tx)throw Error('Inicio cancelado.');
+            if(tx.ready.size!==peers.length)throw Error('Un participante no respondió. No se inicia el ensayo.');
+            for(const v of tx.ready.values())if(!v.ok)throw Error(v.reason||'Un participante no está preparado.');
+            const start=now()+4000,end=start+duration*1000;
+            beginRun(id,start,end,duration);broadcast({type:'START_AT',runId:id,start,end});
+            const deadline=now()+2000;
+            while(tx.acks.size<peers.length&&now()<deadline&&!tx.error&&s.transaction===tx)await pause(50);
+            if(tx.error||tx.acks.size!==peers.length||s.transaction!==tx)throw Error(tx.error||'Falta confirmación del inicio. Se cancela el ensayo.');
+            tell('Todos han confirmado. Inicio en unos segundos.');
+        } catch(e) {
+            broadcast({type:'ABORT',runId:id,reason:e.message});
+            if(s.run?.id===id&&running()) {s.run.state='cancelled';incident('cancel',e.message);await finishRun(true);}
+            throw e;
+        } finally {if(s.transaction===tx)s.transaction=null;renderDevices();renderPlan();}
+    }
+    function stopRun(reason='Parada manual') {
+        if(s.role==='guest') {
+            const host=[...s.peers.values()][0];send(host,{type:'STOP_REQUEST'});
+            if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,toMaster(now(),s.run.initialClock)));incident('stop','Parada local solicitada');}
+            return;
+        }
+        if(s.transaction||s.run?.state==='armed') {
+            const id=s.transaction?.id||s.run.id;s.transaction=null;broadcast({type:'ABORT',runId:id,reason});
+            if(running()){s.run.state='cancelled';incident('cancel',reason);finishRun(true);}return;
+        }
+        if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,now()));incident('stop',reason);broadcast({type:'STOP_AT',runId:s.run.id,end:s.run.end});}
+    }
+    function runMeta(run) {
+        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,finalClock:run.finalClock,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',userAgent:navigator.userAgent};
+    }
+    function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
+    async function finishRun(cancelled=false) {
+        const run=s.run;if(!run||run.finishing||run.finished)return;run.finishing=true;
+        run.state=cancelled?'cancelled':'finished';run.finalClock=s.role==='host'?run.initialClock:structuredClone(s.syncModel);
+        releaseWake();await persist(run);run.finished=true;run.finishing=false;
+        if(s.run!==run)return;
+        const record=localRecord();s.results.set(s.id,record);tab('Results');renderPlan();renderDevices();renderResults();
+        tell(cancelled?'Ensayo cancelado. Los datos disponibles se conservan.':'Registro local terminado. Ya puedes descargar los datos.');
+        if(s.role==='guest'&&!cancelled)sendRecord().catch(e=>{incident('transfer',e.message);tell('Registro local conservado. '+e.message,true);});
+    }
+
+    async function hashText(text) {
+        const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(hash)].map(v=>v.toString(16).padStart(2,'0')).join('');
+    }
+    function validateRecord(r,id,runId) {
+        if(!r||r.schema!=='pasarelas-upm-joint-v1'||r.id!==runId||r.device?.id!==id||!Array.isArray(r.samples)||r.samples.length>MAX_SAMPLES)throw Error('Registro recibido incompatible.');
+        if(!Array.isArray(r.incidents)||!r.windowMasterMs||![r.windowMasterMs.start,r.windowMasterMs.end].every(finite))throw Error('Ventana temporal no válida.');
+        for(let i=0;i<r.samples.length;i++){const row=r.samples[i];if(!Array.isArray(row)||row.length!==8||row[0]!==i||![row[2],row[3],row[4],row[5],row[7]].every(finite))throw Error('Muestras recibidas no válidas.');}
+    }
+    async function acknowledged(p,message,index) {
+        for(let attempt=0;attempt<3;attempt++) {
+            if(p.channel?.readyState!=='open')throw Error('La conexión se ha cerrado. Reconecta y reenvía el registro.');
+            const key=message.transferId+':'+index;
+            try {
+                await new Promise((resolve,reject)=>{
+                    const timer=setTimeout(()=>{p.acks.delete(key);reject(Error('Sin confirmación del bloque.'));},4000);
+                    p.acks.set(key,()=>{clearTimeout(timer);resolve();});
+                    if(!send(p,message)){clearTimeout(timer);p.acks.delete(key);reject(Error('No se pudo enviar el bloque.'));}
+                });return;
+            }catch(e){if(attempt===2)throw e;}
+        }
+    }
+    async function sendRecord() {
+        if(s.role!=='guest')return;
+        if(!s.run?.finished)throw Error('Termina primero el ensayo.');
+        if(s.transfer)throw Error('Hay una transferencia en curso.');
+        const host=[...s.peers.values()][0];if(!host||host.channel?.readyState!=='open')throw Error('No hay conexión con el maestro. Descarga tus datos localmente.');
+        s.transfer={percent:0};renderResults();
+        try {
+            const text=JSON.stringify(localRecord()),hash=await hashText(text),transferId=uid(),count=Math.ceil(text.length/12000);
+            if(text.length>80000000)throw Error('Registro demasiado grande para transferir. Descárgalo localmente.');
+            await acknowledged(host,{type:'TRANSFER_BEGIN',transferId,runId:s.run.id,size:text.length,count,hash},-1);
+            for(let i=0;i<count;i++) {
+                await acknowledged(host,{type:'TRANSFER_CHUNK',transferId,index:i,data:text.slice(i*12000,(i+1)*12000)},i);
+                s.transfer.percent=Math.round(100*(i+1)/count);renderResults();
+            }
+            await acknowledged(host,{type:'TRANSFER_END',transferId},count);
+            s.run.transferred=true;tell('El maestro ha recibido el registro y verificado su integridad.');
+        }finally{s.transfer=null;renderResults();}
+    }
+    function renderResults() {
+        const r=s.run;
+        $('jointDownload').disabled=!r?.finished;$('jointCsv').disabled=!r?.finished;
+        $('jointNewRun').disabled=!!running()||!!s.transfer;
+        $('jointSendData').hidden=s.role!=='guest';$('jointSendData').disabled=!r?.finished||!!s.transfer;
+        if(!r){$('jointResultsList').textContent='Todavía no hay un ensayo registrado.';return;}
+        let html=`<p><strong>${r.state==='cancelled'?'Ensayo cancelado':r.finished?'Registro terminado':'Ensayo en curso'}</strong> · ${escape(r.plan.name)}</p>`;
+        const expected=[r.device,...(s.role==='host'?[...s.peers.values()].filter(p=>r.plan.points.some(q=>q.device===p.id)).map(p=>({id:p.id,name:p.name})):[])];
+        for(const d of expected) {
+            const data=s.results.get(d.id);
+            html+=`<article class="joint-device-card"><strong>${escape(d.name)}</strong><p>${data?data.samples.length+' muestras · '+data.incidents.length+' incidencias':d.id===s.id?r.samples.length+' muestras locales':'Registro pendiente de recibir'}</p></article>`;
+        }
+        if(s.transfer)html+=`<p>Enviando al maestro: ${s.transfer.percent}%</p>`;
+        if(r.transferred)html+='<p>Registro confirmado por el maestro.</p>';
+        if(s.storageFailed)html+='<p class="joint-warning">El guardado persistente ha fallado: descarga los datos antes de cerrar.</p>';
+        $('jointResultsList').innerHTML=html;
+    }
+    function exportSession() {
+        if(!s.run?.finished)throw Error('Termina primero el ensayo.');
+        const records=[...s.results.values()].map(r=>{
+            // Keep originals; use one final model per record to avoid time jumps.
+            const model=r.device.id===s.id?r.finalClock:(s.peers.get(r.device.id)?.model||r.finalClock);
+            const valid=validModel(model)||r.device.role==='host';
+            return {...r,exportClock:valid?model:r.initialClock,samples:r.samples.map(row=>({raw:row,masterTimeMs:toMaster(row[7],valid?model:r.initialClock)}))};
+        });
+        const expected=s.run.plan.points.filter(p=>p.device).map(p=>p.device);
+        download('ensayo_conjunto_'+s.run.id+'.json',{schema:'pasarelas-upm-joint-export-v1',session:s.session,plan:s.run.plan,windowMasterMs:{start:s.run.start,end:s.run.end},complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,p.samples])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'});
+    }
+    function exportCsv() {
+        const r=localRecord();if(!r||!s.run.finished)throw Error('No hay un registro terminado.');
+        const model=r.finalClock,point=r.device.point;
+        const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+        const columns=['device','point','point_x_m','point_y_m','axis','angle_deg','sequence','event_time_ms','receipt_time_ms','ax_m_s2','ay_m_s2','az_m_s2','reported_interval_ms','used_time_ms','master_time_estimated_ms','inside_window'];
+        const lines=r.samples.map(row=>{const t=toMaster(row[7],model);return [r.device.name,point?.name,point?.x,point?.y,point?.axis,point?.angle,...row,t,t>=r.windowMasterMs.start&&t<=r.windowMasterMs.end?1:0].map(cell).join(',');});
+        download('aceleraciones_'+r.id+'_'+s.id+'.csv','\ufeff'+columns.join(',')+'\n'+lines.join('\n'),'text/csv;charset=utf-8');
+    }
+    function drawPreview() {
+        const canvas=$('jointLive'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
+        ctx.clearRect(0,0,w,h);ctx.strokeStyle='#dce6ee';ctx.beginPath();for(let i=1;i<4;i++){ctx.moveTo(0,h*i/4);ctx.lineTo(w,h*i/4);}ctx.stroke();
+        const a=s.preview.filter(v=>v[2]>now()-5000);if(a.length<2)return;
+        const span=Math.max(1000,a[a.length-1][2]-a[0][2]),max=Math.max(1,...a.flatMap(v=>v.slice(3,6).map(Math.abs)));
+        for(let axis=0;axis<3;axis++){ctx.strokeStyle=['#4285f4','#0f9d58','#db4437'][axis];ctx.lineWidth=1.6;ctx.beginPath();a.forEach((v,i)=>{const x=35+(v[2]-a[0][2])/span*(w-45),y=h/2-v[axis+3]/max*(h/2-25);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);});ctx.stroke();}
+        ctx.fillStyle='#516b80';ctx.font='13px Arial';ctx.fillText(max.toFixed(1)+' m/s²',8,17);ctx.fillText('0',8,h/2);ctx.fillText('-'+max.toFixed(1),8,h-8);
+    }
+    function tick() {
+        if(root.hidden)return;
+        const r=s.run;
+        if(r&&activeStates.has(r.state)) {
+            const t=toMaster(now(),r.initialClock);
+            if(t<r.start)$('jointMeasureState').textContent='Inicio en '+Math.max(0,Math.ceil((r.start-t)/1000))+' s';
+            else {
+                r.state='recording';const elapsed=Math.max(0,Math.min(t,r.end)-r.start);
+                $('jointMeasureState').textContent=t>r.end?'Guardando margen final…':Math.floor(elapsed/60000).toString().padStart(2,'0')+':'+Math.floor(elapsed/1000%60).toString().padStart(2,'0');
+                $('jointProgress').value=Math.min(1,elapsed/Math.max(1,r.end-r.start));
+            }
+            if(t>r.end+1000)finishRun().catch(e=>tell(e.message,true));
+        }
+        $('jointSampleCount').textContent=r?.samples.length||0;$('jointRate').textContent=localStatus().sensor?sampleRate().toFixed(1)+' Hz':'—';
+        drawPreview();
+        if(++s.uiTick%4===0){renderDevices();broadcast({type:'STATUS',status:localStatus()});if(running())persist();}
+        if(s.uiTick%20===0&&s.role==='host')for(const p of s.peers.values())syncOnce(p);
+    }
+    function resetSession() {
+        if((running()||s.transaction)&&!confirm('¿Cancelar la medida y salir? Los bloques guardados seguirán disponibles en este navegador.'))return;
+        if(running()||s.transaction)stopRun('Salida de la sesión');
+        if(s.run){if(running())s.run.state='cancelled';persist();}
+        stopScan();if($('jointPairDialog').open)$('jointPairDialog').close();
+        for(const p of s.peers.values())p.pc.close();s.peers.clear();
+        window.removeEventListener('devicemotion',motion);s.sensor=false;s.sensorEnabled=false;releaseWake();
+        s.role=null;s.session=null;s.run=null;s.results.clear();s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
+        s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
+        root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
+        if(s.returnTo)s.returnTo.style.display='block';else $('mainMenu').style.display='block';
+        history.replaceState(null,'',location.pathname+location.search);
+    }
+
+    // UI bindings. All generated text is escaped before entering markup.
+    $('openJointButton').addEventListener('click',guard(open));
+    $('standaloneTestButton').addEventListener('click',guard(()=>{
+        if(typeof Chart==='undefined')throw Error('No se ha cargado la librería de gráficas. Recarga la página con conexión.');
+        mainMenu.style.display='none';testForm.style.display='block';
+        if(accelerationChart===null){createAccelerationChart();createSpectrumChart();createPsdChart();createRmsChart();[accelerationChart,spectrumChart,psdChart,rmsChart].forEach(enableLegendToggling);}
+    }));
+    $('jointExit').addEventListener('click',resetSession);
+    document.querySelectorAll('[data-joint-tab]').forEach(b=>b.onclick=()=>{tab(b.dataset.jointTab);if(b.dataset.jointTab==='Results')renderResults();});
+    $('jointCreate').onclick=guard(()=>{
+        open();s.id=uid();s.role='host';s.name='Maestro';s.session=uid();
+        try{const stored=localStorage.getItem('upm-joint-plan-v1');if(stored)s.plan=checkPlan(JSON.parse(stored));}catch(e){tell('No se pudo recuperar el plano anterior.',true);}
+        if(!s.plan.points.length)s.plan.points=[{id:'P1',name:'Centro de vano',x:s.plan.length/2,y:s.plan.width/2,axis:'z',angle:0,device:s.id},{id:'P2',name:'L/4',x:s.plan.length/4,y:s.plan.width/2,axis:'z',angle:0,device:null}];
+        else {s.plan.points.forEach(p=>p.device=null);s.plan.points[0].device=s.id;}
+        s.selected=s.plan.points[0].id;workspace();tell('Define el plano y pulsa Invitar móvil para incorporar un participante.');
+    });
+    $('jointJoin').onclick=()=>openPair();$('jointPair').onclick=guard(invite);
+    $('jointPairClose').onclick=()=>{$('jointPairDialog').close();stopScan();};
+    $('jointPairDialog').addEventListener('close',stopScan);
+    $('jointReadCode').onclick=guard(()=>readCode());$('jointScanCode').onclick=guard(scanCode);$('jointStopScan').onclick=stopScan;
+    $('jointCopyCode').onclick=guard(async()=>{const text=$('jointPairOutput').value;try{await navigator.clipboard.writeText(text);$('jointPairStatus').textContent='Código copiado.';}catch(e){$('jointPairOutput').focus();$('jointPairOutput').select();$('jointPairStatus').textContent='Selecciona y copia el código completo.';}});
+    $('jointApplyGeometry').onclick=guard(()=>{
+        requireHostEdit();const candidate={...s.plan,name:$('jointName').value,length:Number($('jointLength').value),width:Number($('jointWidth').value)};
+        s.plan=checkPlan(candidate);savePlan();tell('Dimensiones guardadas.');
+    });
+    $('jointAddPoint').onclick=guard(()=>{requireHostEdit();s.adding=!s.adding;renderPlan();});
+    $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');s.plan.points=s.plan.points.filter(p=>p.id!==s.selected);s.selected=s.plan.points[0]?.id;savePlan();});
+    $('jointApplyPoint').onclick=guard(()=>{
+        requireHostEdit();const original=s.plan.points.find(p=>p.id===s.selected);if(!original)return;
+        const device=$('jointPointDevice').value||null;
+        if(device&&s.plan.points.some(p=>p.id!==original.id&&p.device===device))throw Error('Ese móvil ya tiene otro punto. Desasígnalo primero.');
+        const candidate={...original,name:$('jointPointName').value,x:Number($('jointPointX').value),y:Number($('jointPointY').value),axis:$('jointPointAxis').value,angle:Number($('jointPointAngle').value),device};
+        s.plan=checkPlan({...s.plan,points:s.plan.points.map(p=>p.id===candidate.id?candidate:p)});savePlan();renderDevices();tell('Punto actualizado.');
+    });
+    $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
+    $('jointImportPlan').onchange=guard(async e=>{requireHostEdit();const file=e.target.files[0];if(!file)return;if(file.size>100000)throw Error('El archivo de plano es demasiado grande.');const plan=checkPlan(JSON.parse(await file.text()));plan.points.forEach(p=>p.device=null);s.plan=plan;s.selected=plan.points[0]?.id;savePlan();e.target.value='';tell('Plano importado. Asigna los móviles a los puntos.');});
+    $('jointPointsTable').onclick=e=>{const b=e.target.closest('[data-select-point]');if(b){s.selected=b.dataset.selectPoint;renderPlan();}};
+    $('jointPlan').addEventListener('keydown',guard(e=>{
+        const el=e.target.closest('[data-point]');if(!el)return;
+        if(e.key==='Enter'||e.key===' '){e.preventDefault();s.selected=el.dataset.point;renderPlan();}
+    }));
+    $('jointPlan').addEventListener('pointerdown',guard(e=>{
+        const el=e.target.closest('[data-point]'),pos=svgPosition(e);
+        if(el){s.selected=el.dataset.point;if(s.role==='host'&&!running()&&!s.transaction){s.drag=s.selected;$('jointPlan').setPointerCapture(e.pointerId);}renderPlan();}
+        else if(s.adding&&pos&&pos.x>=0&&pos.x<=s.plan.length&&pos.y>=0&&pos.y<=s.plan.width)addPoint(pos.x,pos.y);
+    }));
+    $('jointPlan').addEventListener('pointermove',e=>{
+        if(!s.drag)return;const pos=svgPosition(e),p=s.plan.points.find(p=>p.id===s.drag);if(!p||!pos)return;
+        p.x=Number(Math.min(s.plan.length,Math.max(0,pos.x)).toFixed(2));p.y=Number(Math.min(s.plan.width,Math.max(0,pos.y)).toFixed(2));renderPlan();
+    });
+    for(const event of ['pointerup','pointercancel'])$('jointPlan').addEventListener(event,guard(()=>{if(s.drag){s.drag=null;savePlan();}}));
+    $('jointDeviceName').onchange=()=>{s.name=$('jointDeviceName').value.trim().slice(0,40)||'Mi móvil';broadcast({type:'HELLO',id:s.id,name:s.name,status:localStatus()});renderDevices();renderPlan();};
+    $('jointEnableSensor').onclick=guard(enableSensor);
+    $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Estimando desfases mediante nuevos intercambios de mensajes…');});
+    $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
+    $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
+    $('jointNewRun').onclick=guard(()=>{
+        if(running()||s.transfer)throw Error('Espera a que termine la medida y la transferencia.');
+        if(s.run&&!confirm('Descarga antes los resultados. ¿Preparar un nuevo ensayo? El registro local seguirá guardado en este navegador.'))return;
+        s.run=null;s.results.clear();$('jointProgress').value=0;$('jointMeasureState').textContent='Preparando dispositivos';renderPlan();renderDevices();tab('Devices');
+    });
+    document.addEventListener('visibilitychange',()=>{if(running()){incident('visibility',document.hidden?'Página oculta: puede haber huecos de adquisición.':'Página visible de nuevo.');if(!document.hidden)requestWake();}});
+    window.addEventListener('beforeunload',e=>{if(running()||s.transfer){e.preventDefault();e.returnValue='';}});
+    setInterval(tick,250);
+    if(location.hash.startsWith('#joint=')) {
+        guard(()=>{open();openPair();$('jointPairInput').value=location.href;$('jointPairStatus').textContent='Invitación cargada. Pulsa Leer código para continuar.';history.replaceState(null,'',location.pathname+location.search);})();
+    }
+})();

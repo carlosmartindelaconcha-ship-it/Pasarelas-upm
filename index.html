@@ -14,7 +14,7 @@
     <title>Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261012-structural-questionnaire">
+    <link rel="stylesheet" href="style.css?v=20261101-joint-plan">
 
     <!-- MapLibre -->
     <link
@@ -103,9 +103,11 @@
                 Registrar una pasarela
             </button>
 
-            <button>
+            <button id="standaloneTestButton" type="button">
                 Realizar ensayo dinámico
             </button>
+
+            <button id="openJointButton" type="button">Medida conjunta y plano de puntos</button>
 
         </section>
 
@@ -712,6 +714,76 @@
         </section>
 
 
+        <section id="jointApp" class="menu-card joint-app" hidden aria-labelledby="jointTitle">
+            <div class="joint-heading"><div><p class="joint-eyebrow">PASARELAS UPM · ENSAYO MULTIPUNTO</p><h2 id="jointTitle">Medida conjunta</h2></div><button id="jointExit" class="joint-secondary" type="button">Salir</button></div>
+            <p id="jointNotice" class="joint-notice" role="status" aria-live="polite">Crea una sesión o introduce una invitación.</p>
+            <div id="jointLanding">
+                <div class="joint-options">
+                    <article><h3>Coordinar un ensayo</h3><p>Dibuja la planta, asigna los puntos e invita a otros teléfonos.</p><button id="jointCreate" type="button">Crear sesión</button></article>
+                    <article><h3>Participar</h3><p>Conéctate al Wi-Fi del ensayo y abre la invitación del maestro.</p><button id="jointJoin" class="joint-secondary" type="button">Introducir invitación</button></article>
+                </div>
+                <p class="joint-help">Prototipo experimental. La conexión entre navegadores no garantiza la sincronización física de los acelerómetros.</p>
+            </div>
+            <div id="jointWorkspace" hidden>
+                <div class="joint-toolbar"><span id="jointRole" class="joint-badge"></span><span id="jointSessionLabel"></span><button id="jointPair" type="button" class="joint-secondary">Invitar móvil</button></div>
+                <div class="joint-tabs" role="tablist" aria-label="Medida conjunta">
+                    <button type="button" id="jointTabPlan" role="tab" aria-controls="jointPanelPlan" aria-selected="true" data-joint-tab="Plan">1. Plano</button>
+                    <button type="button" id="jointTabDevices" role="tab" aria-controls="jointPanelDevices" aria-selected="false" data-joint-tab="Devices">2. Dispositivos</button>
+                    <button type="button" id="jointTabMeasure" role="tab" aria-controls="jointPanelMeasure" aria-selected="false" data-joint-tab="Measure">3. Medir</button>
+                    <button type="button" id="jointTabResults" role="tab" aria-controls="jointPanelResults" aria-selected="false" data-joint-tab="Results">4. Resultados</button>
+                </div>
+                <div id="jointPanelPlan" role="tabpanel" aria-labelledby="jointTabPlan">
+                    <div class="joint-section-head"><div><h3>Plano de puntos de medida</h3><p>Coordenadas en metros. Origen en la esquina inferior izquierda.</p></div><button id="jointSavePlan" type="button" class="joint-secondary">Exportar plano</button></div>
+                    <fieldset id="jointGeometry"><legend>Geometría del ensayo</legend><div class="joint-fields">
+                        <label>Nombre del ensayo<input id="jointName" maxlength="80" value="Ensayo multipunto"></label>
+                        <label>Longitud X (m)<input id="jointLength" type="number" min="0.1" max="10000" step="0.1" value="30"></label>
+                        <label>Anchura Y (m)<input id="jointWidth" type="number" min="0.1" max="10000" step="0.1" value="3"></label>
+                    </div><button id="jointApplyGeometry" type="button" class="joint-secondary">Aplicar dimensiones</button></fieldset>
+                    <div class="joint-plan-wrap"><svg id="jointPlan" viewBox="0 0 800 360" role="group" aria-label="Plano editable: selecciona un punto o pulsa Añadir punto"></svg></div>
+                    <p class="joint-help" id="jointPlanHelp">Selecciona un punto para editarlo. Arrástralo para moverlo; también puedes introducir sus coordenadas.</p>
+                    <div class="joint-actions" id="jointPlanTools"><button id="jointAddPoint" type="button">Añadir punto</button><button id="jointRemovePoint" type="button" class="joint-secondary">Eliminar seleccionado</button><label class="joint-file">Importar plano JSON<input id="jointImportPlan" type="file" accept="application/json,.json"></label></div>
+                    <fieldset id="jointPointEditor"><legend id="jointPointLegend">Punto seleccionado</legend><div class="joint-fields">
+                        <label>Nombre<input id="jointPointName" maxlength="40"></label>
+                        <label>X (m)<input id="jointPointX" type="number" step="0.01" min="0"></label>
+                        <label>Y (m)<input id="jointPointY" type="number" step="0.01" min="0"></label>
+                        <label>Eje de medida<select id="jointPointAxis"><option value="z">Z del teléfono</option><option value="x">X del teléfono</option><option value="y">Y del teléfono</option></select></label>
+                        <label>Giro desde +Y (°)<input id="jointPointAngle" type="number" min="-360" max="360" step="1" value="0"></label>
+                        <label>Móvil asignado<select id="jointPointDevice"></select></label>
+                    </div><button id="jointApplyPoint" type="button" class="joint-secondary">Guardar punto</button></fieldset>
+                    <div class="joint-table-wrap"><table class="joint-table"><caption>Posiciones y asignaciones</caption><thead><tr><th>Punto</th><th>X</th><th>Y</th><th>Eje</th><th>Móvil</th></tr></thead><tbody id="jointPointsTable"></tbody></table></div>
+                    <p class="joint-help">El giro desde +Y es positivo en sentido antihorario y describe la orientación del teléfono; no transforma automáticamente sus ejes. Apoya todos los móviles con una orientación coherente.</p>
+                </div>
+                <div id="jointPanelDevices" role="tabpanel" aria-labelledby="jointTabDevices" hidden>
+                    <h3>Preparación de los dispositivos</h3><label>Nombre de este móvil<input id="jointDeviceName" maxlength="40" value="Mi móvil"></label>
+                    <div class="joint-actions"><button id="jointEnableSensor" type="button">Activar acelerómetro</button><button id="jointSync" type="button" class="joint-secondary">Repetir sincronización</button></div>
+                    <p class="joint-help">Mantén la página visible. Se registra aceleración con gravedad en los tres ejes; el procesado puede eliminar la componente constante.</p>
+                    <div id="jointDevices" class="joint-device-list"></div>
+                    <p class="joint-warning">El RTT mide la ida y vuelta de los mensajes. El desfase estimado corresponde a los relojes de las páginas, no al desfase físico entre sensores. Una conexión directa no certifica el SSID.</p>
+                </div>
+                <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
+                    <h3>Adquisición coordinada</h3><div class="joint-fields"><label>Duración (s)<input id="jointDuration" type="number" min="5" max="1800" step="1" value="60"></label></div>
+                    <div id="jointMeasureState" class="joint-measure-state" aria-live="polite">Preparando dispositivos</div><progress id="jointProgress" max="1" value="0" aria-label="Progreso del ensayo"></progress>
+                    <div class="joint-live-values"><span>Muestras locales <strong id="jointSampleCount">0</strong></span><span>Frecuencia observada <strong id="jointRate">—</strong></span><span>Mi punto <strong id="jointMyPoint">Sin asignar</strong></span></div>
+                    <canvas id="jointLive" width="800" height="230" aria-label="Previsualización de las aceleraciones locales"></canvas><p class="joint-help">Previsualización local: X azul · Y verde · Z rojo. Todas las muestras recibidas se guardan.</p>
+                    <div class="joint-actions"><button id="jointStart" type="button">Preparar e iniciar</button><button id="jointStop" type="button" class="joint-danger" disabled>Detener / cancelar</button></div>
+                    <p class="joint-help">Los sensores están activos antes del inicio. El registro incluye un margen de un segundo alrededor de la ventana prevista. No se garantiza muestreo simultáneo.</p>
+                </div>
+                <div id="jointPanelResults" role="tabpanel" aria-labelledby="jointTabResults" hidden>
+                    <h3>Registros y resultados</h3><div id="jointResultsList"></div>
+                    <div class="joint-actions"><button id="jointDownload" type="button">Descargar ensayo JSON</button><button id="jointCsv" type="button" class="joint-secondary">Descargar CSV de este móvil</button><button id="jointSendData" type="button" class="joint-secondary">Reenviar mi registro</button><button id="jointNewRun" type="button" class="joint-secondary">Preparar otro ensayo</button></div>
+                    <p class="joint-help">JSON: plano, posiciones, asignaciones, marcas originales, tiempos estimados en el reloj maestro, intercambios de sincronización e incidencias. Los datos no se remuestrean ni se validan automáticamente para OMA.</p>
+                    <details><summary>Recuperar registros guardados en este navegador</summary><button id="jointRecover" type="button" class="joint-secondary">Buscar registros locales</button><div id="jointRecoveryList"></div></details>
+                </div>
+            </div>
+            <dialog id="jointPairDialog" aria-labelledby="jointPairTitle"><div class="joint-dialog-heading"><h3 id="jointPairTitle">Conectar móvil</h3><button id="jointPairClose" class="joint-secondary" type="button">Cerrar</button></div>
+                <p id="jointPairHelp"></p><div id="jointQr"></div><textarea id="jointPairOutput" rows="3" readonly aria-label="Código para compartir" hidden></textarea><button id="jointCopyCode" type="button" class="joint-secondary" hidden>Copiar código</button>
+                <label for="jointPairInput">Invitación o respuesta</label><textarea id="jointPairInput" rows="4" placeholder="Pega el código o el enlace recibido" autocomplete="off" spellcheck="false"></textarea>
+                <div class="joint-actions"><button id="jointReadCode" type="button">Leer código</button><button id="jointScanCode" type="button" class="joint-secondary">Escanear QR</button><button id="jointStopScan" type="button" class="joint-secondary" hidden>Parar cámara</button></div>
+                <video id="jointScanner" playsinline muted hidden></video><p id="jointPairStatus" role="status" aria-live="polite"></p>
+                <p class="joint-help">Emparejamiento sin servidor: el participante lee la invitación y el maestro lee su respuesta. Cada invitación sirve para un móvil. Los códigos contienen información de conexión: compártelos solo con los participantes.</p>
+            </dialog>
+        </section>
+
     </main>
 
 
@@ -734,9 +806,13 @@
     </script>
 
     <!-- Nuestro JavaScript -->
-    <script src="app.js?v=20261012-structural-questionnaire"></script>
+    <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
+    <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script defer src="app.js?v=20261101-joint-plan"></script>
 
 
 </body>
 
 </html>
+
