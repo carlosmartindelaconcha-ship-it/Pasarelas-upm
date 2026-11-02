@@ -787,7 +787,7 @@
                 <div class="joint-actions"><button id="jointRetryPair" type="button" class="joint-secondary">Reiniciar emparejamiento</button><button id="jointPrepareSafari" type="button" class="joint-secondary">Preparar Safari/iPhone</button></div>
                 <p class="joint-help">Preparar Safari solicita acceso a la cámara y la detiene inmediatamente; no graba. Ese permiso puede permitir que Safari ofrezca direcciones locales para WebRTC.</p>
                 <details id="jointPairDiagnostics" class="joint-diagnostics" hidden><summary>Diagnóstico técnico</summary><pre id="jointPairDiagnosticsText" tabindex="0"></pre><button id="jointCopyDiagnostics" type="button" class="joint-secondary">Copiar diagnóstico</button></details>
-                <p class="joint-help">Emparejamiento mediante dos códigos: el participante guarda la invitación, espera a que el maestro abra su cámara y solo entonces genera la respuesta. Si la conexión del participante caduca antes de ser leída, la respuesta se regenera hasta tres veces. No hay servidor de retransmisión TURN. Versión de conexión 3.</p>
+                <p class="joint-help">Emparejamiento local mediante dos códigos: se recopilan todas las direcciones de conexión antes de crear cada código y este se divide en QR pequeños. El lector completa todas las páginas antes de aplicar la conexión. No hay servidor de retransmisión TURN. Versión de conexión 3.</p>
             </dialog>
         </section>
 
@@ -816,7 +816,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261102-wireless-flow-v3"></script>
+    <script defer src="app.js?v=20261102-local-complete-ice-qr-pages"></script>
 
 
 </body>

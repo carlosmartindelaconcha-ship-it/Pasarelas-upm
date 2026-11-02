@@ -22,11 +22,11 @@ function setup(options={}) {
  }
  const ctx={console,TextEncoder,TextDecoder,Uint8Array,Blob,Response,Map,Set,Date,JSON,Number,Math,Promise,Error,crypto:webcrypto,performance:{now:()=>100},RTCPeerConnection:PC,atob,btoa,
  document:{getElementById:el,querySelectorAll:()=>[],addEventListener(){},visibilityState:'visible'},window:{addEventListener(){},removeEventListener(){}},location:{hash:'',href:'https://test.example/app',pathname:'/app',search:''},
- setInterval:()=>0,setTimeout:(f,ms)=>{const id=++nextTimer;timers.set(id,{f,ms});return id},clearTimeout:id=>timers.delete(id),cancelAnimationFrame(){},history:{replaceState(){}},localStorage:{setItem(){}},navigator:{},};
+ setInterval:()=>0,clearInterval(){},setTimeout:(f,ms)=>{const id=++nextTimer;timers.set(id,{f,ms});return id},clearTimeout:id=>timers.delete(id),cancelAnimationFrame(){},history:{replaceState(){}},localStorage:{setItem(){}},navigator:{},};
  ctx.window.document=ctx.document;
  let block=source.slice(source.indexOf('(() => {',source.indexOf('MEDIDA CONJUNTA')));
  const end=block.lastIndexOf('})();');
- block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary};`+block.slice(end);
+ block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary,qrTransferPages,acceptQrPage};`+block.slice(end);
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
@@ -87,10 +87,10 @@ test('participant stores the offer and only creates its answer after the master 
  assert.equal(a.s.peers.size,0);assert.equal(a.s.pendingOffer.network,'local');assert.equal(el('jointGenerateAnswer').hidden,false);assert.equal(el('jointPairOutput').hidden,true);
  await a.createGuestAnswer();const p=a.s.peers.get('master');assert.equal(p.network,'local');assert.equal(p.pc.config.iceServers.length,0);assert.equal(el('jointNetworkMode').disabled,true);assert.equal((await a.decodeToken(el('jointPairOutput').value)).network,'local');
 });
-test('participant schedules a fresh answer when ICE fails before the channel opens',async()=>{
+test('participant never replaces a visible answer automatically after local ICE fails',async()=>{
  const {a,el,timers}=setup();a.s.role=null;await a.readCode(token(offer('local')));await a.createGuestAnswer();const p=a.s.peers.get('master');
  p.pc.iceConnectionState='failed';p.pc.connectionState='failed';p.pc.oniceconnectionstatechange();
- assert.equal([...timers.values()].length,1);assert.equal([...timers.values()][0].ms,900);assert.match(el('jointPairStatus').textContent,/Generando automáticamente/);assert.equal(a.s.answerAttempts,1);
+ assert.equal(p.pairFailed,true);assert.equal(timers.size,0);assert.match(el('jointPairStatus').textContent,/no se regenerará automáticamente/);
 });
 test('response mode must match pending invitation',async()=>{
  const {a,peer,answer}=setup();const p=peer();p.pc.signalingState='have-local-offer';const t=await a.decodeToken(answer(p));t.network='local';await assert.rejects(a.readCode(token(t)),/otro modo/);assert.equal(p.answerAccepted,undefined);
@@ -102,6 +102,16 @@ test('STUN gathering returns as soon as a reflexive candidate can be put in the 
  const {a,peer,timers}=setup();const p=peer();p.pc.iceGatheringState='gathering';p.pc.localDescription={type:'answer',sdp:sdp};const work=a.gather(p.pc);
  p.pc.localDescription={type:'answer',sdp:sdp+srflx};p.pc.emit('icecandidate',{candidate:{type:'srflx'}});
  assert.equal(await work,false);assert.equal(timers.size,0);assert.match(p.diagnostics.at(-1).event,/candidatos suficientes/);
+});
+test('local gathering waits for complete instead of serializing the first host candidate',async()=>{
+ const {a,peer,timers}=setup();const p=peer();p.network='local';p.pc.iceGatheringState='gathering';p.pc.localDescription={type:'offer',sdp};const work=a.gather(p.pc);
+ assert.equal([...timers.values()][0].ms,15000);p.pc.emit('icecandidate',{candidate:{type:'host'}});assert.equal(timers.size,1);
+ p.pc.iceGatheringState='complete';p.pc.emit('icegatheringstatechange');assert.equal(await work,true);assert.equal(timers.size,0);
+});
+test('QR transfer pages reassemble the complete connection code before it is read',()=>{
+ const {a,el}=setup();const code='J1z.'+'a'.repeat(500),pages=a.qrTransferPages(code);assert.ok(pages.length>1);let complete=null;
+ for(const page of [...pages].reverse())complete=a.acceptQrPage(page);
+ assert.equal(complete,code);assert.match(el('jointPairStatus').textContent,/páginas/);
 });
 test('gather timeout without candidates rejects instead of generating unusable QR',async()=>{
  const {a,peer,timers}=setup();const p=peer();p.pc.iceGatheringState='gathering';const work=a.gather(p.pc);[...timers.values()][0].f();await assert.rejects(work,/No se han encontrado direcciones/);

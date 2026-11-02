@@ -5410,7 +5410,7 @@ function formatTime(
     // Only these app-owned endpoints are used; invitation codes cannot inject servers.
     const STUN_SERVERS = [{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}];
     const MAX_PEERS = 8, MAX_POINTS = 64, MAX_SAMPLES = 500000;
-    const MAX_TOKEN = 50000, MAX_MESSAGE = 90000;
+    const MAX_TOKEN = 50000, MAX_MESSAGE = 90000, QR_CHUNK_SIZE = 175, MAX_QR_PAGES = 256;
     const activeStates = new Set(['preparing', 'armed', 'recording']);
     const uid = () => {
         if(typeof crypto.randomUUID==='function')return crypto.randomUUID();
@@ -5428,7 +5428,7 @@ function formatTime(
         sensor:false, sensorEnabled:false, lastSample:0, recent:[], rateTimes:[],
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
         scan:null, scanFrame:null, currentInvite:null, pairBusy:false, capturePermission:false,
-        pendingOffer:null, answerAttempts:0, answerRetryTimer:null,
+        pendingOffer:null, qrPages:[], qrPageIndex:0, qrPageTimer:null, qrInbound:null,
         lastPairDiagnostic:'', adding:false, drag:null,
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
@@ -5587,19 +5587,48 @@ function formatTime(
         if(!candidates.length || candidates.some(l=>!allowed.test(l))) throw Error('El código no contiene direcciones admitidas para ese modo de conexión.');
         return t;
     }
+    function stopQrCycle() {
+        clearInterval(s.qrPageTimer);s.qrPageTimer=null;s.qrPages=[];s.qrPageIndex=0;
+    }
+    function qrTransferPages(code) {
+        const transfer=uid().replace(/-/g,'').slice(0,12),pages=[];
+        for(let index=0;index<code.length;index+=QR_CHUNK_SIZE)pages.push(code.slice(index,index+QR_CHUNK_SIZE));
+        if(!pages.length||pages.length>MAX_QR_PAGES)throw Error('El código de conexión es demasiado grande para compartirlo por QR. Usa Copiar código.');
+        return pages.map((chunk,index)=>'JQ1.'+transfer+'.'+(index+1)+'.'+pages.length+'.'+chunk);
+    }
+    function renderQrPage() {
+        const pages=s.qrPages;if(!pages.length)return;
+        const page=pages[s.qrPageIndex];$('jointQr').replaceChildren();
+        if(typeof qrcode!=='function'){$('jointQr').textContent='El generador QR no se ha cargado. Utiliza Copiar código.';return;}
+        try {
+            const qr=qrcode(0,'L');qr.addData(page);qr.make();
+            $('jointQr').innerHTML=qr.createSvgTag({cellSize:3,margin:4,scalable:true})+'<p class="joint-help">QR '+(s.qrPageIndex+1)+' de '+pages.length+' · mantén la cámara enfocada hasta completar todos.</p>';
+        } catch(e) {$('jointQr').textContent='No se pudo crear esta página QR. Utiliza Copiar código.';}
+    }
+    function acceptQrPage(raw) {
+        const value=String(raw||'').trim();
+        const match=value.match(/^JQ1\.([a-f0-9]{12})\.(\d{1,3})\.(\d{1,3})\.([.\w-]+)$/i);
+        if(!match)return value;
+        const [,transfer,indexText,totalText,chunk]=match,index=Number(indexText),total=Number(totalText);
+        if(!Number.isInteger(index)||!Number.isInteger(total)||total<1||total>MAX_QR_PAGES||index<1||index>total||chunk.length>QR_CHUNK_SIZE)throw Error('Página QR de conexión no válida.');
+        if(!s.qrInbound||s.qrInbound.transfer!==transfer||s.qrInbound.total!==total)s.qrInbound={transfer,total,pages:Array(total)};
+        s.qrInbound.pages[index-1]=chunk;
+        const received=s.qrInbound.pages.filter(Boolean).length;
+        $('jointPairStatus').textContent='QR recibido: '+received+' de '+total+' páginas.';
+        if(received!==total)return null;
+        const complete=s.qrInbound.pages.join('');s.qrInbound=null;return complete;
+    }
     async function showToken(payload) {
         const code=await encodeToken(payload);
         const link=payload.kind==='offer'?location.href.split('#')[0]+'#joint='+code:code;
         $('jointPairOutput').value=link; $('jointPairOutput').hidden=false; $('jointCopyCode').hidden=false;
-        $('jointQr').replaceChildren();
-        if(typeof qrcode==='function' && link.length<2900) {
-            try {const qr=qrcode(0,'L');qr.addData(link);qr.make();$('jointQr').innerHTML=qr.createSvgTag({cellSize:3,margin:4,scalable:true});} catch(e){$('jointQr').textContent='Código grande: utiliza Copiar código.';}
-        } else $('jointQr').textContent='Utiliza Copiar código para compartir esta conexión.';
+        stopQrCycle();s.qrPages=qrTransferPages(code);renderQrPage();
+        if(s.qrPages.length>1)s.qrPageTimer=setInterval(()=>{s.qrPageIndex=(s.qrPageIndex+1)%s.qrPages.length;renderQrPage();},1800);
     }
     function openPair(mode='join') {
         $('jointPairTitle').textContent=mode==='offer'?'Invitar a un móvil':'Leer invitación o respuesta';
         $('jointPairHelp').textContent=mode==='offer'?'El participante lee esta invitación. Después, lee aquí su respuesta para completar la conexión.':'Escanea el QR o pega el código completo del otro móvil.';
-        $('jointPairOutput').hidden=true; $('jointCopyCode').hidden=true; $('jointQr').replaceChildren(); $('jointPairInput').value=''; $('jointPairStatus').textContent='';
+        stopQrCycle();$('jointPairOutput').hidden=true; $('jointCopyCode').hidden=true; $('jointQr').replaceChildren(); $('jointPairInput').value=''; $('jointPairStatus').textContent='';
         $('jointGenerateAnswer').hidden=true;
         $('jointPairDiagnostics').hidden=true;$('jointPairDiagnosticsText').textContent='';
         $('jointNetworkMode').disabled=s.role==='guest';
@@ -5658,21 +5687,24 @@ function formatTime(
             };
             const enough=()=>{
                 const sdp=pc.localDescription?.sdp||'';
-                const host=/^a=candidate:.* typ host(?: |\r?$)/m.test(sdp);
                 const srflx=/^a=candidate:.* typ srflx(?: |\r?$)/m.test(sdp);
-                // In manual signaling the answer must be shown before ICE can finish connecting.
-                return p?.network==='stun'?srflx:host;
+                return p?.network==='stun'&&srflx;
             };
             const timer=setTimeout(()=>{
+                if(p?.network==='local'){
+                    finish(false,pairingError(p,'búsqueda de direcciones','La búsqueda de direcciones locales no terminó en 15 segundos. Se descarta este intento para no crear un QR incompleto. Reinicia el emparejamiento.'));
+                    return;
+                }
                 // An unreachable STUN server must not discard usable local candidates.
                 if(/^a=candidate:/m.test(pc.localDescription?.sdp||'')){
                     diagnosticEvent(p,'límite de 20 s',candidateSummary(pc.localDescription));finish(false);
                 }else finish(false,pairingError(p,'búsqueda de direcciones','No se han encontrado direcciones de conexión. Abre el diagnóstico para comprobar si Safari ha filtrado las direcciones o si STUN ha devuelto un error.'));
-            },20000);
+            },p?.network==='local'?15000:20000);
             function stateListener(){
                 diagnosticEvent(p,'estado de búsqueda ICE',pc.iceGatheringState);
                 if(pc.iceGatheringState==='complete'){
-                    diagnosticEvent(p,'búsqueda ICE terminada',candidateSummary(pc.localDescription));finish(true);
+                    if(p?.network==='local'&&!/^a=candidate:.* typ host(?: |\r?$)/m.test(pc.localDescription?.sdp||''))finish(false,pairingError(p,'búsqueda de direcciones','La búsqueda local terminó sin direcciones host utilizables. Reinicia el emparejamiento.'));
+                    else {diagnosticEvent(p,'búsqueda ICE terminada',candidateSummary(pc.localDescription));finish(true);}
                 }
             }
             function candidateListener(e){
@@ -5707,9 +5739,6 @@ function formatTime(
         p.pc.onicecandidate=null;p.pc.onicecandidateerror=null;p.pc.ondatachannel=null;
         if(p.channel){p.channel.onopen=null;p.channel.onclose=null;p.channel.onerror=null;}
         p.pc.close();
-    }
-    function clearAnswerRetry() {
-        clearTimeout(s.answerRetryTimer);s.answerRetryTimer=null;
     }
     function failPair(p, reason) {
         if(s.peers.get(p.id)!==p||p.pairFailed||p.opened)return;
@@ -5756,7 +5785,7 @@ function formatTime(
             disposePeer(p);s.peers.delete(id);
             if(s.role==='host')for(const point of s.plan.points)if(point.device===id)point.device=null;
         }
-        s.currentInvite=null;clearAnswerRetry();s.pendingOffer=null;s.answerAttempts=0;$('jointGenerateAnswer').hidden=true;
+        s.currentInvite=null;s.pendingOffer=null;$('jointGenerateAnswer').hidden=true;
         if(s.role==='host'){savePlan();return pairingAction(invite);}
         if(s.peers.size)throw Error('La conexión ya está abierta. Cierra este cuadro para continuar.');
         s.role=null;s.session=null;s.id=uid();
@@ -5769,13 +5798,8 @@ function formatTime(
             diagnosticEvent(p,'estado de conexión','ICE '+p.pc.iceConnectionState+'; enlace '+p.pc.connectionState);
             if(p.pc.connectionState==='failed'||p.pc.iceConnectionState==='failed'){
                 if(s.role==='guest'&&!p.opened){
-                    if(p.answerShown&&s.pendingOffer){
-                        diagnosticEvent(p,'fallo previo a la conexión','la respuesta se regenerará');
-                        scheduleGuestAnswerRegeneration(p);
-                    }else{
-                        diagnosticEvent(p,'fallo ICE aplazado','la respuesta todavía se está preparando');
-                        pairStatus(p,'Preparando respuesta; todavía no cierres esta página.');
-                    }
+                    if(p.answerShown)failPair(p,'La conexión local ha fallado antes de abrir el canal. La respuesta no se regenerará automáticamente: crea una invitación nueva para evitar que el maestro lea un código antiguo.');
+                    else {diagnosticEvent(p,'fallo ICE aplazado','la respuesta todavía se está preparando');pairStatus(p,'Preparando respuesta; todavía no cierres esta página.');}
                 }else failPair(p,'La conexión directa ha fallado');
             }
             else if(!p.opened&&p.answerAccepted)pairStatus(p,'Estableciendo conexión… '+pairingDetails(p));
@@ -5819,7 +5843,7 @@ function formatTime(
         channel.onopen=()=>{
             if(p.opened||p.pairFailed||s.peers.get(p.id)!==p)return;
             p.opened=true;clearTimeout(p.pairTimer);p.pairTimer=null;diagnosticEvent(p,'canal de datos','abierto');
-            clearAnswerRetry();s.pendingOffer=null;s.answerAttempts=0;$('jointGenerateAnswer').hidden=true;
+            s.pendingOffer=null;$('jointGenerateAnswer').hidden=true;stopQrCycle();
             pairStatus(p,'Conexión establecida. Canal de datos abierto.');
             if(s.role==='guest'||s.currentInvite===p.id){
                 if($('jointPairDialog').open)$('jointPairDialog').close();
@@ -5872,53 +5896,31 @@ function formatTime(
             watchPair(p,10*60*1000);
         }catch(e){if(!e.pairDiagnostic)showPairDiagnostic(p,'creación de invitación',e.message||String(e));disposePeer(p);s.peers.delete(p.id);throw e;}
     }
-    function scheduleGuestAnswerRegeneration(p) {
-        if(s.role!=='guest'||p.opened||!s.pendingOffer||s.answerRetryTimer)return;
-        clearTimeout(p.pairTimer);p.pairTimer=null;
-        if(s.answerAttempts>=3){
-            diagnosticEvent(p,'reintentos agotados','3 respuestas generadas');
-            pairStatus(p,'No se ha conectado tras tres respuestas. Mantén abierta la cámara del maestro y pulsa «Generar otra respuesta», o reinicia ambos emparejamientos con una invitación nueva.');
-            $('jointGenerateAnswer').textContent='Generar otra respuesta';$('jointGenerateAnswer').hidden=false;
-            return;
-        }
-        pairStatus(p,'La respuesta ha caducado antes de conectar. Generando automáticamente una nueva; mantén abierta la cámara del maestro…');
-        s.answerRetryTimer=setTimeout(()=>{
-            s.answerRetryTimer=null;
-            pairingAction(()=>createGuestAnswer(true)).catch(error=>{
-                $('jointPairStatus').textContent=error.message||String(error);tell(error.message||String(error),true);
-            });
-        },900);
-    }
-    async function createGuestAnswer(auto=false) {
+    async function createGuestAnswer() {
         const t=s.pendingOffer;
         if(s.role!=='guest'||!t)throw Error('Primero lee una invitación del maestro.');
-        clearAnswerRetry();
         for(const [id,old] of s.peers){if(old.channel?.readyState!=='open'){disposePeer(old);s.peers.delete(id);}}
-        s.answerAttempts=auto?s.answerAttempts+1:1;
-        const p=newPeer(t.host,t.network);p.name=String(t.name||'Maestro').slice(0,40);p.answerAttempt=s.answerAttempts;
+        const p=newPeer(t.host,t.network);p.name=String(t.name||'Maestro').slice(0,40);
         $('jointGenerateAnswer').disabled=true;$('jointGenerateAnswer').hidden=true;
         $('jointPairOutput').hidden=true;$('jointCopyCode').hidden=true;$('jointQr').replaceChildren();
         try {
-            pairStatus(p,(auto?'Regenerando':'Generando')+' respuesta '+s.answerAttempts+' de 3…');
+            pairStatus(p,'Generando respuesta local completa…');
             await p.pc.setRemoteDescription(t.sdp);
             await p.pc.setLocalDescription(await p.pc.createAnswer());
             p.gatherComplete=await gather(p.pc);
             if(s.peers.get(p.id)!==p||p.pairFailed)return;
             if(['failed','closed'].includes(p.pc.iceConnectionState)||['failed','closed'].includes(p.pc.connectionState)){
                 diagnosticEvent(p,'respuesta descartada','ICE falló antes de mostrar el código');
-                if(s.answerAttempts<3){scheduleGuestAnswerRegeneration(p);return;}
-                throw pairingError(p,'creación de respuesta','La conexión ha fallado antes de poder mostrar una respuesta utilizable.');
+                throw pairingError(p,'creación de respuesta','La conexión ha fallado antes de poder mostrar una respuesta utilizable. Reinicia el emparejamiento.');
             }
             $('jointPairHelp').textContent='Muestra inmediatamente esta respuesta a la cámara que ya está abierta en el maestro. Mantén ambas páginas abiertas.';
-            await showToken({v:VERSION,kind:'answer',network:p.network,session:s.session,host:t.host,peer:t.peer,attempt:s.answerAttempts,expires:t.expires,sdp:localDescription(p)});
-            p.answerShown=true;diagnosticEvent(p,auto?'respuesta regenerada':'respuesta mostrada','intento '+s.answerAttempts+' de 3');
-            if(!p.opened)pairStatus(p,'Respuesta '+s.answerAttempts+' de 3 preparada. Muéstrala ahora a la cámara del maestro. Direcciones: '+candidateSummary(p.pc.localDescription)+(p.gatherComplete?'':'. Se usaron candidatos suficientes sin esperar al resto.'));
-            $('jointGenerateAnswer').textContent='Generar otra respuesta';$('jointGenerateAnswer').hidden=false;
+            await showToken({v:VERSION,kind:'answer',network:p.network,session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:localDescription(p)});
+            p.answerShown=true;diagnosticEvent(p,'respuesta mostrada','ICE completo; lista para que la lea el maestro');
+            if(!p.opened)pairStatus(p,'Respuesta completa preparada. Muéstrala ahora a la cámara del maestro. Direcciones: '+candidateSummary(p.pc.localDescription)+'.');
             watchPair(p,120000);
         }catch(e){
             if(!e.pairDiagnostic)showPairDiagnostic(p,'creación de respuesta',e.message||String(e));
             if(s.peers.get(p.id)===p){disposePeer(p);s.peers.delete(p.id);}
-            if(auto&&s.answerAttempts<3){scheduleGuestAnswerRegeneration(p);return;}
             throw e;
         }finally{$('jointGenerateAnswer').disabled=false;}
     }
@@ -5930,7 +5932,7 @@ function formatTime(
             if(s.peers.size)throw Error('Ya existe una conexión. Sal de la sesión antes de unirte a otra.');
             s.role='guest';s.id=t.peer;s.session=t.session;s.name='Participante';
             $('jointNetworkMode').value=t.network;$('jointNetworkMode').disabled=true;
-            s.pendingOffer=t;s.answerAttempts=0;clearAnswerRetry();workspace();
+            s.pendingOffer=t;workspace();
             $('jointPairOutput').hidden=true;$('jointCopyCode').hidden=true;$('jointQr').replaceChildren();
             $('jointPairHelp').textContent='Invitación guardada. Ahora abre «Escanear QR» en el maestro. Cuando su cámara ya muestre imagen, vuelve aquí y pulsa el botón azul.';
             $('jointPairStatus').textContent='Todavía no se ha creado ninguna conexión: así evitamos que la respuesta caduque mientras preparas el otro móvil.';
@@ -5961,7 +5963,11 @@ function formatTime(
             if(video.readyState>=2) {
                 const scale=Math.min(1,1000/video.videoWidth);canvas.width=video.videoWidth*scale;canvas.height=video.videoHeight*scale;
                 ctx.drawImage(video,0,0,canvas.width,canvas.height);const img=ctx.getImageData(0,0,canvas.width,canvas.height),result=jsQR(img.data,img.width,img.height);
-                if(result){$('jointPairInput').value=result.data;stopScan();guard(()=>pairingAction(()=>readCode(result.data)))();return;}
+                if(result){
+                    try {
+                        const complete=acceptQrPage(result.data);if(complete){$('jointPairInput').value=complete;stopScan();guard(()=>pairingAction(()=>readCode(complete)))();return;}
+                    } catch(error) {stopScan();tell(error.message||String(error),true);$('jointPairStatus').textContent=error.message||String(error);return;}
+                }
             }
             s.scanFrame=requestAnimationFrame(frame);
         };frame();
@@ -6352,7 +6358,7 @@ function formatTime(
     $('jointPairClose').onclick=()=>{$('jointPairDialog').close();stopScan();};
     $('jointPairDialog').addEventListener('close',stopScan);
     $('jointReadCode').onclick=guard(()=>pairingAction(()=>readCode()));$('jointScanCode').onclick=guard(scanCode);$('jointStopScan').onclick=stopScan;
-    $('jointGenerateAnswer').onclick=guard(()=>pairingAction(()=>createGuestAnswer(false)));
+    $('jointGenerateAnswer').onclick=guard(()=>pairingAction(createGuestAnswer));
     $('jointCopyCode').onclick=guard(async()=>{const text=$('jointPairOutput').value;try{await navigator.clipboard.writeText(text);$('jointPairStatus').textContent='Código copiado.';}catch(e){$('jointPairOutput').focus();$('jointPairOutput').select();$('jointPairStatus').textContent='Selecciona y copia el código completo.';}});
     $('jointApplyGeometry').onclick=guard(()=>{
         requireHostEdit();const candidate={...s.plan,name:$('jointName').value,length:Number($('jointLength').value),width:Number($('jointWidth').value)};
