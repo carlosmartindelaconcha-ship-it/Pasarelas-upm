@@ -5638,6 +5638,9 @@ function formatTime(
         const ua=navigator.userAgent||'';
         if(/iPhone|iPad|iPod/.test(ua))return 'Safari/WebKit en iPhone o iPad';
         if(/Android/.test(ua)&&/Chrome\//.test(ua))return 'Chrome en Android';
+        if(/Edg\//.test(ua))return 'Microsoft Edge en ordenador';
+        if(/Firefox\//.test(ua))return 'Firefox en ordenador';
+        if(/Chrome\//.test(ua))return 'Chrome en ordenador';
         if(/Safari\//.test(ua)&&!/Chrome\//.test(ua))return 'Safari/WebKit';
         return 'Navegador no identificado';
     }
@@ -5651,14 +5654,17 @@ function formatTime(
         const stunErrors=(p?.diagnostics||[]).filter(row=>row.event==='error STUN');
         const explanation=stunErrors.some(row=>/^701\b/.test(row.detail))?'El código 701 significa que este móvil no pudo alcanzar el servidor STUN.':'';
         const lines=[
-            'Diagnóstico de conexión v3',
+            'Diagnóstico de conexión v4',
             'Etapa: '+stage,
             'Navegador: '+browserLabel(),
             'Modo: '+(p?.network||$('jointNetworkMode').value),
             'Permiso de cámara concedido en esta sesión: '+(s.capturePermission?'sí':'no o desconocido'),
-            'Estado: '+(p?pairingDetails(p):'sin conexión creada'),
+            'Estado: '+(p?(p.failureDetails||pairingDetails(p)):'sin conexión creada'),
+            ...(p?['Candidatos propios:',...candidateDetails(p.pc.localDescription).map(row=>'· '+row),'Candidatos del otro extremo:',...candidateDetails(p.pc.remoteDescription).map(row=>'· '+row)]:[]),
             error?'Error: '+error:'',
             explanation,
+            ...(p?.iceStats?.pairs?.length?['', 'Pares ICE · última instantánea ('+p.iceStats.label+'):', ...p.iceStats.pairs.map(row=>'· '+row)]:[]),
+            ...(p?.iceStats?.note?['', 'Pares ICE: '+p.iceStats.note]:[]),
             '',
             'Eventos:',
             ...(p?.diagnostics||[]).map(row=>'+'+row.ms+' ms · '+row.event+(row.detail?' · '+row.detail:''))
@@ -5723,6 +5729,48 @@ function formatTime(
         const srflx=rows.filter(l=>/ typ srflx(?: |$)/.test(l)).length;
         return 'locales '+host.length+' (mDNS '+mdns+'), STUN '+srflx;
     }
+    function parsedCandidates(description) {
+        return (description?.sdp||'').split(/\r?\n/).filter(line=>line.startsWith('a=candidate:')).map(line=>{
+            const match=line.match(/^a=candidate:\S+\s+\d+\s+(\S+)\s+\d+\s+(\S+)\s+(\d+)\s+typ\s+(\S+)(?:.*?\stcptype\s+(\S+))?/i);
+            return match?{protocol:String(match[1]).toUpperCase(),address:String(match[2]),port:String(match[3]),type:String(match[4]).toLowerCase(),tcpType:String(match[5]||'').toLowerCase()}:null;
+        }).filter(Boolean);
+    }
+    function candidateEndpoint(candidate) {
+        const address=String(candidate?.address||candidate?.ip||'?'),port=candidate?.port??'?';
+        return address.includes(':')?'['+address+']:'+port:address+':'+port;
+    }
+    function candidateLabel(candidate) {
+        if(!candidate)return 'sin candidato';
+        return [String(candidate.protocol||'?').toUpperCase(),String(candidate.candidateType||candidate.type||'?').toLowerCase(),candidateEndpoint(candidate),candidate.tcpType].filter(Boolean).join(' · ');
+    }
+    function candidateDetails(description) {
+        const rows=parsedCandidates(description);return rows.length?rows.map(candidateLabel):['ninguno'];
+    }
+    function icePairSnapshot(stats) {
+        const reports=new Map();stats.forEach(report=>reports.set(report.id,report));
+        const rank={succeeded:0,'in-progress':1,inprogress:1,waiting:2,frozen:3,failed:4};
+        const pairs=[];
+        stats.forEach(report=>{
+            if(report.type!=='candidate-pair')return;
+            const state=String(report.state||'desconocido'),local=reports.get(report.localCandidateId),remote=reports.get(report.remoteCandidateId);
+            const sent=Number.isFinite(report.requestsSent)?report.requestsSent:'—',received=Number.isFinite(report.responsesReceived)?report.responsesReceived:'—';
+            pairs.push({rank:rank[state]??5,text:state+(report.nominated?' · nominada':'')+' · '+candidateLabel(local)+' → '+candidateLabel(remote)+' · comprobaciones '+sent+' / respuestas '+received});
+        });
+        return pairs.sort((a,b)=>a.rank-b.rank).slice(0,16).map(pair=>pair.text);
+    }
+    async function captureIceStats(p,label) {
+        if(!p?.pc?.getStats||p.iceStatsPending)return;
+        p.iceStatsPending=true;
+        try {
+            const pairs=icePairSnapshot(await p.pc.getStats());
+            p.iceStats={label,pairs,note:pairs.length?'':'El navegador no expuso parejas ICE todavía.'};
+            diagnosticEvent(p,'instantánea de pares ICE',label+' · '+pairs.length+' parejas');
+        } catch(error) {p.iceStats={label,pairs:[],note:'No se pudieron consultar las parejas ICE: '+String(error?.name||'error')};}
+        finally {
+            p.iceStatsPending=false;
+            if(p.pairFailed)showPairDiagnostic(p,p.failureStage||'apertura del canal',p.failureMessage||'');
+        }
+    }
     function pairingDetails(p) {
         return 'ICE: '+p.pc.iceConnectionState+' · enlace: '+p.pc.connectionState+' · canal: '+(p.channel?.readyState||'pendiente')+' · modo: '+p.network+' · este móvil: '+candidateSummary(p.pc.localDescription)+' · otro móvil: '+candidateSummary(p.pc.remoteDescription);
     }
@@ -5743,8 +5791,10 @@ function formatTime(
     function failPair(p, reason) {
         if(s.peers.get(p.id)!==p||p.pairFailed||p.opened)return;
         const next=p.network==='local'?'Prueba el modo Compatibilidad con punto de acceso (STUN), con Internet disponible.':'Si utilizas un punto de acceso, prueba ambos móviles en un router Wi-Fi común para comparar. STUN no puede superar todos los bloqueos; esta versión no dispone de retransmisión TURN.';
-        const message=reason+' ('+pairingDetails(p)+'). '+next+' Mantén ambas páginas abiertas. Pulsa Reiniciar emparejamiento y vuelve a intercambiar los dos códigos.';
-        diagnosticEvent(p,'conexión fallida',reason);showPairDiagnostic(p,'apertura del canal',message);
+        p.failureDetails=pairingDetails(p);
+        const message=reason+' ('+p.failureDetails+'). '+next+' Mantén ambas páginas abiertas. Pulsa Reiniciar emparejamiento y vuelve a intercambiar los dos códigos.';
+        p.failureStage='apertura del canal';p.failureMessage=message;
+        captureIceStats(p,'fallo');diagnosticEvent(p,'conexión fallida',reason);showPairDiagnostic(p,p.failureStage,message);
         pairStatus(p,message);p.pairFailed=true;disposePeer(p);
         if(s.role==='guest'||s.currentInvite===p.id)tell(message,true);
         renderDevices();
@@ -5796,6 +5846,7 @@ function formatTime(
         const changed=()=>{
             if(s.peers.get(p.id)!==p||p.pairFailed)return;
             diagnosticEvent(p,'estado de conexión','ICE '+p.pc.iceConnectionState+'; enlace '+p.pc.connectionState);
+            if(['checking','failed','disconnected'].includes(p.pc.iceConnectionState)||['connecting','failed'].includes(p.pc.connectionState))captureIceStats(p,'estado '+p.pc.iceConnectionState+'/'+p.pc.connectionState);
             if(p.pc.connectionState==='failed'||p.pc.iceConnectionState==='failed'){
                 if(s.role==='guest'&&!p.opened){
                     if(p.answerShown)failPair(p,'La conexión local ha fallado antes de abrir el canal. La respuesta no se regenerará automáticamente: crea una invitación nueva para evitar que el maestro lea un código antiguo.');

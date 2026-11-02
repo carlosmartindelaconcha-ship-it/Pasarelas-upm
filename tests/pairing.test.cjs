@@ -26,7 +26,7 @@ function setup(options={}) {
  ctx.window.document=ctx.document;
  let block=source.slice(source.indexOf('(() => {',source.indexOf('MEDIDA CONJUNTA')));
  const end=block.lastIndexOf('})();');
- block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary,qrTransferPages,acceptQrPage};`+block.slice(end);
+ block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary,candidateDetails,icePairSnapshot,qrTransferPages,acceptQrPage};`+block.slice(end);
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
@@ -118,6 +118,18 @@ test('gather timeout without candidates rejects instead of generating unusable Q
 });
 test('diagnostic summaries expose counts without revealing addresses',()=>{
  const {a}=setup();const summary=a.candidateSummary({sdp:sdp+srflx+'a=candidate:3 1 udp 123 secret.local 5000 typ host\r\n'});assert.equal(summary,'locales 2 (mDNS 1), STUN 1');assert.doesNotMatch(summary,/192\.168|198\.51|secret/);
+});
+test('detailed candidates retain endpoint, protocol and type for diagnosis',()=>{
+ const {a}=setup();const details=a.candidateDetails({sdp:sdp+'a=candidate:2 1 tcp 123 2001:db8::3 9 typ host tcptype active\r\n'});
+ assert.deepEqual(Array.from(details),['UDP · host · 192.168.1.2:5000','TCP · host · [2001:db8::3]:9 · active']);
+});
+test('ICE pair snapshot includes attempted endpoints and response counters',()=>{
+ const {a}=setup();const stats=new Map([
+  ['l',{id:'l',type:'local-candidate',candidateType:'host',protocol:'udp',address:'pc.local',port:5000}],
+  ['r',{id:'r',type:'remote-candidate',candidateType:'host',protocol:'udp',address:'192.168.1.7',port:6000}],
+  ['p',{id:'p',type:'candidate-pair',state:'failed',localCandidateId:'l',remoteCandidateId:'r',requestsSent:7,responsesReceived:0}]
+ ]);const pairs=a.icePairSnapshot(stats);
+ assert.match(pairs[0],/failed/);assert.match(pairs[0],/pc\.local:5000 → UDP · host · 192\.168\.1\.7:6000/);assert.match(pairs[0],/comprobaciones 7 \/ respuestas 0/);
 });
 test('STUN 701 is translated and kept in the visible diagnostic',()=>{
  const {el,peer}=setup();const p=peer();p.pc.onicecandidateerror({errorCode:701,errorText:'STUN host lookup received error'});
