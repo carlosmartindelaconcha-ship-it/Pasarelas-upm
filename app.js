@@ -5432,7 +5432,8 @@ function formatTime(
         lastPairDiagnostic:'', adding:false, drag:null,
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
-        storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null
+        storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null,
+        compareExport:null
     };
     const running = () => s.run && activeStates.has(s.run.state);
     function tell(message, error=false) { $('jointNotice').textContent=message; $('jointNotice').dataset.error=String(error); }
@@ -5447,9 +5448,10 @@ function formatTime(
         document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
     }
     function tab(name) {
-        for (const n of ['Plan','Devices','Measure','Results']) {
+        for (const n of ['Plan','Devices','Measure','Results','Compare']) {
             $('jointPanel'+n).hidden=n!==name; $('jointTab'+n).setAttribute('aria-selected',String(n===name));
         }
+        if(name==='Compare') renderComparison();
     }
     function open() {
         if (typeof isRecording!=='undefined' && isRecording) throw Error('Detén primero el ensayo individual.');
@@ -6230,7 +6232,7 @@ function formatTime(
     async function requestWake() {try{if(navigator.wakeLock)s.wake=await navigator.wakeLock.request('screen');}catch(e){incident('screen','No se pudo mantener la pantalla activa.');}}
     function releaseWake(){if(s.wake){s.wake.release().catch(()=>{});s.wake=null;}}
     function beginRun(id,start,end,duration) {
-        s.results.clear();s.storageFailed=false;
+        s.results.clear();s.compareExport=null;s.storageFailed=false;
         const model=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
         s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,samples:[],incidents:[],persisted:0,chunkIndex:0,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null)},sync:[]};
         for(const sample of s.recent){const t=toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
@@ -6370,6 +6372,53 @@ function formatTime(
         const lines=r.samples.map(row=>{const t=toMaster(row[7],model);return [r.device.name,point?.name,point?.x,point?.y,point?.axis,point?.angle,...row,t,t>=r.windowMasterMs.start&&t<=r.windowMasterMs.end?1:0].map(cell).join(',');});
         download('aceleraciones_'+r.id+'_'+s.id+'.csv','\ufeff'+columns.join(',')+'\n'+lines.join('\n'),'text/csv;charset=utf-8');
     }
+    function comparisonExport() {
+        if(s.compareExport) return s.compareExport;
+        if(!s.run?.finished) return null;
+        const records=[...s.results.values()].map(r=>{
+            const model=r.device.id===s.id?r.finalClock:(s.peers.get(r.device.id)?.model||r.finalClock);
+            const use=validModel(model)||r.device.role==='host'?model:r.initialClock;
+            return {...r,samples:r.samples.map(raw=>({raw,masterTimeMs:toMaster(raw[7],use)}))};
+        });
+        return {plan:s.run.plan,windowMasterMs:{start:s.run.start,end:s.run.end},records};
+    }
+    function validComparisonExport(data) {
+        if(!data||!data.plan||!Array.isArray(data.records)||!data.windowMasterMs||!finite(data.windowMasterMs.start)||!finite(data.windowMasterMs.end)) throw Error('El archivo no es un ensayo conjunto válido.');
+        if(data.records.length<1||data.records.length>MAX_PEERS+1)throw Error('El archivo contiene un número no válido de registros.');
+        for(const record of data.records) {
+            if(!record?.device?.id||!Array.isArray(record.samples))throw Error('Falta un registro de móvil válido.');
+            for(const sample of record.samples) if(!sample||!Array.isArray(sample.raw)||sample.raw.length<8||!finite(sample.masterTimeMs))throw Error('El archivo contiene muestras incompatibles.');
+        }
+        return data;
+    }
+    function renderComparison() {
+        const canvas=$('jointCompareCanvas'),ctx=canvas.getContext('2d'),status=$('jointCompareStatus'),legend=$('jointCompareLegend');
+        const data=comparisonExport(),axis=$('jointCompareAxis').value,axisIndex={x:3,y:4,z:5}[axis];
+        const width=canvas.width,height=canvas.height;
+        ctx.clearRect(0,0,width,height);ctx.fillStyle='#fbfdff';ctx.fillRect(0,0,width,height);legend.innerHTML='';
+        if(!data) {status.textContent='Termina un ensayo y recibe los registros de los participantes para compararlos aquí.';ctx.fillStyle='#597187';ctx.font='18px Arial';ctx.fillText('Aún no hay un ensayo conjunto para representar.',42,70);return;}
+        const records=data.records.filter(r=>r.samples?.length).sort((a,b)=>{
+            const ap=data.plan.points?.find(p=>p.device===a.device.id),bp=data.plan.points?.find(p=>p.device===b.device.id);
+            return (ap?.x??0)-(bp?.x??0);
+        });
+        if(!records.length) {status.textContent='El ensayo no contiene muestras para representar.';return;}
+        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),left=78,right=24,top=36,bottom=40,usableH=height-top-bottom,bandH=usableH/records.length;
+        const colors=['#0879c3','#e8710a','#00897b','#8b5fbf','#c44839','#64748b','#b7791f','#0f766e','#a855f7'];
+        status.textContent=`${records.length} móviles · eje ${axis.toUpperCase()} · ventana ${(span/1000).toFixed(2)} s · tiempo referido al reloj del maestro.`;
+        ctx.strokeStyle='#d9e5ee';ctx.lineWidth=1;ctx.font='12px Arial';ctx.fillStyle='#506b81';
+        for(let k=0;k<=5;k++){const x=left+(width-left-right)*k/5;ctx.beginPath();ctx.moveTo(x,top-8);ctx.lineTo(x,height-bottom);ctx.stroke();ctx.fillText((span*k/5000).toFixed(2)+' s',x-12,height-16);}
+        records.forEach((record,index)=>{
+            const point=data.plan.points?.find(p=>p.device===record.device.id),samples=record.samples.filter(v=>finite(v.masterTimeMs)&&finite(v.raw[axisIndex]));
+            const base=top+bandH*(index+.5),max=Math.max(.5,...samples.map(v=>Math.abs(v.raw[axisIndex]))),color=colors[index%colors.length];
+            ctx.strokeStyle='#e6eef4';ctx.beginPath();ctx.moveTo(left,base);ctx.lineTo(width-right,base);ctx.stroke();
+            ctx.fillStyle='#243e56';ctx.font='bold 13px Arial';ctx.fillText((record.device.name||'Móvil')+(point?' · '+point.name:''),8,base-7);ctx.font='11px Arial';ctx.fillStyle='#627a8f';ctx.fillText('±'+max.toFixed(2)+' m/s²',8,base+9);
+            ctx.strokeStyle=color;ctx.lineWidth=1.25;ctx.beginPath();let drawn=false;const stride=Math.max(1,Math.ceil(samples.length/1800));
+            for(let j=0;j<samples.length;j+=stride){const sample=samples[j],x=left+(sample.masterTimeMs-start)/span*(width-left-right),y=base-sample.raw[axisIndex]/max*(bandH*.39);if(x<left||x>width-right)continue;if(drawn)ctx.lineTo(x,y);else {ctx.moveTo(x,y);drawn=true;}}
+            ctx.stroke();
+            const item=document.createElement('span');item.innerHTML='<i style="background:'+color+'"></i>'+escape(record.device.name||'Móvil')+(point?' · '+escape(point.name):'');legend.append(item);
+        });
+        ctx.fillStyle='#37556e';ctx.font='12px Arial';ctx.fillText('Tiempo estimado en el reloj del maestro',left,height-3);
+    }
     function drawPreview() {
         const canvas=$('jointLive'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
         ctx.clearRect(0,0,w,h);ctx.strokeStyle='#dce6ee';ctx.beginPath();for(let i=1;i<4;i++){ctx.moveTo(0,h*i/4);ctx.lineTo(w,h*i/4);}ctx.stroke();
@@ -6403,7 +6452,7 @@ function formatTime(
         stopScan();if($('jointPairDialog').open)$('jointPairDialog').close();
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
         window.removeEventListener('devicemotion',motion);s.sensor=false;s.sensorEnabled=false;releaseWake();
-        s.role=null;s.session=null;s.run=null;s.results.clear();s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
+        s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
         if(s.returnTo)s.returnTo.style.display='block';else $('mainMenu').style.display='block';
@@ -6477,6 +6526,12 @@ function formatTime(
     $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Estimando desfases mediante nuevos intercambios de mensajes…');});
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
+    $('jointCompareAxis').onchange=renderComparison;
+    $('jointImportSession').onchange=guard(async e=>{
+        const file=e.target.files[0];if(!file)return;
+        if(file.size>100000000)throw Error('El ensayo JSON es demasiado grande para abrirlo en el navegador.');
+        s.compareExport=validComparisonExport(JSON.parse(await file.text()));e.target.value='';renderComparison();tell('Ensayo conjunto cargado para comparación.');
+    });
     $('jointNewRun').onclick=guard(()=>{
         if(running()||s.transfer)throw Error('Espera a que termine la medida y la transferencia.');
         if(s.run&&!confirm('Descarga antes los resultados. ¿Preparar un nuevo ensayo? El registro local seguirá guardado en este navegador.'))return;

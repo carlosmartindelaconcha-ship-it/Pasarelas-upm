@@ -731,6 +731,7 @@
                     <button type="button" id="jointTabDevices" role="tab" aria-controls="jointPanelDevices" aria-selected="false" data-joint-tab="Devices">2. Dispositivos</button>
                     <button type="button" id="jointTabMeasure" role="tab" aria-controls="jointPanelMeasure" aria-selected="false" data-joint-tab="Measure">3. Medir</button>
                     <button type="button" id="jointTabResults" role="tab" aria-controls="jointPanelResults" aria-selected="false" data-joint-tab="Results">4. Resultados</button>
+                    <button type="button" id="jointTabCompare" role="tab" aria-controls="jointPanelCompare" aria-selected="false" data-joint-tab="Compare">5. Comparar</button>
                 </div>
                 <div id="jointPanelPlan" role="tabpanel" aria-labelledby="jointTabPlan">
                     <div class="joint-section-head"><div><h3>Plano de puntos de medida</h3><p>Coordenadas en metros. Origen en la esquina inferior izquierda.</p></div><button id="jointSavePlan" type="button" class="joint-secondary">Exportar plano</button></div>
@@ -773,6 +774,14 @@
                     <div class="joint-actions"><button id="jointDownload" type="button">Descargar ensayo JSON</button><button id="jointCsv" type="button" class="joint-secondary">Descargar CSV de este móvil</button><button id="jointSendData" type="button" class="joint-secondary">Reenviar mi registro</button><button id="jointNewRun" type="button" class="joint-secondary">Preparar otro ensayo</button></div>
                     <p class="joint-help">JSON: plano, posiciones, asignaciones, marcas originales, tiempos estimados en el reloj maestro, intercambios de sincronización e incidencias. Los datos no se remuestrean ni se validan automáticamente para OMA.</p>
                     <details><summary>Recuperar registros guardados en este navegador</summary><button id="jointRecover" type="button" class="joint-secondary">Buscar registros locales</button><div id="jointRecoveryList"></div></details>
+                </div>
+                <div id="jointPanelCompare" role="tabpanel" aria-labelledby="jointTabCompare" hidden>
+                    <h3>Señales sincronizadas</h3>
+                    <p class="joint-help">Cada curva corresponde al mismo eje del teléfono elegido abajo. El eje horizontal usa el tiempo estimado del maestro; no se remuestrean las señales ni se corrige el desfase físico de los sensores.</p>
+                    <div class="joint-actions"><label>Eje a representar<select id="jointCompareAxis"><option value="z" selected>Z</option><option value="x">X</option><option value="y">Y</option></select></label><label class="joint-file">Abrir ensayo JSON del maestro<input id="jointImportSession" type="file" accept="application/json,.json"></label></div>
+                    <p id="jointCompareStatus" class="joint-help">Termina un ensayo y recibe los registros de los participantes para compararlos aquí.</p>
+                    <div class="joint-compare-wrap"><canvas id="jointCompareCanvas" width="1000" height="520" aria-label="Aceleraciones de maestro y participantes alineadas en el reloj maestro"></canvas></div>
+                    <div id="jointCompareLegend" class="joint-compare-legend"></div>
                 </div>
             </div>
             <dialog id="jointPairDialog" aria-labelledby="jointPairTitle"><div class="joint-dialog-heading"><h3 id="jointPairTitle">Conectar móvil</h3><button id="jointPairClose" class="joint-secondary" type="button">Cerrar</button></div>
@@ -817,7 +826,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261102-android-nearby-warning"></script>
+    <script defer src="app.js?v=20261102-joint-compare"></script>
 
 
 </body>
