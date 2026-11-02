@@ -9,14 +9,16 @@ function setup(options={}) {
  const elements=new Map(),timers=new Map();let nextTimer=0;
  const el=id=>{if(!elements.has(id))elements.set(id,{id,textContent:'',value:'',hidden:false,disabled:false,open:false,dataset:{},style:{},setAttribute(){},addEventListener(){},replaceChildren(){},showModal(){this.open=true},close(){this.open=false}});return elements.get(id)};
  class PC {
-  constructor(config){this.config=config;this.connectionState='new';this.iceConnectionState='new';this.iceGatheringState='complete';this.signalingState='stable'}
+  constructor(config){this.config=config;this.connectionState='new';this.iceConnectionState='new';this.iceGatheringState='complete';this.signalingState='stable';this.listeners=new Map()}
   close(){this.connectionState='closed';this.iceConnectionState='closed'}
   createDataChannel(){return {readyState:'connecting',send(){}}}
   async createOffer(){return {type:'offer',sdp:options.noCandidates?'v=0\r\n':sdp}}
   async createAnswer(){return {type:'answer',sdp}}
   async setLocalDescription(d){this.localDescription=d;this.signalingState=d.type==='offer'?'have-local-offer':'stable'}
   async setRemoteDescription(d){if(options.rejectRemote)throw Error('Invalid SDP');this.remoteDescription=d;this.signalingState=d.type==='offer'?'have-remote-offer':'stable';if(options.openOnAnswer&&d.type==='answer'){this.peer.channel.readyState='open';this.peer.channel.onopen()}}
-  addEventListener(){} removeEventListener(){}
+  addEventListener(type,fn){if(!this.listeners.has(type))this.listeners.set(type,new Set());this.listeners.get(type).add(fn)}
+  removeEventListener(type,fn){this.listeners.get(type)?.delete(fn)}
+  emit(type,event={}){for(const fn of this.listeners.get(type)||[])fn(event)}
  }
  const ctx={console,TextEncoder,TextDecoder,Uint8Array,Blob,Response,Map,Set,Date,JSON,Number,Math,Promise,Error,crypto:webcrypto,performance:{now:()=>100},RTCPeerConnection:PC,atob,btoa,
  document:{getElementById:el,querySelectorAll:()=>[],addEventListener(){},visibilityState:'visible'},window:{addEventListener(){},removeEventListener(){}},location:{hash:'',href:'https://test.example/app',pathname:'/app',search:''},
@@ -47,6 +49,10 @@ test('timeout closes pending peer and offers actionable retry',()=>{
 });
 test('ICE failure ends waiting before timer expires',()=>{
  const {a,el,timers,peer}=setup();const p=peer();a.watchPair(p);p.pc.iceConnectionState='failed';p.pc.oniceconnectionstatechange();assert.equal(p.pairFailed,true);assert.equal(timers.size,0);assert.match(el('jointPairStatus').textContent,/ICE: failed/);
+});
+test('participant ICE failure is deferred until its answer can be shown',()=>{
+ const {a,el,peer}=setup();a.s.role='guest';const p=peer();p.pc.iceConnectionState='failed';p.pc.connectionState='failed';p.pc.oniceconnectionstatechange();
+ assert.equal(p.pairFailed,undefined);assert.notEqual(p.pc.connectionState,'closed');assert.match(el('jointPairStatus').textContent,/todavía no cierres/);assert.match(p.diagnostics.at(-1).event,/aplazado/);
 });
 test('guest retry removes failed peer and allows a new invitation',async()=>{
  const {a,el,peer}=setup();const p=peer();a.s.role='guest';a.failPair(p,'Test');await a.retryPair();assert.equal(a.s.peers.size,0);assert.equal(a.s.role,null);assert.equal(el('jointLanding').hidden,false);assert.match(el('jointPairStatus').textContent,/invitación nueva/);
@@ -84,6 +90,11 @@ test('response mode must match pending invitation',async()=>{
 });
 test('gather timeout preserves usable candidates if STUN is unreachable',async()=>{
  const {a,peer,timers}=setup();const p=peer();p.pc.iceGatheringState='gathering';p.pc.localDescription={type:'offer',sdp};const work=a.gather(p.pc);const timer=[...timers.values()][0];assert.equal(timer.ms,20000);timer.f();assert.equal(await work,false);
+});
+test('STUN gathering returns as soon as a reflexive candidate can be put in the QR',async()=>{
+ const {a,peer,timers}=setup();const p=peer();p.pc.iceGatheringState='gathering';p.pc.localDescription={type:'answer',sdp:sdp};const work=a.gather(p.pc);
+ p.pc.localDescription={type:'answer',sdp:sdp+srflx};p.pc.emit('icecandidate',{candidate:{type:'srflx'}});
+ assert.equal(await work,false);assert.equal(timers.size,0);assert.match(p.diagnostics.at(-1).event,/candidatos suficientes/);
 });
 test('gather timeout without candidates rejects instead of generating unusable QR',async()=>{
  const {a,peer,timers}=setup();const p=peer();p.pc.iceGatheringState='gathering';const work=a.gather(p.pc);[...timers.values()][0].f();await assert.rejects(work,/No se han encontrado direcciones/);

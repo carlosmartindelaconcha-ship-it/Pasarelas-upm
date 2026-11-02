@@ -5642,21 +5642,39 @@ function formatTime(
         const p=pc.__jointPeer;diagnosticEvent(p,'búsqueda ICE',pc.iceGatheringState);
         if(pc.iceGatheringState==='complete'){diagnosticEvent(p,'búsqueda ICE terminada',candidateSummary(pc.localDescription));return true;}
         return await new Promise((resolve,reject)=>{
+            let settled=false;
+            const finish=(value,error)=>{
+                if(settled)return;settled=true;clearTimeout(timer);
+                pc.removeEventListener('icegatheringstatechange',stateListener);
+                pc.removeEventListener('icecandidate',candidateListener);
+                if(error)reject(error);else resolve(value);
+            };
+            const enough=()=>{
+                const sdp=pc.localDescription?.sdp||'';
+                const host=/^a=candidate:.* typ host(?: |\r?$)/m.test(sdp);
+                const srflx=/^a=candidate:.* typ srflx(?: |\r?$)/m.test(sdp);
+                // In manual signaling the answer must be shown before ICE can finish connecting.
+                return p?.network==='stun'?srflx:host;
+            };
             const timer=setTimeout(()=>{
-                pc.removeEventListener('icegatheringstatechange',listener);
                 // An unreachable STUN server must not discard usable local candidates.
                 if(/^a=candidate:/m.test(pc.localDescription?.sdp||'')){
-                    diagnosticEvent(p,'límite de 20 s',candidateSummary(pc.localDescription));resolve(false);
-                }else reject(pairingError(p,'búsqueda de direcciones','No se han encontrado direcciones de conexión. Abre el diagnóstico para comprobar si Safari ha filtrado las direcciones o si STUN ha devuelto un error.'));
+                    diagnosticEvent(p,'límite de 20 s',candidateSummary(pc.localDescription));finish(false);
+                }else finish(false,pairingError(p,'búsqueda de direcciones','No se han encontrado direcciones de conexión. Abre el diagnóstico para comprobar si Safari ha filtrado las direcciones o si STUN ha devuelto un error.'));
             },20000);
-            function listener(){
+            function stateListener(){
                 diagnosticEvent(p,'estado de búsqueda ICE',pc.iceGatheringState);
                 if(pc.iceGatheringState==='complete'){
-                    clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',listener);
-                    diagnosticEvent(p,'búsqueda ICE terminada',candidateSummary(pc.localDescription));resolve(true);
+                    diagnosticEvent(p,'búsqueda ICE terminada',candidateSummary(pc.localDescription));finish(true);
                 }
             }
-            pc.addEventListener('icegatheringstatechange',listener); listener();
+            function candidateListener(e){
+                if(e.candidate&&enough()){
+                    diagnosticEvent(p,'candidatos suficientes para el código',candidateSummary(pc.localDescription));finish(false);
+                }
+            }
+            pc.addEventListener('icegatheringstatechange',stateListener);
+            pc.addEventListener('icecandidate',candidateListener);stateListener();
         });
     }
     function candidateSummary(description) {
@@ -5739,7 +5757,13 @@ function formatTime(
         const changed=()=>{
             if(s.peers.get(p.id)!==p||p.pairFailed)return;
             diagnosticEvent(p,'estado de conexión','ICE '+p.pc.iceConnectionState+'; enlace '+p.pc.connectionState);
-            if(p.pc.connectionState==='failed'||p.pc.iceConnectionState==='failed')failPair(p,'La conexión directa ha fallado');
+            if(p.pc.connectionState==='failed'||p.pc.iceConnectionState==='failed'){
+                if(s.role==='guest'&&!p.opened){
+                    // The participant cannot finish ICE until the master has read its answer.
+                    diagnosticEvent(p,'fallo ICE aplazado','esperando que el maestro lea la respuesta');
+                    pairStatus(p,p.answerShown?'Respuesta preparada. El maestro todavía debe leerla.':'Preparando respuesta; todavía no cierres esta página.');
+                }else failPair(p,'La conexión directa ha fallado');
+            }
             else if(!p.opened&&p.answerAccepted)pairStatus(p,'Estableciendo conexión… '+pairingDetails(p));
             if(['disconnected','failed','closed'].includes(p.pc.connectionState)) {
                 if(s.run) incident('connection',p.name+': '+p.pc.connectionState);
@@ -5848,7 +5872,8 @@ function formatTime(
                 if(s.peers.get(p.id)!==p||p.pairFailed)return;
                 $('jointPairHelp').textContent='Muestra esta respuesta al maestro para que la escanee, o envíale el código completo. Mantén esta página abierta.';
                 await showToken({v:VERSION,kind:'answer',network:p.network,session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:localDescription(p)});
-                if(!p.opened)pairStatus(p,'Respuesta preparada. El maestro debe leerla en los próximos 2 minutos. Direcciones: '+candidateSummary(p.pc.localDescription)+(p.gatherComplete?'':'. Búsqueda limitada a 20 s.'));
+                p.answerShown=true;diagnosticEvent(p,'respuesta mostrada','lista para que la lea el maestro');
+                if(!p.opened)pairStatus(p,'Respuesta preparada. El maestro debe leerla en los próximos 2 minutos. Direcciones: '+candidateSummary(p.pc.localDescription)+(p.gatherComplete?'':'. Se usaron candidatos suficientes sin esperar al resto.'));
                 watchPair(p,120000);
             }catch(e){if(!e.pairDiagnostic)showPairDiagnostic(p,'creación de respuesta',e.message||String(e));disposePeer(p);s.peers.delete(p.id);throw e;}
         } else {
