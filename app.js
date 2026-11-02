@@ -5632,6 +5632,7 @@ function formatTime(
         $('jointGenerateAnswer').hidden=true;
         $('jointPairDiagnostics').hidden=true;$('jointPairDiagnosticsText').textContent='';
         $('jointNetworkMode').disabled=s.role==='guest';
+        updateAndroidNearbyNotice();
         if(!$('jointPairDialog').open)$('jointPairDialog').showModal();
     }
     function browserLabel() {
@@ -5643,6 +5644,14 @@ function formatTime(
         if(/Chrome\//.test(ua))return 'Chrome en ordenador';
         if(/Safari\//.test(ua)&&!/Chrome\//.test(ua))return 'Safari/WebKit';
         return 'Navegador no identificado';
+    }
+    function isAndroidChrome() {
+        const ua=navigator.userAgent||'';
+        return /Android/.test(ua)&&/Chrome\//.test(ua)&&!/EdgA\//.test(ua)&&!/OPR\//.test(ua);
+    }
+    function updateAndroidNearbyNotice() {
+        const notice=$('jointAndroidNearbyNotice');
+        if(notice)notice.hidden=!isAndroidChrome();
     }
     function diagnosticEvent(p,event,detail='') {
         if(!p)return;
@@ -6420,6 +6429,7 @@ function formatTime(
     $('jointJoin').onclick=()=>openPair();$('jointPair').onclick=guard(()=>pairingAction(invite));
     $('jointRetryPair').onclick=guard(retryPair);
     $('jointPrepareSafari').onclick=guard(prepareSafariConnection);
+    $('jointAndroidNearbyDone').onclick=()=>{$('jointAndroidNearbyNotice').hidden=true;$('jointPairStatus').textContent='Permiso indicado como activado. Reinicia el emparejamiento para usar la nueva configuración.';};
     $('jointCopyDiagnostics').onclick=guard(async()=>{
         const value=$('jointPairDiagnosticsText').textContent||s.lastPairDiagnostic;
         if(!value)throw Error('Todavía no hay un diagnóstico disponible.');

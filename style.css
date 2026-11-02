@@ -1437,6 +1437,9 @@ body.recording-lock main {
 .joint-app input, .joint-app select, .joint-app textarea { box-sizing: border-box; width: 100%; font: inherit; font-size: 16px; color: #19334d; border: 1px solid #bdcddd; border-radius: 6px; background: white; padding: 10px; margin: 5px 0 0; }
 .joint-app input:disabled, .joint-app select:disabled { background: #f1f4f7; }
 .joint-help { font-size: .84rem; color: #566c7e; }
+.joint-android-notice { margin: 12px 0; padding: 13px; border: 1px solid #e5c675; border-left: 4px solid #c4861a; border-radius: 7px; background: #fff7df; color: #62470f; }
+.joint-android-notice strong { display: block; color: #765000; }
+.joint-android-notice p { margin: 6px 0 10px; font-size: .88rem; line-height: 1.45; }
 .joint-warning { font-size: .85rem; background: #fff7df; color: #735315; padding: 12px; border-radius: 6px; }
 .joint-plan-wrap { border: 1px solid #ccdae5; border-radius: 10px; background: #f7fafc; overflow: hidden; }
 #jointPlan { width: 100%; height: auto; display: block; min-height: 220px; touch-action: none; user-select: none; }

@@ -779,6 +779,7 @@
                 <p id="jointPairHelp"></p>
                 <label>Modo de conexión<select id="jointNetworkMode"><option value="local" selected>Red Wi-Fi local (recomendado)</option><option value="stun">Compatibilidad con punto de acceso (STUN)</option></select></label>
                 <p class="joint-help">Empieza con Red Wi-Fi local, como Wireless Sensor. Si no funciona, STUN consulta servidores de Google por Internet para descubrir direcciones de conexión: esos servidores ven la IP pública, pero no reciben las medidas. STUN no retransmite los datos ni garantiza la conexión.</p>
+                <aside id="jointAndroidNearbyNotice" class="joint-android-notice" hidden role="note"><strong>Antes de conectar en Chrome Android</strong><p>Activa <b>Dispositivos cercanos</b> para Chrome: Ajustes → Aplicaciones → Chrome → Permisos → Dispositivos cercanos → Permitir. Sin este permiso Android puede bloquear la conexión WebRTC local aunque ambos móviles estén en la misma Wi-Fi.</p><button id="jointAndroidNearbyDone" type="button" class="joint-secondary">Ya está activado</button></aside>
                 <div id="jointQr"></div><textarea id="jointPairOutput" rows="3" readonly aria-label="Código para compartir" hidden></textarea><button id="jointCopyCode" type="button" class="joint-secondary" hidden>Copiar código</button>
                 <label for="jointPairInput">Invitación o respuesta</label><textarea id="jointPairInput" rows="4" placeholder="Pega el código o el enlace recibido" autocomplete="off" spellcheck="false"></textarea>
                 <div class="joint-actions"><button id="jointReadCode" type="button">Leer código</button><button id="jointScanCode" type="button" class="joint-secondary">Escanear QR</button><button id="jointStopScan" type="button" class="joint-secondary" hidden>Parar cámara</button></div>
@@ -816,7 +817,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261102-ice-diagnostic-samples"></script>
+    <script defer src="app.js?v=20261102-android-nearby-warning"></script>
 
 
 </body>

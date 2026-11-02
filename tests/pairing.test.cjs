@@ -22,11 +22,11 @@ function setup(options={}) {
  }
  const ctx={console,TextEncoder,TextDecoder,Uint8Array,Blob,Response,Map,Set,Date,JSON,Number,Math,Promise,Error,crypto:webcrypto,performance:{now:()=>100},RTCPeerConnection:PC,atob,btoa,
  document:{getElementById:el,querySelectorAll:()=>[],addEventListener(){},visibilityState:'visible'},window:{addEventListener(){},removeEventListener(){}},location:{hash:'',href:'https://test.example/app',pathname:'/app',search:''},
- setInterval:()=>0,clearInterval(){},setTimeout:(f,ms)=>{const id=++nextTimer;timers.set(id,{f,ms});return id},clearTimeout:id=>timers.delete(id),cancelAnimationFrame(){},history:{replaceState(){}},localStorage:{setItem(){}},navigator:{},};
+ setInterval:()=>0,clearInterval(){},setTimeout:(f,ms)=>{const id=++nextTimer;timers.set(id,{f,ms});return id},clearTimeout:id=>timers.delete(id),cancelAnimationFrame(){},history:{replaceState(){}},localStorage:{setItem(){}},navigator:{userAgent:options.userAgent||''},};
  ctx.window.document=ctx.document;
  let block=source.slice(source.indexOf('(() => {',source.indexOf('MEDIDA CONJUNTA')));
  const end=block.lastIndexOf('})();');
- block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary,candidateDetails,icePairSnapshot,qrTransferPages,acceptQrPage};`+block.slice(end);
+ block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary,candidateDetails,icePairSnapshot,qrTransferPages,acceptQrPage,isAndroidChrome,updateAndroidNearbyNotice};`+block.slice(end);
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
@@ -40,6 +40,10 @@ test('channel open closes the pairing modal, updates status and cancels timeout'
 });
 test('already-open incoming data channel is initialized immediately',()=>{
  const {a,el}=setup();a.s.role='guest';const p=a.newPeer('host');a.wireChannel(p,{readyState:'open',send(){}});assert.equal(p.opened,true);assert.match(el('jointPairStatus').textContent,/establecida/);
+});
+test('Chrome Android receives the nearby-devices reminder, other browsers do not',()=>{
+ const android=setup({userAgent:'Mozilla/5.0 (Linux; Android 17) AppleWebKit/537.36 Chrome/142.0 Mobile Safari/537.36'});android.el('jointAndroidNearbyNotice').hidden=true;assert.equal(android.a.isAndroidChrome(),true);android.a.updateAndroidNearbyNotice();assert.equal(android.el('jointAndroidNearbyNotice').hidden,false);
+ const other=setup({userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile Safari/604.1'});other.el('jointAndroidNearbyNotice').hidden=false;assert.equal(other.a.isAndroidChrome(),false);other.a.updateAndroidNearbyNotice();assert.equal(other.el('jointAndroidNearbyNotice').hidden,true);
 });
 test('accepting an answer cannot overwrite immediate successful connection',async()=>{
  const {a,el,peer,answer}=setup({openOnAnswer:true});const p=peer();p.pc.signalingState='have-local-offer';await a.readCode(answer(p));assert.match(el('jointPairStatus').textContent,/Conexión establecida/);assert.doesNotMatch(el('jointPairStatus').textContent,/Estableciendo/);
