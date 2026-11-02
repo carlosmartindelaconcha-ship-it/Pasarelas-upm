@@ -5433,7 +5433,7 @@ function formatTime(
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
         storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null,
-        compareExport:null
+        compareExport:null, compareChart:null
     };
     const running = () => s.run && activeStates.has(s.run.state);
     function tell(message, error=false) { $('jointNotice').textContent=message; $('jointNotice').dataset.error=String(error); }
@@ -6392,32 +6392,28 @@ function formatTime(
         return data;
     }
     function renderComparison() {
-        const canvas=$('jointCompareCanvas'),ctx=canvas.getContext('2d'),status=$('jointCompareStatus'),legend=$('jointCompareLegend');
-        const data=comparisonExport(),axis=$('jointCompareAxis').value,axisIndex={x:3,y:4,z:5}[axis];
-        const width=canvas.width,height=canvas.height;
-        ctx.clearRect(0,0,width,height);ctx.fillStyle='#fbfdff';ctx.fillRect(0,0,width,height);legend.innerHTML='';
-        if(!data) {status.textContent='Termina un ensayo y recibe los registros de los participantes para compararlos aquí.';ctx.fillStyle='#597187';ctx.font='18px Arial';ctx.fillText('Aún no hay un ensayo conjunto para representar.',42,70);return;}
+        const canvas=$('jointCompareCanvas'),status=$('jointCompareStatus'),data=comparisonExport();
+        if(s.compareChart){s.compareChart.destroy();s.compareChart=null;}
+        if(!data) {status.textContent='Termina un ensayo y recibe los registros de los participantes para compararlos aquí.';return;}
         const records=data.records.filter(r=>r.samples?.length).sort((a,b)=>{
             const ap=data.plan.points?.find(p=>p.device===a.device.id),bp=data.plan.points?.find(p=>p.device===b.device.id);
             return (ap?.x??0)-(bp?.x??0);
         });
         if(!records.length) {status.textContent='El ensayo no contiene muestras para representar.';return;}
-        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),left=78,right=24,top=36,bottom=40,usableH=height-top-bottom,bandH=usableH/records.length;
-        const colors=['#0879c3','#e8710a','#00897b','#8b5fbf','#c44839','#64748b','#b7791f','#0f766e','#a855f7'];
-        status.textContent=`${records.length} móviles · eje ${axis.toUpperCase()} · ventana ${(span/1000).toFixed(2)} s · tiempo referido al reloj del maestro.`;
-        ctx.strokeStyle='#d9e5ee';ctx.lineWidth=1;ctx.font='12px Arial';ctx.fillStyle='#506b81';
-        for(let k=0;k<=5;k++){const x=left+(width-left-right)*k/5;ctx.beginPath();ctx.moveTo(x,top-8);ctx.lineTo(x,height-bottom);ctx.stroke();ctx.fillText((span*k/5000).toFixed(2)+' s',x-12,height-16);}
-        records.forEach((record,index)=>{
-            const point=data.plan.points?.find(p=>p.device===record.device.id),samples=record.samples.filter(v=>finite(v.masterTimeMs)&&finite(v.raw[axisIndex]));
-            const base=top+bandH*(index+.5),max=Math.max(.5,...samples.map(v=>Math.abs(v.raw[axisIndex]))),color=colors[index%colors.length];
-            ctx.strokeStyle='#e6eef4';ctx.beginPath();ctx.moveTo(left,base);ctx.lineTo(width-right,base);ctx.stroke();
-            ctx.fillStyle='#243e56';ctx.font='bold 13px Arial';ctx.fillText((record.device.name||'Móvil')+(point?' · '+point.name:''),8,base-7);ctx.font='11px Arial';ctx.fillStyle='#627a8f';ctx.fillText('±'+max.toFixed(2)+' m/s²',8,base+9);
-            ctx.strokeStyle=color;ctx.lineWidth=1.25;ctx.beginPath();let drawn=false;const stride=Math.max(1,Math.ceil(samples.length/1800));
-            for(let j=0;j<samples.length;j+=stride){const sample=samples[j],x=left+(sample.masterTimeMs-start)/span*(width-left-right),y=base-sample.raw[axisIndex]/max*(bandH*.39);if(x<left||x>width-right)continue;if(drawn)ctx.lineTo(x,y);else {ctx.moveTo(x,y);drawn=true;}}
-            ctx.stroke();
-            const item=document.createElement('span');item.innerHTML='<i style="background:'+color+'"></i>'+escape(record.device.name||'Móvil')+(point?' · '+escape(point.name):'');legend.append(item);
+        if(typeof Chart==='undefined') {status.textContent='No se ha cargado la librería de gráficas. Recarga la página con conexión.';return;}
+        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),axes=[['X',3,'#1565c0'],['Y',4,'#c62828'],['Z',5,'#2e7d32']],dashes=[[],[8,5],[3,4],[11,4,2,4]];
+        const datasets=[];
+        records.forEach((record,deviceIndex)=>{
+            const point=data.plan.points?.find(p=>p.device===record.device.id),name=(record.device.name||'Móvil')+(point?' · '+point.name:'');
+            axes.forEach(([axis,column,color])=>{
+                const valid=record.samples.filter(sample=>finite(sample.masterTimeMs)&&finite(sample.raw[column])&&sample.masterTimeMs>=start&&sample.masterTimeMs<=end);
+                const stride=Math.max(1,Math.ceil(valid.length/4500));
+                datasets.push({label:name+' · '+axis,data:valid.filter((_,i)=>i%stride===0).map(sample=>({x:(sample.masterTimeMs-start)/1000,y:sample.raw[column]})),borderColor:color,borderDash:dashes[deviceIndex%dashes.length],borderWidth:deviceIndex?1.35:2.15,pointRadius:0,tension:0,parsing:false});
+            });
         });
-        ctx.fillStyle='#37556e';ctx.font='12px Arial';ctx.fillText('Tiempo estimado en el reloj del maestro',left,height-3);
+        status.textContent=`${records.length} móviles · X, Y y Z superpuestos · ventana ${(span/1000).toFixed(2)} s · tiempo referido al reloj del maestro.`;
+        s.compareChart=new Chart(canvas.getContext('2d'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:14,font:{size:11}}},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²'}},zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:span/1000},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:span/1000,title:{display:true,text:'Tiempo en el reloj maestro (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:'Aceleración (m/s²)'},grid:{color:'rgba(0,0,0,.08)'}}}}});
+        enableLegendToggling(s.compareChart);
     }
     function drawPreview() {
         const canvas=$('jointLive'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
@@ -6452,6 +6448,7 @@ function formatTime(
         stopScan();if($('jointPairDialog').open)$('jointPairDialog').close();
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
         window.removeEventListener('devicemotion',motion);s.sensor=false;s.sensorEnabled=false;releaseWake();
+        if(s.compareChart){s.compareChart.destroy();s.compareChart=null;}
         s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
@@ -6526,7 +6523,7 @@ function formatTime(
     $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Estimando desfases mediante nuevos intercambios de mensajes…');});
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
-    $('jointCompareAxis').onchange=renderComparison;
+    $('jointCompareResetZoom').onclick=()=>s.compareChart?.resetZoom('none');
     $('jointImportSession').onchange=guard(async e=>{
         const file=e.target.files[0];if(!file)return;
         if(file.size>100000000)throw Error('El ensayo JSON es demasiado grande para abrirlo en el navegador.');

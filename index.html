@@ -777,11 +777,10 @@
                 </div>
                 <div id="jointPanelCompare" role="tabpanel" aria-labelledby="jointTabCompare" hidden>
                     <h3>Señales sincronizadas</h3>
-                    <p class="joint-help">Cada curva corresponde al mismo eje del teléfono elegido abajo. El eje horizontal usa el tiempo estimado del maestro; no se remuestrean las señales ni se corrige el desfase físico de los sensores.</p>
-                    <div class="joint-actions"><label>Eje a representar<select id="jointCompareAxis"><option value="z" selected>Z</option><option value="x">X</option><option value="y">Y</option></select></label><label class="joint-file">Abrir ensayo JSON del maestro<input id="jointImportSession" type="file" accept="application/json,.json"></label></div>
+                    <p class="joint-help">X azul, Y rojo y Z verde. La línea del maestro es continua; las de los participantes son discontinuas. Todas comparten el tiempo estimado del maestro. Puedes ampliar con dos dedos o rueda y desplazar la ventana en horizontal.</p>
+                    <div class="joint-actions"><button id="jointCompareResetZoom" type="button" class="joint-secondary">Restablecer zoom</button><label class="joint-file">Abrir ensayo JSON del maestro<input id="jointImportSession" type="file" accept="application/json,.json"></label></div>
                     <p id="jointCompareStatus" class="joint-help">Termina un ensayo y recibe los registros de los participantes para compararlos aquí.</p>
-                    <div class="joint-compare-wrap"><canvas id="jointCompareCanvas" width="1000" height="520" aria-label="Aceleraciones de maestro y participantes alineadas en el reloj maestro"></canvas></div>
-                    <div id="jointCompareLegend" class="joint-compare-legend"></div>
+                    <div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvas" aria-label="Aceleraciones X Y Z de maestro y participantes alineadas en el reloj maestro"></canvas></div>
                 </div>
             </div>
             <dialog id="jointPairDialog" aria-labelledby="jointPairTitle"><div class="joint-dialog-heading"><h3 id="jointPairTitle">Conectar móvil</h3><button id="jointPairClose" class="joint-secondary" type="button">Cerrar</button></div>
@@ -826,7 +825,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261102-joint-compare"></script>
+    <script defer src="app.js?v=20261102-joint-compare-zoom"></script>
 
 
 </body>
