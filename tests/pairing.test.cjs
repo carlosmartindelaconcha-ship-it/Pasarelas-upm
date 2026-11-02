@@ -26,11 +26,11 @@ function setup(options={}) {
  ctx.window.document=ctx.document;
  let block=source.slice(source.indexOf('(() => {',source.indexOf('MEDIDA CONJUNTA')));
  const end=block.lastIndexOf('})();');
- block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,pairingAction,localDescription,decodeToken,gather,candidateSummary};`+block.slice(end);
+ block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary};`+block.slice(end);
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
- const answer=p=>'J1.'+btoa(JSON.stringify({v:2,network:p.network,kind:'answer',host:'host',peer:p.id,session:'session',expires:Date.now()+60000,sdp:{type:'answer',sdp}})).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+ const answer=p=>'J1.'+btoa(JSON.stringify({v:3,network:p.network,kind:'answer',host:'host',peer:p.id,session:'session',expires:Date.now()+60000,sdp:{type:'answer',sdp}})).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
  return {a,el,timers,peer,answer};
 }
 test('channel open closes the pairing modal, updates status and cancels timeout',()=>{
@@ -70,7 +70,7 @@ test('rejected answer closes peer rather than leaving an indefinite wait',async(
  const {a,peer,answer,timers}=setup({rejectRemote:true});const p=peer();p.pc.signalingState='have-local-offer';await assert.rejects(a.readCode(answer(p)),/Invalid SDP/);assert.equal(p.pairFailed,true);assert.equal(timers.size,0);
 });
 function token(payload){return 'J1.'+btoa(JSON.stringify(payload)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
-function offer(network='stun',candidate=sdp){return {v:2,network,kind:'offer',host:'master',peer:'guest',session:'new-session',expires:Date.now()+60000,sdp:{type:'offer',sdp:candidate}}}
+function offer(network='stun',candidate=sdp){return {v:3,network,kind:'offer',host:'master',peer:'guest',session:'new-session',expires:Date.now()+60000,sdp:{type:'offer',sdp:candidate}}}
 const srflx='v=0\r\na=candidate:2 1 udp 123 198.51.100.2 6000 typ srflx raddr 0.0.0.0 rport 0\r\n';
 test('STUN mode configures app-owned discovery servers; local mode configures none',()=>{
  const {a}=setup();const stun=a.newPeer('a','stun'),local=a.newPeer('b','local');assert.equal(stun.pc.config.iceServers[0].urls[0],'stun:stun.l.google.com:19302');assert.equal(local.pc.config.iceServers.length,0);assert.throws(()=>a.newPeer('x','unknown'),/modo/);
@@ -82,8 +82,15 @@ test('STUN-only candidates are accepted in STUN mode and rejected in local mode'
 test('old tokens fail before changing session state',async()=>{
  const {a}=setup();const old=offer();old.v=1;delete old.network;await assert.rejects(a.readCode(token(old)),/incompatible/);assert.equal(a.s.session,'session');assert.equal(a.s.peers.size,0);
 });
-test('participant follows the invite mode instead of its dropdown',async()=>{
- const {a,el}=setup();a.s.role=null;el('jointNetworkMode').value='stun';await a.readCode(token(offer('local')));const p=a.s.peers.get('master');assert.equal(p.network,'local');assert.equal(p.pc.config.iceServers.length,0);assert.equal(el('jointNetworkMode').disabled,true);assert.equal((await a.decodeToken(el('jointPairOutput').value)).network,'local');
+test('participant stores the offer and only creates its answer after the master scanner is ready',async()=>{
+ const {a,el}=setup();a.s.role=null;el('jointNetworkMode').value='stun';await a.readCode(token(offer('local')));
+ assert.equal(a.s.peers.size,0);assert.equal(a.s.pendingOffer.network,'local');assert.equal(el('jointGenerateAnswer').hidden,false);assert.equal(el('jointPairOutput').hidden,true);
+ await a.createGuestAnswer();const p=a.s.peers.get('master');assert.equal(p.network,'local');assert.equal(p.pc.config.iceServers.length,0);assert.equal(el('jointNetworkMode').disabled,true);assert.equal((await a.decodeToken(el('jointPairOutput').value)).network,'local');
+});
+test('participant schedules a fresh answer when ICE fails before the channel opens',async()=>{
+ const {a,el,timers}=setup();a.s.role=null;await a.readCode(token(offer('local')));await a.createGuestAnswer();const p=a.s.peers.get('master');
+ p.pc.iceConnectionState='failed';p.pc.connectionState='failed';p.pc.oniceconnectionstatechange();
+ assert.equal([...timers.values()].length,1);assert.equal([...timers.values()][0].ms,900);assert.match(el('jointPairStatus').textContent,/Generando automáticamente/);assert.equal(a.s.answerAttempts,1);
 });
 test('response mode must match pending invitation',async()=>{
  const {a,peer,answer}=setup();const p=peer();p.pc.signalingState='have-local-offer';const t=await a.decodeToken(answer(p));t.network='local';await assert.rejects(a.readCode(token(t)),/otro modo/);assert.equal(p.answerAccepted,undefined);

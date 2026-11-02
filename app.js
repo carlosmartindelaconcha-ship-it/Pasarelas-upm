@@ -5406,13 +5406,18 @@ function formatTime(
     const $ = id => document.getElementById(id);
     const root = $('jointApp');
     if (!root) return;
-    const VERSION = 2;
+    const VERSION = 3;
     // Only these app-owned endpoints are used; invitation codes cannot inject servers.
     const STUN_SERVERS = [{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}];
     const MAX_PEERS = 8, MAX_POINTS = 64, MAX_SAMPLES = 500000;
     const MAX_TOKEN = 50000, MAX_MESSAGE = 90000;
     const activeStates = new Set(['preparing', 'armed', 'recording']);
-    const uid = () => crypto.randomUUID();
+    const uid = () => {
+        if(typeof crypto.randomUUID==='function')return crypto.randomUUID();
+        const bytes=crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+        const hex=[...bytes].map(value=>value.toString(16).padStart(2,'0')).join('');
+        return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+    };
     const now = () => performance.now();
     const finite = Number.isFinite;
     const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -5423,6 +5428,7 @@ function formatTime(
         sensor:false, sensorEnabled:false, lastSample:0, recent:[], rateTimes:[],
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
         scan:null, scanFrame:null, currentInvite:null, pairBusy:false, capturePermission:false,
+        pendingOffer:null, answerAttempts:0, answerRetryTimer:null,
         lastPairDiagnostic:'', adding:false, drag:null,
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
@@ -5594,6 +5600,7 @@ function formatTime(
         $('jointPairTitle').textContent=mode==='offer'?'Invitar a un móvil':'Leer invitación o respuesta';
         $('jointPairHelp').textContent=mode==='offer'?'El participante lee esta invitación. Después, lee aquí su respuesta para completar la conexión.':'Escanea el QR o pega el código completo del otro móvil.';
         $('jointPairOutput').hidden=true; $('jointCopyCode').hidden=true; $('jointQr').replaceChildren(); $('jointPairInput').value=''; $('jointPairStatus').textContent='';
+        $('jointGenerateAnswer').hidden=true;
         $('jointPairDiagnostics').hidden=true;$('jointPairDiagnosticsText').textContent='';
         $('jointNetworkMode').disabled=s.role==='guest';
         if(!$('jointPairDialog').open)$('jointPairDialog').showModal();
@@ -5615,7 +5622,7 @@ function formatTime(
         const stunErrors=(p?.diagnostics||[]).filter(row=>row.event==='error STUN');
         const explanation=stunErrors.some(row=>/^701\b/.test(row.detail))?'El código 701 significa que este móvil no pudo alcanzar el servidor STUN.':'';
         const lines=[
-            'Diagnóstico de conexión v2',
+            'Diagnóstico de conexión v3',
             'Etapa: '+stage,
             'Navegador: '+browserLabel(),
             'Modo: '+(p?.network||$('jointNetworkMode').value),
@@ -5701,6 +5708,9 @@ function formatTime(
         if(p.channel){p.channel.onopen=null;p.channel.onclose=null;p.channel.onerror=null;}
         p.pc.close();
     }
+    function clearAnswerRetry() {
+        clearTimeout(s.answerRetryTimer);s.answerRetryTimer=null;
+    }
     function failPair(p, reason) {
         if(s.peers.get(p.id)!==p||p.pairFailed||p.opened)return;
         const next=p.network==='local'?'Prueba el modo Compatibilidad con punto de acceso (STUN), con Internet disponible.':'Si utilizas un punto de acceso, prueba ambos móviles en un router Wi-Fi común para comparar. STUN no puede superar todos los bloqueos; esta versión no dispone de retransmisión TURN.';
@@ -5746,7 +5756,7 @@ function formatTime(
             disposePeer(p);s.peers.delete(id);
             if(s.role==='host')for(const point of s.plan.points)if(point.device===id)point.device=null;
         }
-        s.currentInvite=null;
+        s.currentInvite=null;clearAnswerRetry();s.pendingOffer=null;s.answerAttempts=0;$('jointGenerateAnswer').hidden=true;
         if(s.role==='host'){savePlan();return pairingAction(invite);}
         if(s.peers.size)throw Error('La conexión ya está abierta. Cierra este cuadro para continuar.');
         s.role=null;s.session=null;s.id=uid();
@@ -5759,9 +5769,13 @@ function formatTime(
             diagnosticEvent(p,'estado de conexión','ICE '+p.pc.iceConnectionState+'; enlace '+p.pc.connectionState);
             if(p.pc.connectionState==='failed'||p.pc.iceConnectionState==='failed'){
                 if(s.role==='guest'&&!p.opened){
-                    // The participant cannot finish ICE until the master has read its answer.
-                    diagnosticEvent(p,'fallo ICE aplazado','esperando que el maestro lea la respuesta');
-                    pairStatus(p,p.answerShown?'Respuesta preparada. El maestro todavía debe leerla.':'Preparando respuesta; todavía no cierres esta página.');
+                    if(p.answerShown&&s.pendingOffer){
+                        diagnosticEvent(p,'fallo previo a la conexión','la respuesta se regenerará');
+                        scheduleGuestAnswerRegeneration(p);
+                    }else{
+                        diagnosticEvent(p,'fallo ICE aplazado','la respuesta todavía se está preparando');
+                        pairStatus(p,'Preparando respuesta; todavía no cierres esta página.');
+                    }
                 }else failPair(p,'La conexión directa ha fallado');
             }
             else if(!p.opened&&p.answerAccepted)pairStatus(p,'Estableciendo conexión… '+pairingDetails(p));
@@ -5805,6 +5819,7 @@ function formatTime(
         channel.onopen=()=>{
             if(p.opened||p.pairFailed||s.peers.get(p.id)!==p)return;
             p.opened=true;clearTimeout(p.pairTimer);p.pairTimer=null;diagnosticEvent(p,'canal de datos','abierto');
+            clearAnswerRetry();s.pendingOffer=null;s.answerAttempts=0;$('jointGenerateAnswer').hidden=true;
             pairStatus(p,'Conexión establecida. Canal de datos abierto.');
             if(s.role==='guest'||s.currentInvite===p.id){
                 if($('jointPairDialog').open)$('jointPairDialog').close();
@@ -5857,6 +5872,56 @@ function formatTime(
             watchPair(p,10*60*1000);
         }catch(e){if(!e.pairDiagnostic)showPairDiagnostic(p,'creación de invitación',e.message||String(e));disposePeer(p);s.peers.delete(p.id);throw e;}
     }
+    function scheduleGuestAnswerRegeneration(p) {
+        if(s.role!=='guest'||p.opened||!s.pendingOffer||s.answerRetryTimer)return;
+        clearTimeout(p.pairTimer);p.pairTimer=null;
+        if(s.answerAttempts>=3){
+            diagnosticEvent(p,'reintentos agotados','3 respuestas generadas');
+            pairStatus(p,'No se ha conectado tras tres respuestas. Mantén abierta la cámara del maestro y pulsa «Generar otra respuesta», o reinicia ambos emparejamientos con una invitación nueva.');
+            $('jointGenerateAnswer').textContent='Generar otra respuesta';$('jointGenerateAnswer').hidden=false;
+            return;
+        }
+        pairStatus(p,'La respuesta ha caducado antes de conectar. Generando automáticamente una nueva; mantén abierta la cámara del maestro…');
+        s.answerRetryTimer=setTimeout(()=>{
+            s.answerRetryTimer=null;
+            pairingAction(()=>createGuestAnswer(true)).catch(error=>{
+                $('jointPairStatus').textContent=error.message||String(error);tell(error.message||String(error),true);
+            });
+        },900);
+    }
+    async function createGuestAnswer(auto=false) {
+        const t=s.pendingOffer;
+        if(s.role!=='guest'||!t)throw Error('Primero lee una invitación del maestro.');
+        clearAnswerRetry();
+        for(const [id,old] of s.peers){if(old.channel?.readyState!=='open'){disposePeer(old);s.peers.delete(id);}}
+        s.answerAttempts=auto?s.answerAttempts+1:1;
+        const p=newPeer(t.host,t.network);p.name=String(t.name||'Maestro').slice(0,40);p.answerAttempt=s.answerAttempts;
+        $('jointGenerateAnswer').disabled=true;$('jointGenerateAnswer').hidden=true;
+        $('jointPairOutput').hidden=true;$('jointCopyCode').hidden=true;$('jointQr').replaceChildren();
+        try {
+            pairStatus(p,(auto?'Regenerando':'Generando')+' respuesta '+s.answerAttempts+' de 3…');
+            await p.pc.setRemoteDescription(t.sdp);
+            await p.pc.setLocalDescription(await p.pc.createAnswer());
+            p.gatherComplete=await gather(p.pc);
+            if(s.peers.get(p.id)!==p||p.pairFailed)return;
+            if(['failed','closed'].includes(p.pc.iceConnectionState)||['failed','closed'].includes(p.pc.connectionState)){
+                diagnosticEvent(p,'respuesta descartada','ICE falló antes de mostrar el código');
+                if(s.answerAttempts<3){scheduleGuestAnswerRegeneration(p);return;}
+                throw pairingError(p,'creación de respuesta','La conexión ha fallado antes de poder mostrar una respuesta utilizable.');
+            }
+            $('jointPairHelp').textContent='Muestra inmediatamente esta respuesta a la cámara que ya está abierta en el maestro. Mantén ambas páginas abiertas.';
+            await showToken({v:VERSION,kind:'answer',network:p.network,session:s.session,host:t.host,peer:t.peer,attempt:s.answerAttempts,expires:t.expires,sdp:localDescription(p)});
+            p.answerShown=true;diagnosticEvent(p,auto?'respuesta regenerada':'respuesta mostrada','intento '+s.answerAttempts+' de 3');
+            if(!p.opened)pairStatus(p,'Respuesta '+s.answerAttempts+' de 3 preparada. Muéstrala ahora a la cámara del maestro. Direcciones: '+candidateSummary(p.pc.localDescription)+(p.gatherComplete?'':'. Se usaron candidatos suficientes sin esperar al resto.'));
+            $('jointGenerateAnswer').textContent='Generar otra respuesta';$('jointGenerateAnswer').hidden=false;
+            watchPair(p,120000);
+        }catch(e){
+            if(!e.pairDiagnostic)showPairDiagnostic(p,'creación de respuesta',e.message||String(e));
+            if(s.peers.get(p.id)===p){disposePeer(p);s.peers.delete(p.id);}
+            if(auto&&s.answerAttempts<3){scheduleGuestAnswerRegeneration(p);return;}
+            throw e;
+        }finally{$('jointGenerateAnswer').disabled=false;}
+    }
     async function readCode(raw=$('jointPairInput').value) {
         if(running()||s.transaction)throw Error('No se pueden incorporar móviles durante un ensayo.');
         const t=await decodeToken(raw);
@@ -5865,17 +5930,11 @@ function formatTime(
             if(s.peers.size)throw Error('Ya existe una conexión. Sal de la sesión antes de unirte a otra.');
             s.role='guest';s.id=t.peer;s.session=t.session;s.name='Participante';
             $('jointNetworkMode').value=t.network;$('jointNetworkMode').disabled=true;
-            const p=newPeer(t.host,t.network);p.name=String(t.name||'Maestro').slice(0,40);workspace();
-            try {
-                pairStatus(p,'Preparando respuesta…');
-                await p.pc.setRemoteDescription(t.sdp);await p.pc.setLocalDescription(await p.pc.createAnswer());p.gatherComplete=await gather(p.pc);
-                if(s.peers.get(p.id)!==p||p.pairFailed)return;
-                $('jointPairHelp').textContent='Muestra esta respuesta al maestro para que la escanee, o envíale el código completo. Mantén esta página abierta.';
-                await showToken({v:VERSION,kind:'answer',network:p.network,session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:localDescription(p)});
-                p.answerShown=true;diagnosticEvent(p,'respuesta mostrada','lista para que la lea el maestro');
-                if(!p.opened)pairStatus(p,'Respuesta preparada. El maestro debe leerla en los próximos 2 minutos. Direcciones: '+candidateSummary(p.pc.localDescription)+(p.gatherComplete?'':'. Se usaron candidatos suficientes sin esperar al resto.'));
-                watchPair(p,120000);
-            }catch(e){if(!e.pairDiagnostic)showPairDiagnostic(p,'creación de respuesta',e.message||String(e));disposePeer(p);s.peers.delete(p.id);throw e;}
+            s.pendingOffer=t;s.answerAttempts=0;clearAnswerRetry();workspace();
+            $('jointPairOutput').hidden=true;$('jointCopyCode').hidden=true;$('jointQr').replaceChildren();
+            $('jointPairHelp').textContent='Invitación guardada. Ahora abre «Escanear QR» en el maestro. Cuando su cámara ya muestre imagen, vuelve aquí y pulsa el botón azul.';
+            $('jointPairStatus').textContent='Todavía no se ha creado ninguna conexión: así evitamos que la respuesta caduque mientras preparas el otro móvil.';
+            $('jointGenerateAnswer').textContent='El maestro ya está escaneando: generar respuesta';$('jointGenerateAnswer').hidden=false;
         } else {
             if(s.role!=='host'||t.session!==s.session||t.host!==s.id)throw Error('Esta respuesta pertenece a otra sesión.');
             const p=s.peers.get(t.peer);if(!p || p.pc.signalingState!=='have-local-offer')throw Error('Invitación no disponible o ya utilizada.');
@@ -5893,6 +5952,9 @@ function formatTime(
         await stopScan();
         s.scan=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});s.capturePermission=true;
         const video=$('jointScanner');video.srcObject=s.scan;video.hidden=false;$('jointStopScan').hidden=false;await video.play();
+        if(s.role==='host'&&s.currentInvite){
+            const p=s.peers.get(s.currentInvite);if(p)pairStatus(p,'Cámara preparada. En el participante pulsa ahora «El maestro ya está escaneando: generar respuesta».');
+        }
         const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
         const frame=()=>{
             if(!s.scan)return;
@@ -6290,6 +6352,7 @@ function formatTime(
     $('jointPairClose').onclick=()=>{$('jointPairDialog').close();stopScan();};
     $('jointPairDialog').addEventListener('close',stopScan);
     $('jointReadCode').onclick=guard(()=>pairingAction(()=>readCode()));$('jointScanCode').onclick=guard(scanCode);$('jointStopScan').onclick=stopScan;
+    $('jointGenerateAnswer').onclick=guard(()=>pairingAction(()=>createGuestAnswer(false)));
     $('jointCopyCode').onclick=guard(async()=>{const text=$('jointPairOutput').value;try{await navigator.clipboard.writeText(text);$('jointPairStatus').textContent='Código copiado.';}catch(e){$('jointPairOutput').focus();$('jointPairOutput').select();$('jointPairStatus').textContent='Selecciona y copia el código completo.';}});
     $('jointApplyGeometry').onclick=guard(()=>{
         requireHostEdit();const candidate={...s.plan,name:$('jointName').value,length:Number($('jointLength').value),width:Number($('jointWidth').value)};
