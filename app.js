@@ -6347,9 +6347,12 @@ function formatTime(
         // Event creation time, not hardware sampling time. Preserve raw and receipt.
         const used=timestamp!==null&&timestamp<=received+5&&timestamp>=received-1000?timestamp:received;
         if(running()&&s.lastSample&&received-s.lastSample>250)incident('sample-gap','Sin eventos de movimiento durante '+Math.round(received-s.lastSample)+' ms.');
-        // Guardamos la proyección al reloj maestro con el modelo vigente en ese instante.
-        // Así una corrección posterior del reloj no desplaza de golpe todo el registro.
-        const masterAtCapture=s.role==='host'?used:toMaster(used,s.syncModel);
+        const run=s.run;
+        // Durante el ensayo la malla queda anclada al modelo confirmado al arrancar.
+        // Seguimos intercambiando mensajes de reloj para diagnóstico, pero sus ajustes
+        // no desplazan retrospectiva ni progresivamente las muestras ya adquiridas.
+        const captureModel=run&&activeStates.has(run.state)?run.initialClock:s.syncModel;
+        const masterAtCapture=s.role==='host'?used:toMaster(used,captureModel);
         const sample=[0,timestamp,received,x,y,z,interval,used,masterAtCapture];
         const calibration=s.calibration.active;
         if(calibration&&received<calibration.start)calibration.baseline.push([x,y,z]);
@@ -6357,7 +6360,6 @@ function formatTime(
         s.sensor=true;s.lastSample=received;s.rateTimes.push(received);if(s.rateTimes.length>120)s.rateTimes.shift();
         s.recent.push(sample);while(s.recent.length&&s.recent[0][2]<received-2000)s.recent.shift();
         s.preview.push(sample);if(s.preview.length>600)s.preview.shift();
-        const run=s.run;
         if(run&&activeStates.has(run.state)) {
             const t=masterAtCapture;
             if(t>=run.start-1000&&t<=run.end+1000)appendSample(run,sample);
