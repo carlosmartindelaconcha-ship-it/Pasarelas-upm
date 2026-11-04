@@ -6704,6 +6704,11 @@ function formatTime(
         chart.data.datasets.forEach((dataset,axis)=>dataset.data=rows.map((row,index)=>({x:(row[2]-start)/1000,y:values[index][axis]})));
         chart.options.scales.x.min=0;chart.options.scales.x.max=5;chart.options.scales.y.min=-limit;chart.options.scales.y.max=limit;chart.update('none');
     }
+    function refreshJointPreviewBaseline(run) {
+        const quiet=s.recent.filter(sample=>sample[2]>=now()-750).map(sample=>correctedVector(sample.slice(3,6)));
+        if(quiet.length<6)return;
+        run.previewBaseline=['x','y','z'].map((_,index)=>median(quiet.map(values=>values[index])));
+    }
     function drawLiveSpectrum() {
         if(!ensureJointCharts())return;
         const rows=s.preview.filter(v=>v[2]>now()-5000);if(rows.length<16)return;
@@ -6730,8 +6735,12 @@ function formatTime(
         }
         if(r&&activeStates.has(r.state)) {
             const t=toMaster(now(),r.initialClock);
-            if(t<r.start)$('jointMeasureState').textContent='Inicio en '+Math.max(0,Math.ceil((r.start-t)/1000))+' s';
+            if(t<r.start){
+                refreshJointPreviewBaseline(r);
+                $('jointMeasureState').textContent='Inicio en '+Math.max(0,Math.ceil((r.start-t)/1000))+' s';
+            }
             else {
+                if(r.state==='armed')refreshJointPreviewBaseline(r);
                 r.state='recording';const elapsed=Math.max(0,Math.min(t,r.end)-r.start);
                 $('jointMeasureState').textContent=t>r.end?'Guardando margen final…':Math.floor(elapsed/60000).toString().padStart(2,'0')+':'+Math.floor(elapsed/1000%60).toString().padStart(2,'0');
                 $('jointRunTime').textContent=Math.floor(elapsed/60000).toString().padStart(2,'0')+':'+(elapsed/1000%60).toFixed(1).padStart(4,'0');
