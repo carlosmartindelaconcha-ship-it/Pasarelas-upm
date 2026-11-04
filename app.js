@@ -6230,7 +6230,7 @@ function formatTime(
     function calibrationAxisName(axis) {return axis==='x'?'X · longitudinal':axis==='y'?'Y · transversal':'Z · vertical';}
     function renderCalibration() {
         const c=s.calibration,active=c.active,done=c.complete;
-        const state=$('jointCalibrationState');state.textContent=done?'Calibración completa':active?'En curso':'Pendiente';state.classList.toggle('done',done);
+        const state=$('jointCalibrationState');state.textContent=done?'Sentidos corregidos':active?'En curso':'Pendiente';state.classList.toggle('done',done);
         $('jointCalibration').classList.toggle('complete',done);
         const axis=active?.axis||['x','y','z'].find(key=>!c.map[key])||'x';
         const words={x:'mueve el móvil sobre el eje X y vuelve al origen.',y:'mueve el móvil sobre el eje Y y vuelve al origen.',z:'mueve el móvil sobre el eje Z y vuelve al origen.'};
@@ -6239,34 +6239,46 @@ function formatTime(
         image.alt=done?'Móvil centrado en el origen tras calibrar los ejes':'Móvil moviéndose sobre el eje '+axis.toUpperCase();
         $('jointCalibrationAnimation').classList.toggle('complete',done);
         $('jointCalibrationInstruction').textContent=done?'Móvil centrado en el origen.':'Calibrar '+calibrationAxisName(axis)+' · '+words[axis];
-        for(const key of ['x','y','z']) {const button=$('jointCalibrate'+key.toUpperCase());button.disabled=!!active||(!s.sensorEnabled)||!!c.map[key];button.classList.toggle('done',!!c.map[key]);}
-        $('jointCalibrationHelp').textContent=done?'✓ Ejes normalizados para este móvil. Puedes preparar la medida.':active?'Prepárate: empieza el gesto cuando termine la cuenta atrás.':'Pulsa cada eje y sigue el gesto indicado. La calibración normaliza signos e intercambios de ejes entre móviles.';
+        for(const key of ['x','y','z']) {
+            const calibration=c.map[key],button=$('jointCalibrate'+key.toUpperCase()),factor=$('jointFactor'+key.toUpperCase()),card=factor.closest('.joint-factor');
+            button.disabled=!!active||(!s.sensorEnabled)||!!calibration;button.classList.toggle('done',!!calibration);
+            factor.textContent=calibration?'× '+(calibration.sign>0?'+1':'−1'):'Pendiente';
+            card.classList.toggle('ready',!!calibration);
+        }
+        $('jointCalibrationHelp').textContent=done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':active?'Prepárate: empieza el gesto cuando termine la cuenta atrás.':'Pulsa cada eje y sigue el gesto indicado. Cada prueba solo corrige el signo de su propio registro; no se intercambian ejes.';
     }
     function startCalibration(axis) {
         if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
         if(s.calibration.active||s.calibration.map[axis])return;
-        const used=new Set(Object.values(s.calibration.map).map(v=>v.raw));
-        s.calibration.active={axis,start:now()+2000,end:now()+4000,samples:[],used};renderCalibration();
+        s.calibration.active={axis,start:now()+2000,end:now()+4000,samples:[]};renderCalibration();
         tell('Calibración '+axis.toUpperCase()+': empieza el gesto en 2 s.');
     }
     function finishCalibration() {
         const active=s.calibration.active;if(!active)return;
         s.calibration.active=null;
         const rows=active.samples;if(rows.length<12){tell('No hubo suficientes muestras. Repite el gesto.',true);renderCalibration();return;}
-        const baseCount=Math.max(3,Math.floor(rows.length*.15)),base=[0,0,0];
-        for(const row of rows.slice(0,baseCount))for(let i=0;i<3;i++)base[i]+=row[i]/baseCount;
-        const peaks=[0,0,0],signs=[1,1,1],first=[Infinity,Infinity,Infinity];
-        rows.forEach((row,index)=>row.forEach((value,i)=>{const delta=value-base[i],m=Math.abs(delta);if(m>peaks[i]){peaks[i]=m;signs[i]=Math.sign(delta)||1;first[i]=index;}}));
-        const raw=peaks.indexOf(Math.max(...peaks));
-        if(peaks[raw]<0.7||active.used.has(raw)){tell(active.used.has(raw)?'Ese gesto repitió un eje ya identificado. Hazlo con más claridad.':'El gesto fue demasiado débil. Repite con un movimiento más claro.',true);renderCalibration();return;}
-        s.calibration.map[active.axis]={raw,sign:signs[raw],peak:peaks[raw]};
+        // Cada botón se aplica exclusivamente a su canal X/Y/Z. El gesto no intenta
+        // identificar ni reordenar ejes: solo decide si ese canal debe invertirse.
+        const raw={x:0,y:1,z:2}[active.axis];
+        const baseCount=Math.min(5,Math.max(3,Math.floor(rows.length*.08)));
+        const base=rows.slice(0,baseCount).reduce((sum,row)=>sum+row[raw],0)/baseCount;
+        const deltas=rows.map(row=>row[raw]-base);
+        const peak=Math.max(...deltas.map(value=>Math.abs(value)));
+        if(peak<0.7){tell('El gesto fue demasiado débil. Repite con un movimiento más claro.',true);renderCalibration();return;}
+        // El primer impulso significativo de la ida fija el sentido; la vuelta no lo cambia.
+        const threshold=Math.max(.25,peak*.35);
+        const firstPulse=deltas.find(value=>Math.abs(value)>=threshold);
+        const sign=Math.sign(firstPulse)||1;
+        s.calibration.map[active.axis]={raw,sign,peak};
         s.calibration.complete=['x','y','z'].every(axis=>s.calibration.map[axis]);
-        tell(s.calibration.complete?'Calibración completa: ejes estructurales normalizados.':'Eje '+active.axis.toUpperCase()+' identificado. Continúa con el siguiente.');renderCalibration();renderDevices();
+        const factor='× '+(sign>0?'+1':'−1');
+        tell(s.calibration.complete?'Calibración completa: se han guardado los tres factores de signo.':'Eje '+active.axis.toUpperCase()+': aplicar '+factor+'. Continúa con el siguiente.');renderCalibration();renderDevices();
     }
     function correctedVector(values,calibration=s.calibration) {
         const map=calibration?.map||{};
         if(!['x','y','z'].every(axis=>map[axis]&&Number.isInteger(map[axis].raw)))return values.slice(0,3);
-        return ['x','y','z'].map(axis=>map[axis].sign*values[map[axis].raw]);
+        // Los canales nunca se permutan: X corrige X, Y corrige Y y Z corrige Z.
+        return ['x','y','z'].map((axis,index)=>(map[axis].sign||1)*values[index]);
     }
     function tryJointGenericAccelerometer() {
         return new Promise(resolve=>{
