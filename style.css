@@ -1476,6 +1476,8 @@ body.recording-lock main {
 .joint-calibration.complete .joint-calibration-actions,
 .joint-calibration-animation.complete figcaption { display: none; }
 .joint-calibration-animation.complete { padding-bottom: 10px; }
+.joint-calibration-countdown { margin:12px 0 4px; padding:10px; border-radius:9px; background:#edf6ff; color:#1269ad; text-align:center; font-size:1.3rem; font-weight:800; letter-spacing:.02em; }
+.joint-calibration-countdown.go { background:#eaf7ef; color:#247a50; }
 .joint-calibration-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .joint-calibration-actions button { border-radius:8px; padding:10px 6px; font-weight:700; }
 .joint-calibration-factors { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0 12px; }
