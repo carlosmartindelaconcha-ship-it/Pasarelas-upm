@@ -1465,6 +1465,32 @@ body.recording-lock main {
 .joint-live-values { display: flex; flex-wrap: wrap; gap: 18px; padding: 16px 0; font-size: .83rem; }
 .joint-live-values strong { display: block; padding-top: 5px; font-size: 1.05rem; }
 #jointLive { width: 100%; height: 200px; background: #f8fbfd; border: 1px solid #dbe6ee; border-radius: 8px; }
+#jointLiveSpectrum { width: 100%; height: 190px; background: #f8fbfd; border: 1px solid #dbe6ee; border-radius: 8px; }
+.joint-calibration { margin: 18px 0; padding: 16px; border: 1px solid #cfe0ec; border-radius: 10px; background: #fbfdff; }
+.joint-calibration h4, .joint-axis-compare h4 { margin: 0 0 4px; color: #244c70; }
+.joint-calibration-state { padding: 6px 10px; border-radius: 999px; background: #eaf2f8; color: #526d80; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.joint-calibration-state.done { background: #e6f6ec; color: #247548; }
+.joint-calibration-animation { position: relative; height: 145px; overflow: hidden; margin: 14px 0; border-radius: 9px; background: linear-gradient(180deg,#f2f8fc,#e8f2f8); }
+.joint-calibration-animation::after { content: ''; position: absolute; left: 10%; right: 10%; bottom: 27px; height: 2px; background: #bed2e0; }
+.joint-calibration-phone { position: absolute; left: 16%; bottom: 34px; width: 58px; height: 92px; padding: 6px; border-radius: 13px; background: #26475f; box-shadow: 0 7px 12px #173b5422; animation: joint-cal-x 3.8s ease-in-out infinite; }
+.joint-calibration-phone i { display:block; height:70px; border-radius:8px; background:#60b9ef; }
+.joint-calibration-phone b { position:absolute; right:10px; bottom:8px; color:#fff; }
+.joint-calibration-arrow { position:absolute; left:30%; right:20%; top:38px; color:#1680cb; font-size:2rem; font-weight:700; animation:joint-cal-arrow 3.8s ease-in-out infinite; }
+.joint-calibration-animation span { position:absolute; left:16px; right:16px; bottom:8px; text-align:center; font-size:.86rem; color:#49677d; z-index:2; }
+.joint-calibration-animation[data-axis="y"] .joint-calibration-phone { animation-name:joint-cal-y; }
+.joint-calibration-animation[data-axis="y"] .joint-calibration-arrow { color:#cf4c50; transform:rotate(-90deg); }
+.joint-calibration-animation[data-axis="z"] .joint-calibration-phone { animation-name:joint-cal-z; }
+.joint-calibration-animation[data-axis="z"] .joint-calibration-arrow { color:#23845a; transform:rotate(-90deg); }
+.joint-calibration-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.joint-calibration-actions button { border-radius:8px; padding:10px 6px; font-weight:700; }
+.joint-axis-x { background:#e8f3ff; color:#1269ad; border:1px solid #9fcdf4; }.joint-axis-y { background:#fff0f0; color:#b83f45; border:1px solid #efb7bb; }.joint-axis-z { background:#eaf7ef; color:#247a50; border:1px solid #a8d9bd; }
+.joint-calibration-actions button.done::after { content:' ✓'; }.joint-calibration-actions button:disabled { opacity:.55; }
+.joint-axis-compare { margin:18px 0; }
+body.recording-lock #jointWorkspace { min-height: calc(100dvh - 60px); }
+@keyframes joint-cal-x { 0%,15%{transform:translateX(0)} 48%,60%{transform:translateX(210px)} 82%,100%{transform:translateX(0)} }
+@keyframes joint-cal-y { 0%,15%{transform:translateY(0)} 48%,60%{transform:translateY(-34px)} 82%,100%{transform:translateY(0)} }
+@keyframes joint-cal-z { 0%,15%{transform:translateY(0)} 48%,60%{transform:translateY(-55px)} 82%,100%{transform:translateY(0)} }
+@keyframes joint-cal-arrow { 0%,20%{opacity:.25;transform:scaleX(.3)} 50%,65%{opacity:1;transform:scaleX(1)} 100%{opacity:.25;transform:scaleX(.3)} }
 .joint-app dialog { width: min(560px, calc(100vw - 42px)); max-height: 85vh; box-sizing: border-box; border: 1px solid #b9cddb; border-radius: 12px; padding: 22px; color: #19334d; overflow-y: auto; }
 .joint-app dialog::backdrop { background: #142d46a6; }
 #jointQr { text-align: center; margin: 16px auto; max-width: 300px; }
