@@ -1471,7 +1471,7 @@ body.recording-lock main {
 .joint-calibration-state { padding: 6px 10px; border-radius: 999px; background: #eaf2f8; color: #526d80; font-size: .8rem; font-weight: 600; white-space: nowrap; }
 .joint-calibration-state.done { background: #e6f6ec; color: #247548; }
 .joint-calibration-animation { display: grid; gap: 8px; margin: 14px 0; padding: 10px 10px 8px; border: 1px solid #d8e5ee; border-radius: 9px; background: #f8fbfd; }
-.joint-calibration-animation img { display: block; width: min(100%, 390px); height: 245px; margin: 0 auto; object-fit: contain; }
+.joint-calibration-animation img { display: block; width: 100%; max-width: 526.89203px; height: auto; margin: 0 auto; }
 .joint-calibration-animation figcaption { min-height: 1.35em; padding: 0 8px; text-align: center; font-size: .86rem; font-weight: 600; color: #49677d; }
 .joint-calibration-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .joint-calibration-actions button { border-radius:8px; padding:10px 6px; font-weight:700; }
