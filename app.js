@@ -5425,7 +5425,7 @@ function formatTime(
     const s = {
         id: uid(), name: 'Mi móvil', role: null, session: null, peers: new Map(),
         plan: {length:30, width:3, name:'Ensayo multipunto', points:[]}, selected:null,
-        sensor:false, sensorEnabled:false, lastSample:0, recent:[], rateTimes:[],
+        sensor:false, sensorEnabled:false, sensorSource:'', genericSensor:null, lastSample:0, recent:[], rateTimes:[],
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
         scan:null, scanFrame:null, currentInvite:null, pairBusy:false, capturePermission:false,
         pendingOffer:null, qrPages:[], qrPageIndex:0, qrPageTimer:null, qrInbound:null,
@@ -6202,20 +6202,53 @@ function formatTime(
     }
     async function enableSensor() {
         if(!window.isSecureContext)throw Error('Abre la web mediante HTTPS para usar el acelerómetro.');
-        if(typeof DeviceMotionEvent==='undefined')throw Error('Este navegador no ofrece eventos de movimiento.');
+        if(s.sensorEnabled)return;
+        s.sensor=false;s.sensorSource='';
+
+        // En Android probamos primero la misma ruta que usa el ensayo individual.
+        // Algunos navegadores no emiten DeviceMotionEvent, pero sí Accelerometer.
+        if(!isIOSDevice()&&'Accelerometer' in window&&await tryJointGenericAccelerometer()) {
+            tell('Acelerómetro activo mediante Generic Sensor API.');renderDevices();return;
+        }
+
+        if(typeof DeviceMotionEvent==='undefined')throw Error('Este navegador no ofrece DeviceMotionEvent ni un acelerómetro compatible.');
         if(typeof DeviceMotionEvent.requestPermission==='function'&&await DeviceMotionEvent.requestPermission()!=='granted')throw Error('Debes permitir el acceso al movimiento.');
-        if(!s.sensorEnabled){window.addEventListener('devicemotion',motion);s.sensorEnabled=true;}
-        tell('Esperando datos del acelerómetro…');renderDevices();
-        setTimeout(()=>{if(s.sensorEnabled&&!s.sensor)tell('No llegan datos del sensor. Revisa los permisos y mantén la página visible.',true);},4000);
+        window.addEventListener('devicemotion',motion);s.sensorEnabled=true;s.sensorSource='DeviceMotionEvent';
+        tell('Esperando datos del acelerómetro mediante DeviceMotionEvent…');renderDevices();
+        setTimeout(()=>{if(s.sensorEnabled&&!s.sensor)tell('No llegan datos mediante '+s.sensorSource+'. Revisa permiso de movimiento/sensores, que la página esté visible y que no esté activada la privacidad de sensores del teléfono.',true);},4000);
+    }
+    function tryJointGenericAccelerometer() {
+        return new Promise(resolve=>{
+            let sensor,confirmed=false,settled=false;
+            const finish=value=>{if(settled)return;settled=true;clearTimeout(timeout);resolve(value);};
+            const stop=()=>{try{sensor?.stop();}catch(e){}if(s.genericSensor===sensor)s.genericSensor=null;};
+            const timeout=setTimeout(()=>{if(!confirmed){stop();finish(false);}},1500);
+            try {
+                sensor=new Accelerometer({frequency:requestedSensorFrequency});
+                sensor.addEventListener('reading',()=>{
+                    recordJointMotion(finite(sensor.timestamp)?sensor.timestamp:null,sensor.x,sensor.y,sensor.z,null);
+                    if(!confirmed){confirmed=true;s.genericSensor=sensor;s.sensorEnabled=true;s.sensorSource='Generic Sensor API';finish(true);}
+                });
+                sensor.addEventListener('error',event=>{
+                    incident('sensor-api','Generic Sensor API: '+(event.error?.message||event.error?.name||'error desconocido'));
+                    if(!confirmed){stop();finish(false);}
+                });
+                sensor.start();
+            } catch(e) {stop();finish(false);}
+        });
     }
     function motion(event) {
-        const received=now(),a=event.accelerationIncludingGravity;
-        if(!a||![a.x,a.y,a.z].every(finite))return;
-        const timestamp=finite(event.timeStamp)?event.timeStamp:null;
+        const a=event.accelerationIncludingGravity;
+        if(!a)return;
+        recordJointMotion(finite(event.timeStamp)?event.timeStamp:null,a.x,a.y,a.z,finite(event.interval)?event.interval:null);
+    }
+    function recordJointMotion(timestamp,x,y,z,interval) {
+        if(![x,y,z].every(finite))return;
+        const received=now();
         // Event creation time, not hardware sampling time. Preserve raw and receipt.
         const used=timestamp!==null&&timestamp<=received+5&&timestamp>=received-1000?timestamp:received;
         if(running()&&s.lastSample&&received-s.lastSample>250)incident('sample-gap','Sin eventos de movimiento durante '+Math.round(received-s.lastSample)+' ms.');
-        const sample=[0,timestamp,received,a.x,a.y,a.z,finite(event.interval)?event.interval:null,used];
+        const sample=[0,timestamp,received,x,y,z,interval,used];
         s.sensor=true;s.lastSample=received;s.rateTimes.push(received);if(s.rateTimes.length>120)s.rateTimes.shift();
         s.recent.push(sample);while(s.recent.length&&s.recent[0][2]<received-2000)s.recent.shift();
         s.preview.push(sample);if(s.preview.length>600)s.preview.shift();
@@ -6224,6 +6257,11 @@ function formatTime(
             const t=toMaster(used,run.initialClock);
             if(t>=run.start-1000&&t<=run.end+1000)appendSample(run,sample);
         }
+    }
+    function stopJointSensor() {
+        window.removeEventListener('devicemotion',motion);
+        if(s.genericSensor){try{s.genericSensor.stop();}catch(e){}s.genericSensor=null;}
+        s.sensor=false;s.sensorEnabled=false;s.sensorSource='';
     }
     function appendSample(run,sample) {
         if(run.samples.length>=MAX_SAMPLES){if(!run.sampleLimit){run.sampleLimit=true;incident('limit','Se ha alcanzado el límite de muestras.');}run.end=Math.min(run.end,toMaster(now(),run.initialClock));return;}
@@ -6471,7 +6509,7 @@ function formatTime(
         if(s.run){if(running())s.run.state='cancelled';persist();}
         stopScan();if($('jointPairDialog').open)$('jointPairDialog').close();
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
-        window.removeEventListener('devicemotion',motion);s.sensor=false;s.sensorEnabled=false;releaseWake();
+        stopJointSensor();releaseWake();
         if(s.compareChart){s.compareChart.destroy();s.compareChart=null;}
         s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
