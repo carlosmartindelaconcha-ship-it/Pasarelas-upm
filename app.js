@@ -5434,7 +5434,7 @@ function formatTime(
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
         storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null,
-        compareExport:null, compareCharts:[]
+        compareExport:null, compareCharts:[], jointCharts:{time:null,spectrum:null}
     };
     const running = () => s.run && activeStates.has(s.run.state);
     function tell(message, error=false) { $('jointNotice').textContent=message; $('jointNotice').dataset.error=String(error); }
@@ -6396,9 +6396,11 @@ function formatTime(
     function beginRun(id,start,end,duration) {
         s.results.clear();s.compareExport=null;s.storageFailed=false;
         const model=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
-        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,samples:[],incidents:[],persisted:0,chunkIndex:0,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
+        const quiet=s.recent.filter(sample=>sample[2]>=now()-1000).map(sample=>correctedVector(sample.slice(3,6)));
+        const previewBaseline=['x','y','z'].map((_,index)=>quiet.length?quiet.reduce((sum,row)=>sum+row[index],0)/quiet.length:0);
+        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,samples:[],incidents:[],persisted:0,chunkIndex:0,previewBaseline,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
         for(const sample of s.recent){const t=finite(sample[8])?sample[8]:toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
-        document.body.classList.add('recording-lock');tab('Measure');requestWake();persist();renderPlan();renderDevices();tell('Inicio programado. Mantén la página visible y el teléfono inmóvil.');
+        document.body.classList.add('recording-lock');tab('Measure');ensureJointCharts();setTimeout(()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},50);requestWake();persist();renderPlan();renderDevices();tell('Inicio programado. Pantalla y gestos bloqueados durante la medida.');
     }
     async function startRun() {
         requireHostEdit();
@@ -6659,6 +6661,7 @@ function formatTime(
     function renderComparison() {
         const status=$('jointCompareStatus'),data=comparisonExport();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
+        for(const chart of Object.values(s.jointCharts||{}))chart?.destroy();s.jointCharts={time:null,spectrum:null};
         if(!data) {status.textContent='Termina un ensayo y recibe los registros de los participantes para compararlos aquí.';return;}
         const records=data.records.filter(r=>r.samples?.length).sort((a,b)=>{
             const ap=data.plan.points?.find(p=>p.device===a.device.id),bp=data.plan.points?.find(p=>p.device===b.device.id);
@@ -6686,22 +6689,27 @@ function formatTime(
             s.compareCharts.push(chart);enableLegendToggling(chart);
         }
     }
+    function ensureJointCharts() {
+        if(typeof Chart==='undefined')return false;
+        const common={responsive:true,maintainAspectRatio:false,animation:false,events:[],parsing:false,plugins:{legend:{position:'top',labels:{boxWidth:28,font:{size:12}}}},scales:{x:{type:'linear',grid:{color:'rgba(0,0,0,.08)'}},y:{grid:{color:'rgba(0,0,0,.08)'}}}};
+        if(!s.jointCharts.time)s.jointCharts.time=new Chart($('jointLive').getContext('2d'),{type:'line',data:{datasets:[{label:'X',data:[],borderColor:'#1565c0',borderWidth:2,pointRadius:0},{label:'Y',data:[],borderColor:'#c62828',borderWidth:2,pointRadius:0},{label:'Z',data:[],borderColor:'#2e7d32',borderWidth:2,pointRadius:0}]},options:{...common,scales:{x:{...common.scales.x,min:0,max:5,title:{display:true,text:'Tiempo (s)'}},y:{...common.scales.y,title:{display:true,text:'Aceleración (m/s²)'}}}}});
+        if(!s.jointCharts.spectrum)s.jointCharts.spectrum=new Chart($('jointLiveSpectrum').getContext('2d'),{type:'line',data:{datasets:[{label:'X',data:[],borderColor:'#1565c0',borderWidth:2,pointRadius:0},{label:'Y',data:[],borderColor:'#c62828',borderWidth:2,pointRadius:0},{label:'Z',data:[],borderColor:'#2e7d32',borderWidth:2,pointRadius:0}]},options:{...common,scales:{x:{...common.scales.x,min:0,max:30,title:{display:true,text:'Frecuencia (Hz)'}},y:{...common.scales.y,min:0,title:{display:true,text:'Amplitud'}}}}});
+        return true;
+    }
     function drawPreview() {
-        const canvas=$('jointLive'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
-        ctx.clearRect(0,0,w,h);ctx.strokeStyle='#dce6ee';ctx.beginPath();for(let i=1;i<4;i++){ctx.moveTo(0,h*i/4);ctx.lineTo(w,h*i/4);}ctx.stroke();
-        const a=s.preview.filter(v=>v[2]>now()-5000);if(a.length<2)return;
-        const values=a.map(v=>correctedVector(v.slice(3,6))),span=Math.max(1000,a[a.length-1][2]-a[0][2]),max=Math.max(1,...values.flatMap(v=>v.map(Math.abs)));
-        for(let axis=0;axis<3;axis++){ctx.strokeStyle=['#4285f4','#db4437','#0f9d58'][axis];ctx.lineWidth=1.6;ctx.beginPath();a.forEach((v,i)=>{const x=35+(v[2]-a[0][2])/span*(w-45),y=h/2-values[i][axis]/max*(h/2-25);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);});ctx.stroke();}
-        ctx.fillStyle='#516b80';ctx.font='13px Arial';ctx.fillText(max.toFixed(1)+' m/s²',8,17);ctx.fillText('0',8,h/2);ctx.fillText('-'+max.toFixed(1),8,h-8);
+        if(!ensureJointCharts())return;
+        const rows=s.preview.filter(v=>v[2]>now()-5000);if(rows.length<2)return;
+        const baseline=s.run?.previewBaseline||[0,0,0],start=rows[0][2],values=rows.map(v=>correctedVector(v.slice(3,6)).map((value,index)=>value-baseline[index]));
+        const chart=s.jointCharts.time,max=Math.max(.2,...values.flatMap(v=>v.map(Math.abs))),limit=Math.ceil(max*2)/2;
+        chart.data.datasets.forEach((dataset,axis)=>dataset.data=rows.map((row,index)=>({x:(row[2]-start)/1000,y:values[index][axis]})));
+        chart.options.scales.x.min=0;chart.options.scales.x.max=5;chart.options.scales.y.min=-limit;chart.options.scales.y.max=limit;chart.update('none');
     }
     function drawLiveSpectrum() {
-        const canvas=$('jointLiveSpectrum'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
-        ctx.clearRect(0,0,w,h);ctx.strokeStyle='#dce6ee';ctx.beginPath();for(let i=1;i<4;i++){ctx.moveTo(38,h*i/4);ctx.lineTo(w-8,h*i/4);}ctx.stroke();
+        if(!ensureJointCharts())return;
         const rows=s.preview.filter(v=>v[2]>now()-5000);if(rows.length<16)return;
-        const source=rows.map(v=>{const q=correctedVector(v.slice(3,6));return {ax:q[0],ay:q[1],az:q[2]};}),rate=sampleRate();if(!finite(rate)||rate<2)return;
-        const spectra=[calculateSpectrum(source,'ax',rate),calculateSpectrum(source,'ay',rate),calculateSpectrum(source,'az',rate)],max=Math.max(.001,...spectra.flatMap(series=>series.map(p=>p.y)));
-        spectra.forEach((series,axis)=>{ctx.strokeStyle=['#4285f4','#db4437','#0f9d58'][axis];ctx.lineWidth=1.5;ctx.beginPath();series.forEach((p,i)=>{const x=38+p.x/30*(w-46),y=h-24-p.y/max*(h-38);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);});ctx.stroke();});
-        ctx.fillStyle='#516b80';ctx.font='12px Arial';ctx.fillText('0 Hz',38,h-7);ctx.fillText('30 Hz',w-46,h-7);ctx.fillText('Amplitud',4,14);
+        const baseline=s.run?.previewBaseline||[0,0,0],source=rows.map(v=>{const q=correctedVector(v.slice(3,6));return {ax:q[0]-baseline[0],ay:q[1]-baseline[1],az:q[2]-baseline[2]};}),rate=sampleRate();if(!finite(rate)||rate<2)return;
+        const chart=s.jointCharts.spectrum,spectra=[calculateSpectrum(source,'ax',rate),calculateSpectrum(source,'ay',rate),calculateSpectrum(source,'az',rate)],max=Math.max(.001,...spectra.flatMap(series=>series.map(p=>p.y))),limit=Math.ceil(max*100)/100;
+        chart.data.datasets.forEach((dataset,axis)=>dataset.data=spectra[axis]);chart.options.scales.x.min=0;chart.options.scales.x.max=30;chart.options.scales.y.min=0;chart.options.scales.y.max=limit;chart.update('none');
     }
     function tick() {
         if(root.hidden)return;
@@ -6726,6 +6734,7 @@ function formatTime(
             else {
                 r.state='recording';const elapsed=Math.max(0,Math.min(t,r.end)-r.start);
                 $('jointMeasureState').textContent=t>r.end?'Guardando margen final…':Math.floor(elapsed/60000).toString().padStart(2,'0')+':'+Math.floor(elapsed/1000%60).toString().padStart(2,'0');
+                $('jointRunTime').textContent=Math.floor(elapsed/60000).toString().padStart(2,'0')+':'+(elapsed/1000%60).toFixed(1).padStart(4,'0');
                 $('jointProgress').value=Math.min(1,elapsed/Math.max(1,r.end-r.start));
             }
             if(t>r.end+1000)finishRun().catch(e=>tell(e.message,true));
@@ -6836,8 +6845,14 @@ function formatTime(
     $('jointNewRun').onclick=guard(()=>{
         if(running()||s.transfer)throw Error('Espera a que termine la medida y la transferencia.');
         if(s.run&&!confirm('Descarga antes los resultados. ¿Preparar un nuevo ensayo? El registro local seguirá guardado en este navegador.'))return;
-        s.run=null;s.results.clear();$('jointProgress').value=0;$('jointMeasureState').textContent='Preparando dispositivos';renderPlan();renderDevices();tab('Devices');
+        s.run=null;s.results.clear();$('jointProgress').value=0;$('jointMeasureState').textContent='Preparando dispositivos';$('jointRunTime').textContent='00:00.0';renderPlan();renderDevices();tab('Devices');
     });
+    const blockMeasurementTouch=event=>{
+        if(running()&&!event.target.closest('#jointStop'))event.preventDefault();
+    };
+    document.addEventListener('touchstart',blockMeasurementTouch,{capture:true,passive:false});
+    document.addEventListener('touchmove',blockMeasurementTouch,{capture:true,passive:false});
+    document.addEventListener('pointerdown',blockMeasurementTouch,{capture:true,passive:false});
     document.addEventListener('visibilitychange',()=>{if(running()){incident('visibility',document.hidden?'Página oculta: puede haber huecos de adquisición.':'Página visible de nuevo.');if(!document.hidden)requestWake();}});
     window.addEventListener('beforeunload',e=>{if(running()||s.transfer){e.preventDefault();e.returnValue='';}});
     setInterval(tick,250);
