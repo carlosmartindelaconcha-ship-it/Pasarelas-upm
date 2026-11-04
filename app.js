@@ -6225,7 +6225,7 @@ function formatTime(
         setTimeout(()=>{if(s.sensorEnabled&&!s.sensor)tell('No llegan datos mediante '+s.sensorSource+'. Revisa permiso de movimiento/sensores, que la página esté visible y que no esté activada la privacidad de sensores del teléfono.',true);},4000);
     }
     function showCalibration() {
-        $('jointCalibration').hidden=false;renderCalibration();
+        $('jointCalibration').hidden=false;$('jointCalibrationOverride').hidden=false;renderCalibration();
     }
     function calibrationAxisName(axis) {return axis==='x'?'X · longitudinal':axis==='y'?'Y · transversal':'Z · vertical';}
     function renderCalibration() {
@@ -6245,6 +6245,10 @@ function formatTime(
             factor.textContent=calibration?'× '+(calibration.sign>0?'+1':'−1'):'Pendiente';
             card.classList.toggle('ready',!!calibration);
         }
+        const override=$('jointCalibrationOverride'),manual=$('jointManualCalibration'),skip=$('jointSkipCalibration');
+        override.hidden=done;
+        manual.hidden=done||!c.manualChoosing;
+        skip.disabled=!!active||!s.sensorEnabled||!!c.manualChoosing;
         $('jointCalibrationHelp').textContent=done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':active?'Prepárate: empieza el gesto cuando termine la cuenta atrás.':'Pulsa cada eje y sigue el gesto indicado. Cada prueba solo corrige el signo de su propio registro; no se intercambian ejes.';
         renderCalibrationCountdown();
     }
@@ -6261,6 +6265,19 @@ function formatTime(
         // Durante la cuenta atrás se mide la componente continua; en Z incluye la gravedad.
         s.calibration.active={axis,start:now()+3000,end:now()+6500,baseline:[],samples:[]};renderCalibration();
         tell('Calibración '+axis.toUpperCase()+': mantén el móvil quieto y empieza al aparecer ¡AHORA!.');
+    }
+    function chooseManualCalibration() {
+        if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
+        if(s.calibration.active||s.calibration.complete)return;
+        s.calibration.manualChoosing=true;renderCalibration();
+        tell('Elige si quieres conservar los tres ejes o invertir los tres ejes.');
+    }
+    function setManualCalibration(sign) {
+        if(sign!==1&&sign!==-1)throw Error('Factor manual no válido.');
+        if(s.calibration.active||!s.calibration.manualChoosing)return;
+        for(const [axis,raw] of Object.entries({x:0,y:1,z:2}))s.calibration.map[axis]={raw,sign,manual:true,method:'manual'};
+        s.calibration.manualChoosing=false;s.calibration.complete=true;
+        tell('Calibración omitida: se aplica × '+(sign>0?'+1':'−1')+' a X, Y y Z.');renderCalibration();renderDevices();
     }
     function linearDetrend(values) {
         const n=values.length;if(n<3)return values.slice();
@@ -6729,7 +6746,7 @@ function formatTime(
         stopJointSensor();document.body.classList.remove('recording-lock');releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
         s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
-        s.calibration={map:{},active:null,complete:false};$('jointCalibration').hidden=true;
+        s.calibration={map:{},active:null,complete:false};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
         if(s.returnTo)s.returnTo.style.display='block';else $('mainMenu').style.display='block';
@@ -6803,6 +6820,9 @@ function formatTime(
     $('jointCalibrateX').onclick=guard(()=>startCalibration('x'));
     $('jointCalibrateY').onclick=guard(()=>startCalibration('y'));
     $('jointCalibrateZ').onclick=guard(()=>startCalibration('z'));
+    $('jointSkipCalibration').onclick=guard(chooseManualCalibration);
+    $('jointManualPlus').onclick=guard(()=>setManualCalibration(1));
+    $('jointManualMinus').onclick=guard(()=>setManualCalibration(-1));
     $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Estimando desfases mediante nuevos intercambios de mensajes…');});
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointDownloadProcessed').onclick=guard(exportProcessedJson);$('jointCsvProcessed').onclick=guard(exportProcessedCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
