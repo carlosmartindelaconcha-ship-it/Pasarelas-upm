@@ -6297,18 +6297,21 @@ function formatTime(
             if(!p.status?.sensor||!p.status.visible||now()-p.lastSeen>6000)throw Error(p.name+' no tiene el sensor preparado o la página visible.');
         }
         const duration=Number($('jointDuration').value);if(!finite(duration)||duration<5||duration>1800||!Number.isInteger(duration))throw Error('Introduce una duración entera entre 5 y 1800 segundos.');
-        const id=uid();
-        tell('Midiendo 100 intercambios de reloj por participante (unos 10 s)…');
-        await Promise.all(peers.map(p=>startSync(p,100,100,'pretest',id)));
-        await pause(300);
-        for(const p of peers) {
-            const count=p.samples.filter(row=>row.runId===id&&row.phase==='pretest').length;
-            if(count<95)throw Error('Solo se completaron '+count+' de 100 intercambios con '+p.name+'. Comprueba la conexión y repite.');
-            if(!p.model||now()-p.model.updated>3000)throw Error('No se pudo ajustar el reloj de '+p.name+'.');
-        }
-        const tx={id,ready:new Map(),acks:new Set(),error:null};s.transaction=tx;renderPlan();renderDevices();
-        broadcast({type:'PREPARE',runId:id,duration});tell('Solicitando confirmación a los participantes…');
+        const id=uid(),tx={id,ready:new Map(),acks:new Set(),error:null,phase:'clock',peers};
+        // Bloqueamos el inicio desde el primer intercambio: la preparación es parte del ensayo.
+        s.transaction=tx;tab('Measure');$('jointMeasureState').textContent='Sincronizando relojes… 0 / 100';renderPlan();renderDevices();
         try {
+            tell('Midiendo 100 intercambios de reloj por participante (unos 10 s)…');
+            await Promise.all(peers.map(p=>startSync(p,100,100,'pretest',id)));
+            await pause(300);
+            if(s.transaction!==tx)throw Error('Inicio cancelado.');
+            for(const p of peers) {
+                const count=p.samples.filter(row=>row.runId===id&&row.phase==='pretest').length;
+                if(count<95)throw Error('Solo se completaron '+count+' de 100 intercambios con '+p.name+'. Comprueba la conexión y repite.');
+                if(!p.model||now()-p.model.updated>3000)throw Error('No se pudo ajustar el reloj de '+p.name+'.');
+            }
+            tx.phase='ready';
+            broadcast({type:'PREPARE',runId:id,duration});tell('Solicitando confirmación a los participantes…');
             const limit=now()+5000;
             while(tx.ready.size<peers.length&&now()<limit&&s.transaction===tx)await pause(50);
             if(s.transaction!==tx)throw Error('Inicio cancelado.');
@@ -6323,6 +6326,7 @@ function formatTime(
         } catch(e) {
             broadcast({type:'ABORT',runId:id,reason:e.message});
             if(s.run?.id===id&&running()) {s.run.state='cancelled';incident('cancel',e.message);await finishRun(true);}
+            if(!s.run)$('jointMeasureState').textContent='Preparación interrumpida';
             throw e;
         } finally {if(s.transaction===tx)s.transaction=null;renderDevices();renderPlan();}
     }
@@ -6530,6 +6534,13 @@ function formatTime(
     function tick() {
         if(root.hidden)return;
         const r=s.run;
+        if(s.transaction?.phase==='clock') {
+            const counts=s.transaction.peers.map(p=>p.samples.filter(row=>row.runId===s.transaction.id&&row.phase==='pretest').length);
+            const count=counts.length?Math.min(...counts):0;
+            $('jointMeasureState').textContent='Sincronizando relojes… '+Math.min(100,count)+' / 100';
+        } else if(s.transaction?.phase==='ready') {
+            $('jointMeasureState').textContent='Confirmando dispositivos…';
+        }
         if(r&&activeStates.has(r.state)) {
             const t=toMaster(now(),r.initialClock);
             if(t<r.start)$('jointMeasureState').textContent='Inicio en '+Math.max(0,Math.ceil((r.start-t)/1000))+' s';
