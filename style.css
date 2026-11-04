@@ -1464,8 +1464,8 @@ body.recording-lock main {
 #jointProgress { width: 100%; height: 14px; accent-color: #0879c3; }
 .joint-live-values { display: flex; flex-wrap: wrap; gap: 18px; padding: 16px 0; font-size: .83rem; }
 .joint-live-values strong { display: block; padding-top: 5px; font-size: 1.05rem; }
-#jointLive { width: 100%; height: 200px; background: #f8fbfd; border: 1px solid #dbe6ee; border-radius: 8px; }
-#jointLiveSpectrum { width: 100%; height: 190px; background: #f8fbfd; border: 1px solid #dbe6ee; border-radius: 8px; }
+.joint-measurement-chart { height: 270px; padding: 5px; box-sizing: border-box; background: #fff; border: 1px solid #dbe6ee; border-radius: 8px; }
+#jointLive, #jointLiveSpectrum { display:block; width:100%; height:100%; }
 .joint-calibration { margin: 18px 0; padding: 16px; border: 1px solid #cfe0ec; border-radius: 10px; background: #fbfdff; }
 .joint-calibration h4, .joint-axis-compare h4 { margin: 0 0 4px; color: #244c70; }
 .joint-calibration-state { padding: 6px 10px; border-radius: 999px; background: #eaf2f8; color: #526d80; font-size: .8rem; font-weight: 600; white-space: nowrap; }
@@ -1495,6 +1495,21 @@ body.recording-lock main {
 .joint-calibration-actions button.done::after { content:' ✓'; }.joint-calibration-actions button:disabled { opacity:.55; }
 .joint-axis-compare { margin:18px 0; }
 body.recording-lock #jointWorkspace { min-height: calc(100dvh - 60px); }
+body.recording-lock #jointPanelMeasure { height:calc(100dvh - 54px); box-sizing:border-box; display:flex !important; flex-direction:column; padding:8px; overflow:hidden; touch-action:none; user-select:none; }
+body.recording-lock #jointPanelMeasure > h3,
+body.recording-lock #jointPanelMeasure > .joint-fields,
+body.recording-lock #jointMeasureState,
+body.recording-lock #jointProgress,
+body.recording-lock #jointPanelMeasure > .joint-help { display:none; }
+body.recording-lock #jointPanelMeasure .joint-measurement-chart { flex:1 1 0; min-height:0; height:auto; margin:0; padding:5px; border-radius:6px; }
+body.recording-lock #jointPanelMeasure .joint-live-values { flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:6px 0; margin-top:4px; order:3; }
+body.recording-lock #jointPanelMeasure .joint-live-values span { padding:6px; border-radius:8px; background:#f3f3f3; text-align:center; }
+body.recording-lock #jointPanelMeasure .joint-live-values .joint-extra-info { display:none; }
+body.recording-lock #jointPanelMeasure .joint-live-values span { font-size:11px; }
+body.recording-lock #jointPanelMeasure .joint-live-values strong { font-size:19px; margin-top:2px; }
+body.recording-lock #jointPanelMeasure > .joint-actions { flex:0 0 auto; order:4; margin:7px 0 0; }
+body.recording-lock #jointPanelMeasure #jointStart { display:none; }
+body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; min-height:58px; padding:11px; font-size:18px; border-radius:7px; touch-action:manipulation; }
 .joint-app dialog { width: min(560px, calc(100vw - 42px)); max-height: 85vh; box-sizing: border-box; border: 1px solid #b9cddb; border-radius: 12px; padding: 22px; color: #19334d; overflow-y: auto; }
 .joint-app dialog::backdrop { background: #142d46a6; }
 #jointQr { text-align: center; margin: 16px auto; max-width: 300px; }
