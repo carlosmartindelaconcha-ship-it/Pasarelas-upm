@@ -6246,12 +6246,49 @@ function formatTime(
             card.classList.toggle('ready',!!calibration);
         }
         $('jointCalibrationHelp').textContent=done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':active?'Prepárate: empieza el gesto cuando termine la cuenta atrás.':'Pulsa cada eje y sigue el gesto indicado. Cada prueba solo corrige el signo de su propio registro; no se intercambian ejes.';
+        renderCalibrationCountdown();
+    }
+    function renderCalibrationCountdown() {
+        const box=$('jointCalibrationCountdown'),active=s.calibration.active;
+        if(!active){box.hidden=true;box.classList.remove('go');return;}
+        const t=now();box.hidden=false;
+        if(t<active.start){box.classList.remove('go');box.textContent='Quieto · '+Math.max(1,Math.ceil((active.start-t)/1000));}
+        else {box.classList.add('go');box.textContent='¡AHORA! Haz el movimiento de ida y vuelta';}
     }
     function startCalibration(axis) {
         if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
         if(s.calibration.active||s.calibration.map[axis])return;
-        s.calibration.active={axis,start:now()+2000,end:now()+4000,samples:[]};renderCalibration();
-        tell('Calibración '+axis.toUpperCase()+': empieza el gesto en 2 s.');
+        // Durante la cuenta atrás se mide la componente continua; en Z incluye la gravedad.
+        s.calibration.active={axis,start:now()+3000,end:now()+6500,baseline:[],samples:[]};renderCalibration();
+        tell('Calibración '+axis.toUpperCase()+': mantén el móvil quieto y empieza al aparecer ¡AHORA!.');
+    }
+    function linearDetrend(values) {
+        const n=values.length;if(n<3)return values.slice();
+        let sx=0,sy=0,sxx=0,sxy=0;
+        for(let i=0;i<n;i++){sx+=i;sy+=values[i];sxx+=i*i;sxy+=i*values[i];}
+        const d=n*sxx-sx*sx,slope=Math.abs(d)>1e-12?(n*sxy-sx*sy)/d:0,intercept=(sy-slope*sx)/n;
+        return values.map((value,i)=>value-(intercept+slope*i));
+    }
+    function lowPassCalibration(values,cutoffHz=10) {
+        // Dos pares RC en ambos sentidos: paso bajo de 4.º orden, fc = 10 Hz y sin desfase temporal.
+        if(values.length<4)return values.slice();
+        const dt=1/Math.max(20,sampleRate()||60),rc=1/(2*Math.PI*cutoffHz),alpha=dt/(rc+dt);
+        const pass=input=>{const output=[input[0]];for(let i=1;i<input.length;i++)output.push(output[i-1]+alpha*(input[i]-output[i-1]));return output;};
+        let output=values.slice();
+        for(let order=0;order<2;order++)output=pass(pass(output).reverse()).reverse();
+        return output;
+    }
+    function calibrationLobes(values) {
+        const peak=Math.max(...values.map(value=>Math.abs(value))),threshold=Math.max(.35,peak*.22),lobes=[];
+        let current=null;
+        values.forEach((value,index)=>{
+            const sign=Math.abs(value)>=threshold?Math.sign(value):0;
+            if(!sign){if(current){lobes.push(current);current=null;}return;}
+            if(!current||current.sign!==sign){if(current)lobes.push(current);current={sign,start:index,end:index,peak:Math.abs(value)};}
+            else {current.end=index;current.peak=Math.max(current.peak,Math.abs(value));}
+        });
+        if(current)lobes.push(current);
+        return {peak,lobes};
     }
     function finishCalibration() {
         const active=s.calibration.active;if(!active)return;
@@ -6260,16 +6297,15 @@ function formatTime(
         // Cada botón se aplica exclusivamente a su canal X/Y/Z. El gesto no intenta
         // identificar ni reordenar ejes: solo decide si ese canal debe invertirse.
         const raw={x:0,y:1,z:2}[active.axis];
-        const baseCount=Math.min(5,Math.max(3,Math.floor(rows.length*.08)));
-        const base=rows.slice(0,baseCount).reduce((sum,row)=>sum+row[raw],0)/baseCount;
-        const deltas=rows.map(row=>row[raw]-base);
-        const peak=Math.max(...deltas.map(value=>Math.abs(value)));
-        if(peak<0.7){tell('El gesto fue demasiado débil. Repite con un movimiento más claro.',true);renderCalibration();return;}
-        // El primer impulso significativo de la ida fija el sentido; la vuelta no lo cambia.
-        const threshold=Math.max(.25,peak*.35);
-        const firstPulse=deltas.find(value=>Math.abs(value)>=threshold);
-        const sign=Math.sign(firstPulse)||1;
-        s.calibration.map[active.axis]={raw,sign,peak};
+        const quiet=active.baseline.map(row=>row[raw]).filter(finite);
+        if(quiet.length<12){tell('No se pudo estimar la continua. Repite sin mover el móvil durante la cuenta atrás.',true);renderCalibration();return;}
+        // Primero eliminamos la continua (incluida g en Z), hacemos detrend y filtramos a 10 Hz.
+        const base=median(quiet),filtered=lowPassCalibration(linearDetrend(rows.map(row=>row[raw]-base)),10),pattern=calibrationLobes(filtered),{peak,lobes}=pattern;
+        const best=lobes.length>=3?lobes.slice().sort((a,b)=>b.peak-a.peak).slice(0,3).sort((a,b)=>a.start-b.start):[];
+        // La señal esperada es +, -, +. Si es -, +, -, el registro debe multiplicarse por -1.
+        if(peak<.7||best.length<3||best[0].sign!==best[2].sign||best[1].sign===best[0].sign){tell('No se reconoció + − + ni − + −. Repite el gesto completo de ida y vuelta.',true);renderCalibration();return;}
+        const sign=best[0].sign;
+        s.calibration.map[active.axis]={raw,sign,peak,baseline:base,cutoffHz:10,pattern:'ida-vuelta'};
         s.calibration.complete=['x','y','z'].every(axis=>s.calibration.map[axis]);
         const factor='× '+(sign>0?'+1':'−1');
         tell(s.calibration.complete?'Calibración completa: se han guardado los tres factores de signo.':'Eje '+active.axis.toUpperCase()+': aplicar '+factor+'. Continúa con el siguiente.');renderCalibration();renderDevices();
@@ -6316,7 +6352,8 @@ function formatTime(
         const masterAtCapture=s.role==='host'?used:toMaster(used,s.syncModel);
         const sample=[0,timestamp,received,x,y,z,interval,used,masterAtCapture];
         const calibration=s.calibration.active;
-        if(calibration&&received>=calibration.start&&received<=calibration.end)calibration.samples.push([x,y,z]);
+        if(calibration&&received<calibration.start)calibration.baseline.push([x,y,z]);
+        else if(calibration&&received<=calibration.end)calibration.samples.push([x,y,z]);
         s.sensor=true;s.lastSample=received;s.rateTimes.push(received);if(s.rateTimes.length>120)s.rateTimes.shift();
         s.recent.push(sample);while(s.recent.length&&s.recent[0][2]<received-2000)s.recent.shift();
         s.preview.push(sample);if(s.preview.length>600)s.preview.shift();
@@ -6638,8 +6675,9 @@ function formatTime(
         if(s.calibration.active) {
             const a=s.calibration.active,t=now();
             if(t>=a.end)finishCalibration();
-            else if(t<a.start)$('jointCalibrationHelp').textContent='Empieza el gesto en '+Math.max(1,Math.ceil((a.start-t)/1000))+' s.';
-            else $('jointCalibrationHelp').textContent='Registrando gesto de calibración…';
+            else if(t<a.start)$('jointCalibrationHelp').textContent='Mantén el móvil quieto: calculando la continua de referencia.';
+            else $('jointCalibrationHelp').textContent='Registrando gesto: detrend y filtro paso bajo de 10 Hz…';
+            renderCalibrationCountdown();
         }
         if(s.transaction?.phase==='clock') {
             const counts=s.transaction.peers.map(p=>p.samples.filter(row=>row.runId===s.transaction.id&&row.phase==='pretest').length);
