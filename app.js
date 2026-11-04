@@ -6231,12 +6231,14 @@ function formatTime(
     function renderCalibration() {
         const c=s.calibration,active=c.active,done=c.complete;
         const state=$('jointCalibrationState');state.textContent=done?'Calibración completa':active?'En curso':'Pendiente';state.classList.toggle('done',done);
+        $('jointCalibration').classList.toggle('complete',done);
         const axis=active?.axis||['x','y','z'].find(key=>!c.map[key])||'x';
         const words={x:'mueve el móvil sobre el eje X y vuelve al origen.',y:'mueve el móvil sobre el eje Y y vuelve al origen.',z:'mueve el móvil sobre el eje Z y vuelve al origen.'};
         const image=$('jointCalibrationImage');
-        image.src='assets/calibration/telefono-eje-'+axis+'.svg';
-        image.alt='Móvil moviéndose sobre el eje '+axis.toUpperCase();
-        $('jointCalibrationInstruction').textContent='Calibrar '+calibrationAxisName(axis)+' · '+words[axis];
+        image.src=done?'assets/calibration/telefono-ejes-reposo.svg':'assets/calibration/telefono-eje-'+axis+'.svg';
+        image.alt=done?'Móvil centrado en el origen tras calibrar los ejes':'Móvil moviéndose sobre el eje '+axis.toUpperCase();
+        $('jointCalibrationAnimation').classList.toggle('complete',done);
+        $('jointCalibrationInstruction').textContent=done?'Móvil centrado en el origen.':'Calibrar '+calibrationAxisName(axis)+' · '+words[axis];
         for(const key of ['x','y','z']) {const button=$('jointCalibrate'+key.toUpperCase());button.disabled=!!active||(!s.sensorEnabled)||!!c.map[key];button.classList.toggle('done',!!c.map[key]);}
         $('jointCalibrationHelp').textContent=done?'✓ Ejes normalizados para este móvil. Puedes preparar la medida.':active?'Prepárate: empieza el gesto cuando termine la cuenta atrás.':'Pulsa cada eje y sigue el gesto indicado. La calibración normaliza signos e intercambios de ejes entre móviles.';
     }
