@@ -6443,7 +6443,7 @@ function formatTime(
         if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,now()));incident('stop',reason);broadcast({type:'STOP_AT',runId:s.run.id,end:s.run.end});}
     }
     function runMeta(run) {
-        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,finalClock:run.finalClock,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs uses the current clock model for each sample; model is refreshed twice per second during the acquisition.',userAgent:navigator.userAgent};
+        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,finalClock:run.finalClock,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj fijado al inicio del ensayo; los intercambios posteriores se guardan solo como diagnóstico.',userAgent:navigator.userAgent};
     }
     function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
     async function finishRun(cancelled=false) {
@@ -6522,20 +6522,35 @@ function formatTime(
         const bars=counts.map((count,i)=>{const h=count/top*64,x=42+i*bar;return `<rect x="${x.toFixed(1)}" y="${(base-h).toFixed(1)}" width="${Math.max(2,bar-3).toFixed(1)}" height="${h.toFixed(1)}" rx="1"/>`;}).join('');
         return `<figure class="joint-rtt-figure"><figcaption>${escape(title)} · ${data.length} RTT · mín. ${low.toFixed(2)} ms · mediana ${median(data).toFixed(2)} ms</figcaption><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Histograma de RTT: desde ${low.toFixed(2)} hasta ${high.toFixed(2)} milisegundos"><line x1="42" y1="${base}" x2="342" y2="${base}"/><g class="joint-rtt-bars">${bars}</g><text x="42" y="106">${low.toFixed(1)} ms</text><text x="342" y="106" text-anchor="end">${high.toFixed(1)} ms</text></svg></figure>`;
     }
+    function rttTimeline(rows,run,title) {
+        const duration=Math.max(1,(run.end-run.start)/1000),data=rows.filter(row=>finite(row.rtt)&&finite(row.t1)&&row.t1>=run.start&&row.t1<=run.end).map(row=>({x:(row.t1-run.start)/1000,y:row.rtt})).sort((a,b)=>a.x-b.x);
+        if(!data.length)return `<figure class="joint-rtt-figure joint-rtt-timeline"><figcaption>${escape(title)} · sin intercambios durante el ensayo</figcaption></figure>`;
+        const display=data.length>900?data.filter((_,index)=>index%Math.ceil(data.length/900)===0):data;
+        const min=Math.min(...data.map(point=>point.y)),max=Math.max(...data.map(point=>point.y)),pad=Math.max(.25,(max-min)*.12),low=Math.max(0,min-pad),high=max+pad,range=Math.max(.1,high-low);
+        const width=700,height=190,left=48,right=16,top=16,bottom=34,plotWidth=width-left-right,plotHeight=height-top-bottom;
+        const px=point=>left+point.x/duration*plotWidth,py=point=>top+(high-point.y)/range*plotHeight;
+        const path=display.map((point,index)=>(index?'L':'M')+px(point).toFixed(1)+' '+py(point).toFixed(1)).join(' ');
+        const ticks=[0,.25,.5,.75,1].map(fraction=>{const x=left+fraction*plotWidth,t=(fraction*duration).toFixed(duration<20?1:0);return `<line x1="${x.toFixed(1)}" y1="${top}" x2="${x.toFixed(1)}" y2="${top+plotHeight}"/><text x="${x.toFixed(1)}" y="${height-10}" text-anchor="middle">${t} s</text>`;}).join('');
+        const yTicks=[0,.5,1].map(fraction=>{const y=top+fraction*plotHeight,value=(high-fraction*range).toFixed(1);return `<line x1="${left}" y1="${y.toFixed(1)}" x2="${left+plotWidth}" y2="${y.toFixed(1)}"/><text x="${left-6}" y="${(y+3).toFixed(1)}" text-anchor="end">${value}</text>`;}).join('');
+        const points=display.map(point=>`<circle cx="${px(point).toFixed(1)}" cy="${py(point).toFixed(1)}" r="2.2"/>`).join('');
+        return `<figure class="joint-rtt-figure joint-rtt-timeline"><figcaption>${escape(title)} · ${data.length} intercambios · mín. ${min.toFixed(2)} ms · mediana ${median(data.map(point=>point.y)).toFixed(2)} ms · máx. ${max.toFixed(2)} ms</figcaption><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="RTT durante el ensayo, desde ${min.toFixed(2)} hasta ${max.toFixed(2)} milisegundos"><g class="joint-rtt-grid-lines">${ticks}${yTicks}</g><path class="joint-rtt-line" d="${path}"/><g class="joint-rtt-points">${points}</g><text x="8" y="13">RTT (ms)</text><text x="${width-16}" y="${height-10}" text-anchor="end">tiempo del ensayo</text></svg></figure>`;
+    }
     function renderSyncResults(run) {
         const target=$('jointRttHistograms'),groups=[];
         if(s.role==='host') {
             for(const p of s.peers.values()) {
                 const rows=p.samples.filter(row=>row.runId===run.id);
-                groups.push({name:p.name||'Participante',pre:rows.filter(row=>row.phase==='pretest').map(row=>row.rtt),during:rows.filter(row=>row.phase==='during').map(row=>row.rtt)});
+                const duringRows=rows.filter(row=>row.phase==='during');
+                groups.push({name:p.name||'Participante',pre:rows.filter(row=>row.phase==='pretest').map(row=>row.rtt),during:duringRows.map(row=>row.rtt),duringRows});
             }
         } else {
             const rows=s.syncLog.filter(row=>row.runId===run.id);
-            groups.push({name:'Maestro',pre:rows.filter(row=>row.phase==='pretest').map(row=>row.rtt),during:rows.filter(row=>row.phase==='during').map(row=>row.rtt)});
+            const duringRows=rows.filter(row=>row.phase==='during');
+            groups.push({name:'Maestro',pre:rows.filter(row=>row.phase==='pretest').map(row=>row.rtt),during:duringRows.map(row=>row.rtt),duringRows});
         }
         const useful=groups.some(group=>group.pre.length||group.during.length);
         $('jointSyncResults').hidden=!useful;
-        target.innerHTML=groups.map(group=>`<article class="joint-rtt-group"><h5>${escape(group.name)}</h5><div class="joint-rtt-grid">${rttHistogram(group.pre,'Preparación — 100 intercambios')}${rttHistogram(group.during,'Durante el ensayo — 2/s')}</div></article>`).join('');
+        target.innerHTML=groups.map(group=>`<article class="joint-rtt-group"><h5>${escape(group.name)}</h5><div class="joint-rtt-grid">${rttHistogram(group.pre,'Preparación — 100 intercambios')}${rttHistogram(group.during,'Durante el ensayo — 2/s')}</div>${rttTimeline(group.duringRows,run,'Evolución temporal del RTT durante el ensayo')}</article>`).join('');
     }
     function exportSession() {
         if(!s.run?.finished)throw Error('Termina primero el ensayo.');
