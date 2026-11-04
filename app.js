@@ -6075,14 +6075,19 @@ function formatTime(
     }
     const toMaster=(t,m=s.syncModel)=>t-m.offset-m.drift*(t-m.reference);
     const fromMaster=(t,m)=> (t+m.offset-m.drift*m.reference)/(1-m.drift);
-    function syncOnce(p) {
+    function syncOnce(p,phase='idle',runId=null) {
         if(p.channel?.readyState!=='open')return;
-        const id=uid(),t1=now();p.requests.set(id,t1);send(p,{type:'SYNC_REQUEST',id,t1});
-        for(const [key,time] of p.requests)if(t1-time>10000)p.requests.delete(key);
+        const id=uid(),t1=now();p.requests.set(id,{time:t1,phase,runId});send(p,{type:'SYNC_REQUEST',id,t1});
+        for(const [key,request] of p.requests)if(t1-request.time>10000)p.requests.delete(key);
     }
-    async function startSync(p) {
-        if(p.syncing)return;p.syncing=true;
-        try {for(let i=0;i<24&&p.channel?.readyState==='open';i++){syncOnce(p);await pause(100);}} finally{p.syncing=false;}
+    async function startSync(p,count=24,spacing=100,phase='connection',runId=null) {
+        if(p.syncing&&p.syncPromise)await p.syncPromise;
+        p.syncing=true;
+        p.syncPromise=(async()=>{
+            try {for(let i=0;i<count&&p.channel?.readyState==='open';i++){syncOnce(p,phase,runId);await pause(spacing);}}
+            finally {p.syncing=false;p.syncPromise=null;}
+        })();
+        return p.syncPromise;
     }
 
     async function onMessage(p,m,received) {
@@ -6096,10 +6101,11 @@ function formatTime(
             send(p,{type:'SYNC_REPLY',id:m.id,t1:m.t1,t2:received,t3:now()});return;
         }
         if(m.type==='SYNC_REPLY'&&s.role==='host') {
-            const t1=p.requests.get(m.id);if(t1===undefined)return;p.requests.delete(m.id);
+            const request=p.requests.get(m.id);if(request===undefined)return;p.requests.delete(m.id);
+            const t1=request.time;
             if(!finite(m.t2)||!finite(m.t3)||m.t3<m.t2)return;
             const rtt=(received-t1)-(m.t3-m.t2);if(rtt<0||rtt>2000)return;
-            const row={t1,t2:m.t2,t3:m.t3,t4:received,rtt,offset:((m.t2-t1)+(m.t3-received))/2,local:(m.t2+m.t3)/2};
+            const row={t1,t2:m.t2,t3:m.t3,t4:received,rtt,offset:((m.t2-t1)+(m.t3-received))/2,local:(m.t2+m.t3)/2,phase:request.phase,runId:request.runId};
             p.samples.push(row);if(p.samples.length>1200)p.samples.shift();p.model=clockFit(p.samples);
             if(p.model){send(p,{type:'CLOCK_MODEL',model:p.model,exchange:row});}
             return;
@@ -6248,13 +6254,16 @@ function formatTime(
         // Event creation time, not hardware sampling time. Preserve raw and receipt.
         const used=timestamp!==null&&timestamp<=received+5&&timestamp>=received-1000?timestamp:received;
         if(running()&&s.lastSample&&received-s.lastSample>250)incident('sample-gap','Sin eventos de movimiento durante '+Math.round(received-s.lastSample)+' ms.');
-        const sample=[0,timestamp,received,x,y,z,interval,used];
+        // Guardamos la proyección al reloj maestro con el modelo vigente en ese instante.
+        // Así una corrección posterior del reloj no desplaza de golpe todo el registro.
+        const masterAtCapture=s.role==='host'?used:toMaster(used,s.syncModel);
+        const sample=[0,timestamp,received,x,y,z,interval,used,masterAtCapture];
         s.sensor=true;s.lastSample=received;s.rateTimes.push(received);if(s.rateTimes.length>120)s.rateTimes.shift();
         s.recent.push(sample);while(s.recent.length&&s.recent[0][2]<received-2000)s.recent.shift();
         s.preview.push(sample);if(s.preview.length>600)s.preview.shift();
         const run=s.run;
         if(run&&activeStates.has(run.state)) {
-            const t=toMaster(used,run.initialClock);
+            const t=masterAtCapture;
             if(t>=run.start-1000&&t<=run.end+1000)appendSample(run,sample);
         }
     }
@@ -6273,7 +6282,7 @@ function formatTime(
         s.results.clear();s.compareExport=null;s.storageFailed=false;
         const model=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
         s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,samples:[],incidents:[],persisted:0,chunkIndex:0,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null)},sync:[]};
-        for(const sample of s.recent){const t=toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
+        for(const sample of s.recent){const t=finite(sample[8])?sample[8]:toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
         tab('Measure');requestWake();persist();renderPlan();renderDevices();tell('Inicio programado. Mantén la página visible y el teléfono inmóvil.');
     }
     async function startRun() {
@@ -6286,10 +6295,18 @@ function formatTime(
         for(const p of peers) {
             if(!pointFor(p.id))throw Error('Asigna '+p.name+' a un punto del plano.');
             if(!p.status?.sensor||!p.status.visible||now()-p.lastSeen>6000)throw Error(p.name+' no tiene el sensor preparado o la página visible.');
-            if(!p.model||p.model.count<8||now()-p.model.updated>15000)throw Error('Repite la sincronización de '+p.name+'.');
         }
         const duration=Number($('jointDuration').value);if(!finite(duration)||duration<5||duration>1800||!Number.isInteger(duration))throw Error('Introduce una duración entera entre 5 y 1800 segundos.');
-        const id=uid(),tx={id,ready:new Map(),acks:new Set(),error:null};s.transaction=tx;renderPlan();renderDevices();
+        const id=uid();
+        tell('Midiendo 100 intercambios de reloj por participante (unos 10 s)…');
+        await Promise.all(peers.map(p=>startSync(p,100,100,'pretest',id)));
+        await pause(300);
+        for(const p of peers) {
+            const count=p.samples.filter(row=>row.runId===id&&row.phase==='pretest').length;
+            if(count<95)throw Error('Solo se completaron '+count+' de 100 intercambios con '+p.name+'. Comprueba la conexión y repite.');
+            if(!p.model||now()-p.model.updated>3000)throw Error('No se pudo ajustar el reloj de '+p.name+'.');
+        }
+        const tx={id,ready:new Map(),acks:new Set(),error:null};s.transaction=tx;renderPlan();renderDevices();
         broadcast({type:'PREPARE',runId:id,duration});tell('Solicitando confirmación a los participantes…');
         try {
             const limit=now()+5000;
@@ -6322,7 +6339,7 @@ function formatTime(
         if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,now()));incident('stop',reason);broadcast({type:'STOP_AT',runId:s.run.id,end:s.run.end});}
     }
     function runMeta(run) {
-        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,finalClock:run.finalClock,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',userAgent:navigator.userAgent};
+        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,finalClock:run.finalClock,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs uses the current clock model for each sample; model is refreshed twice per second during the acquisition.',userAgent:navigator.userAgent};
     }
     function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
     async function finishRun(cancelled=false) {
@@ -6341,7 +6358,7 @@ function formatTime(
     function validateRecord(r,id,runId) {
         if(!r||r.schema!=='pasarelas-upm-joint-v1'||r.id!==runId||r.device?.id!==id||!Array.isArray(r.samples)||r.samples.length>MAX_SAMPLES)throw Error('Registro recibido incompatible.');
         if(!Array.isArray(r.incidents)||!r.windowMasterMs||![r.windowMasterMs.start,r.windowMasterMs.end].every(finite))throw Error('Ventana temporal no válida.');
-        for(let i=0;i<r.samples.length;i++){const row=r.samples[i];if(!Array.isArray(row)||row.length!==8||row[0]!==i||![row[2],row[3],row[4],row[5],row[7]].every(finite))throw Error('Muestras recibidas no válidas.');}
+        for(let i=0;i<r.samples.length;i++){const row=r.samples[i];if(!Array.isArray(row)||(row.length!==8&&row.length!==9)||row[0]!==i||![row[2],row[3],row[4],row[5],row[7]].every(finite)||(row.length===9&&!finite(row[8])))throw Error('Muestras recibidas no válidas.');}
     }
     async function acknowledged(p,message,index) {
         for(let attempt=0;attempt<3;attempt++) {
@@ -6379,7 +6396,7 @@ function formatTime(
         $('jointDownload').disabled=!r?.finished;$('jointCsv').disabled=!r?.finished;
         $('jointNewRun').disabled=!!running()||!!s.transfer;
         $('jointSendData').hidden=s.role!=='guest';$('jointSendData').disabled=!r?.finished||!!s.transfer;
-        if(!r){$('jointResultsList').textContent='Todavía no hay un ensayo registrado.';return;}
+        if(!r){$('jointResultsList').textContent='Todavía no hay un ensayo registrado.';$('jointSyncResults').hidden=true;return;}
         let html=`<p><strong>${r.state==='cancelled'?'Ensayo cancelado':r.finished?'Registro terminado':'Ensayo en curso'}</strong> · ${escape(r.plan.name)}</p>`;
         const expected=[r.device,...(s.role==='host'?[...s.peers.values()].filter(p=>r.plan.points.some(q=>q.device===p.id)).map(p=>({id:p.id,name:p.name})):[])];
         for(const d of expected) {
@@ -6390,6 +6407,31 @@ function formatTime(
         if(r.transferred)html+='<p>Registro confirmado por el maestro.</p>';
         if(s.storageFailed)html+='<p class="joint-warning">El guardado persistente ha fallado: descarga los datos antes de cerrar.</p>';
         $('jointResultsList').innerHTML=html;
+        renderSyncResults(r);
+    }
+    function rttHistogram(values,title) {
+        const data=values.filter(finite);if(!data.length)return `<figure class="joint-rtt-figure"><figcaption>${escape(title)} · sin intercambios recibidos</figcaption></figure>`;
+        const low=Math.min(...data),high=Math.max(...data),spread=Math.max(.1,high-low),bins=Math.min(12,Math.max(5,Math.ceil(Math.sqrt(data.length))));
+        const counts=Array(bins).fill(0);
+        for(const value of data)counts[Math.min(bins-1,Math.floor((value-low)/spread*bins))]++;
+        const top=Math.max(...counts,1),width=360,height=112,base=88,usable=300,bar=usable/bins;
+        const bars=counts.map((count,i)=>{const h=count/top*64,x=42+i*bar;return `<rect x="${x.toFixed(1)}" y="${(base-h).toFixed(1)}" width="${Math.max(2,bar-3).toFixed(1)}" height="${h.toFixed(1)}" rx="1"/>`;}).join('');
+        return `<figure class="joint-rtt-figure"><figcaption>${escape(title)} · ${data.length} RTT · mín. ${low.toFixed(2)} ms · mediana ${median(data).toFixed(2)} ms</figcaption><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Histograma de RTT: desde ${low.toFixed(2)} hasta ${high.toFixed(2)} milisegundos"><line x1="42" y1="${base}" x2="342" y2="${base}"/><g class="joint-rtt-bars">${bars}</g><text x="42" y="106">${low.toFixed(1)} ms</text><text x="342" y="106" text-anchor="end">${high.toFixed(1)} ms</text></svg></figure>`;
+    }
+    function renderSyncResults(run) {
+        const target=$('jointRttHistograms'),groups=[];
+        if(s.role==='host') {
+            for(const p of s.peers.values()) {
+                const rows=p.samples.filter(row=>row.runId===run.id);
+                groups.push({name:p.name||'Participante',pre:rows.filter(row=>row.phase==='pretest').map(row=>row.rtt),during:rows.filter(row=>row.phase==='during').map(row=>row.rtt)});
+            }
+        } else {
+            const rows=s.syncLog.filter(row=>row.runId===run.id);
+            groups.push({name:'Maestro',pre:rows.filter(row=>row.phase==='pretest').map(row=>row.rtt),during:rows.filter(row=>row.phase==='during').map(row=>row.rtt)});
+        }
+        const useful=groups.some(group=>group.pre.length||group.during.length);
+        $('jointSyncResults').hidden=!useful;
+        target.innerHTML=groups.map(group=>`<article class="joint-rtt-group"><h5>${escape(group.name)}</h5><div class="joint-rtt-grid">${rttHistogram(group.pre,'Preparación — 100 intercambios')}${rttHistogram(group.during,'Durante el ensayo — 2/s')}</div></article>`).join('');
     }
     function exportSession() {
         if(!s.run?.finished)throw Error('Termina primero el ensayo.');
@@ -6397,7 +6439,7 @@ function formatTime(
             // Keep originals; use one final model per record to avoid time jumps.
             const model=r.device.id===s.id?r.finalClock:(s.peers.get(r.device.id)?.model||r.finalClock);
             const valid=validModel(model)||r.device.role==='host';
-            return {...r,exportClock:valid?model:r.initialClock,samples:r.samples.map(row=>({raw:row,masterTimeMs:toMaster(row[7],valid?model:r.initialClock)}))};
+            return {...r,exportClock:valid?model:r.initialClock,samples:r.samples.map(row=>({raw:row,masterTimeMs:finite(row[8])?row[8]:toMaster(row[7],valid?model:r.initialClock)}))};
         });
         const expected=s.run.plan.points.filter(p=>p.device).map(p=>p.device);
         download('ensayo_conjunto_'+s.run.id+'.json',{schema:'pasarelas-upm-joint-export-v1',session:s.session,plan:s.run.plan,windowMasterMs:{start:s.run.start,end:s.run.end},complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,p.samples])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'});
@@ -6406,8 +6448,8 @@ function formatTime(
         const r=localRecord();if(!r||!s.run.finished)throw Error('No hay un registro terminado.');
         const model=r.finalClock,point=r.device.point;
         const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-        const columns=['device','point','point_x_m','point_y_m','axis','angle_deg','sequence','event_time_ms','receipt_time_ms','ax_m_s2','ay_m_s2','az_m_s2','reported_interval_ms','used_time_ms','master_time_estimated_ms','inside_window'];
-        const lines=r.samples.map(row=>{const t=toMaster(row[7],model);return [r.device.name,point?.name,point?.x,point?.y,point?.axis,point?.angle,...row,t,t>=r.windowMasterMs.start&&t<=r.windowMasterMs.end?1:0].map(cell).join(',');});
+        const columns=['device','point','point_x_m','point_y_m','axis','angle_deg','sequence','event_time_ms','receipt_time_ms','ax_m_s2','ay_m_s2','az_m_s2','reported_interval_ms','used_time_ms','master_time_at_capture_ms','master_time_estimated_ms','inside_window'];
+        const lines=r.samples.map(row=>{const t=finite(row[8])?row[8]:toMaster(row[7],model);return [r.device.name,point?.name,point?.x,point?.y,point?.axis,point?.angle,...row,t,t>=r.windowMasterMs.start&&t<=r.windowMasterMs.end?1:0].map(cell).join(',');});
         download('aceleraciones_'+r.id+'_'+s.id+'.csv','\ufeff'+columns.join(',')+'\n'+lines.join('\n'),'text/csv;charset=utf-8');
     }
     function comparisonExport() {
@@ -6416,7 +6458,7 @@ function formatTime(
         const records=[...s.results.values()].map(r=>{
             const model=r.device.id===s.id?r.finalClock:(s.peers.get(r.device.id)?.model||r.finalClock);
             const use=validModel(model)||r.device.role==='host'?model:r.initialClock;
-            return {...r,samples:r.samples.map(raw=>({raw,masterTimeMs:toMaster(raw[7],use)}))};
+            return {...r,samples:r.samples.map(raw=>({raw,masterTimeMs:finite(raw[8])?raw[8]:toMaster(raw[7],use)}))};
         });
         return {plan:s.run.plan,windowMasterMs:{start:s.run.start,end:s.run.end},records};
     }
@@ -6501,7 +6543,8 @@ function formatTime(
         $('jointSampleCount').textContent=r?.samples.length||0;$('jointRate').textContent=localStatus().sensor?sampleRate().toFixed(1)+' Hz':'—';
         drawPreview();
         if(++s.uiTick%4===0){renderDevices();broadcast({type:'STATUS',status:localStatus()});if(running())persist();}
-        if(s.uiTick%20===0&&s.role==='host')for(const p of s.peers.values())syncOnce(p);
+        // Dos intercambios NTP por segundo durante la ventana coordinada.
+        if(s.uiTick%2===0&&s.role==='host'&&r?.state==='recording')for(const p of s.peers.values())syncOnce(p,'during',r.id);
     }
     function resetSession() {
         if((running()||s.transaction)&&!confirm('¿Cancelar la medida y salir? Los bloques guardados seguirán disponibles en este navegador.'))return;

@@ -771,6 +771,7 @@
                 </div>
                 <div id="jointPanelResults" role="tabpanel" aria-labelledby="jointTabResults" hidden>
                     <h3>Registros y resultados</h3><div id="jointResultsList"></div>
+                    <section id="jointSyncResults" class="joint-sync-results" hidden aria-labelledby="jointSyncResultsTitle"><h4 id="jointSyncResultsTitle">Calidad de sincronización</h4><p class="joint-help">RTT de los mensajes de reloj: la preparación usa 100 intercambios y durante el ensayo se realizan 2 intercambios por segundo. El RTT no mide el desfase físico entre acelerómetros.</p><div id="jointRttHistograms"></div></section>
                     <div class="joint-actions"><button id="jointDownload" type="button">Descargar ensayo JSON</button><button id="jointCsv" type="button" class="joint-secondary">Descargar CSV de este móvil</button><button id="jointSendData" type="button" class="joint-secondary">Reenviar mi registro</button><button id="jointNewRun" type="button" class="joint-secondary">Preparar otro ensayo</button></div>
                     <p class="joint-help">JSON: plano, posiciones, asignaciones, marcas originales, tiempos estimados en el reloj maestro, intercambios de sincronización e incidencias. Los datos no se remuestrean ni se validan automáticamente para OMA.</p>
                     <details><summary>Recuperar registros guardados en este navegador</summary><button id="jointRecover" type="button" class="joint-secondary">Buscar registros locales</button><div id="jointRecoveryList"></div></details>
