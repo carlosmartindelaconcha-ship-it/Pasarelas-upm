@@ -5426,6 +5426,7 @@ function formatTime(
         id: uid(), name: 'Mi móvil', role: null, session: null, peers: new Map(),
         plan: {length:30, width:3, name:'Ensayo multipunto', points:[]}, selected:null,
         sensor:false, sensorEnabled:false, sensorSource:'', genericSensor:null, lastSample:0, recent:[], rateTimes:[],
+        calibration:{map:{},active:null,complete:false},
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
         scan:null, scanFrame:null, currentInvite:null, pairBusy:false, capturePermission:false,
         pendingOffer:null, qrPages:[], qrPageIndex:0, qrPageTimer:null, qrInbound:null,
@@ -5433,7 +5434,7 @@ function formatTime(
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
         storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null,
-        compareExport:null, compareChart:null
+        compareExport:null, compareCharts:[]
     };
     const running = () => s.run && activeStates.has(s.run.state);
     function tell(message, error=false) { $('jointNotice').textContent=message; $('jointNotice').dataset.error=String(error); }
@@ -5538,14 +5539,14 @@ function formatTime(
         const p={id:'P'+n,name:'P'+n,x:Number(x.toFixed(2)),y:Number(y.toFixed(2)),angle:0,axis:'z',device:null};
         s.plan.points.push(p); s.selected=p.id; s.adding=false; savePlan();
     }
-    function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle'};}
+    function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
     function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}
     function renderDevices() {
         const local=localStatus();
-        let html=`<article class="joint-device-card"><strong>${escape(s.name)} · ${s.role==='host'?'Maestro':'Este móvil'}</strong><p>${local.sensor?'Sensor activo':'Sensor sin datos recientes'} · ${local.rate?local.rate.toFixed(1)+' Hz':'— Hz'} · ${escape(pointFor()?.name||'Sin punto asignado')}</p><small>${local.visible?'Página visible':'Página oculta'}</small></article>`;
+        let html=`<article class="joint-device-card"><strong>${escape(s.name)} · ${s.role==='host'?'Maestro':'Este móvil'}</strong><p>${local.sensor?'Sensor activo':'Sensor sin datos recientes'} · ${local.rate?local.rate.toFixed(1)+' Hz':'— Hz'} · ${escape(pointFor()?.name||'Sin punto asignado')}</p><small>${local.calibrated?'Ejes calibrados':'Calibración de ejes pendiente'} · ${local.visible?'Página visible':'Página oculta'}</small></article>`;
         for(const p of s.peers.values()) {
             const st=p.status||{},m=p.model;
-            html+=`<article class="joint-device-card"><strong>${escape(p.name||'Conectando…')}</strong><p>${p.channel?.readyState==='open'?'Conectado':'Desconectado'} · ${st.sensor?'Sensor activo':'Sensor sin confirmar'} · ${finite(st.rate)?st.rate.toFixed(1)+' Hz':'— Hz'}</p><p>${escape(pointFor(p.id)?.name||'Sin punto asignado')} · ${escape(p.route||'Ruta pendiente de comprobar')}</p><small>${m?.count?'RTT mínimo: '+m.rtt.toFixed(2)+' ms · desfase estimado: '+m.offset.toFixed(2)+' ms · '+m.count+' intercambios':'Relojes pendientes de estimación'}</small></article>`;
+            html+=`<article class="joint-device-card"><strong>${escape(p.name||'Conectando…')}</strong><p>${p.channel?.readyState==='open'?'Conectado':'Desconectado'} · ${st.sensor?'Sensor activo':'Sensor sin confirmar'} · ${finite(st.rate)?st.rate.toFixed(1)+' Hz':'— Hz'}</p><p>${escape(pointFor(p.id)?.name||'Sin punto asignado')} · ${escape(p.route||'Ruta pendiente de comprobar')}</p><small>${st.calibrated?'Ejes calibrados':'Calibración pendiente'} · ${m?.count?'RTT mínimo: '+m.rtt.toFixed(2)+' ms · desfase estimado: '+m.offset.toFixed(2)+' ms · '+m.count+' intercambios':'Relojes pendientes de estimación'}</small></article>`;
         }
         if(s.role==='guest'&&s.syncModel.count) html+=`<p class="joint-help">Mi reloj respecto al maestro: ${s.syncModel.offset.toFixed(2)} ms (estimado). RTT mínimo: ${s.syncModel.rtt.toFixed(2)} ms.</p>`;
         $('jointDevices').innerHTML=html;
@@ -6214,14 +6215,53 @@ function formatTime(
         // En Android probamos primero la misma ruta que usa el ensayo individual.
         // Algunos navegadores no emiten DeviceMotionEvent, pero sí Accelerometer.
         if(!isIOSDevice()&&'Accelerometer' in window&&await tryJointGenericAccelerometer()) {
-            tell('Acelerómetro activo mediante Generic Sensor API.');renderDevices();return;
+            tell('Acelerómetro activo mediante Generic Sensor API. Calibra los tres ejes antes de medir.');showCalibration();renderDevices();return;
         }
 
         if(typeof DeviceMotionEvent==='undefined')throw Error('Este navegador no ofrece DeviceMotionEvent ni un acelerómetro compatible.');
         if(typeof DeviceMotionEvent.requestPermission==='function'&&await DeviceMotionEvent.requestPermission()!=='granted')throw Error('Debes permitir el acceso al movimiento.');
         window.addEventListener('devicemotion',motion);s.sensorEnabled=true;s.sensorSource='DeviceMotionEvent';
-        tell('Esperando datos del acelerómetro mediante DeviceMotionEvent…');renderDevices();
+        tell('Esperando datos del acelerómetro mediante DeviceMotionEvent…');showCalibration();renderDevices();
         setTimeout(()=>{if(s.sensorEnabled&&!s.sensor)tell('No llegan datos mediante '+s.sensorSource+'. Revisa permiso de movimiento/sensores, que la página esté visible y que no esté activada la privacidad de sensores del teléfono.',true);},4000);
+    }
+    function showCalibration() {
+        $('jointCalibration').hidden=false;renderCalibration();
+    }
+    function calibrationAxisName(axis) {return axis==='x'?'X · longitudinal':axis==='y'?'Y · transversal':'Z · vertical';}
+    function renderCalibration() {
+        const c=s.calibration,active=c.active,done=c.complete;
+        const state=$('jointCalibrationState');state.textContent=done?'Calibración completa':active?'En curso':'Pendiente';state.classList.toggle('done',done);
+        const axis=active?.axis||['x','y','z'].find(key=>!c.map[key])||'x';
+        const words={x:'mueve el móvil hacia la derecha y vuelve.',y:'mueve el móvil hacia delante y vuelve.',z:'levanta el móvil hacia arriba y vuelve.'};
+        $('jointCalibrationAnimation').dataset.axis=axis;$('jointCalibrationInstruction').textContent='Calibrar '+calibrationAxisName(axis)+': '+words[axis];
+        for(const key of ['x','y','z']) {const button=$('jointCalibrate'+key.toUpperCase());button.disabled=!!active||(!s.sensorEnabled)||!!c.map[key];button.classList.toggle('done',!!c.map[key]);}
+        $('jointCalibrationHelp').textContent=done?'✓ Ejes normalizados para este móvil. Puedes preparar la medida.':active?'Prepárate: empieza el gesto cuando termine la cuenta atrás.':'Pulsa cada eje y sigue el gesto indicado. La calibración normaliza signos e intercambios de ejes entre móviles.';
+    }
+    function startCalibration(axis) {
+        if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
+        if(s.calibration.active||s.calibration.map[axis])return;
+        const used=new Set(Object.values(s.calibration.map).map(v=>v.raw));
+        s.calibration.active={axis,start:now()+2000,end:now()+4000,samples:[],used};renderCalibration();
+        tell('Calibración '+axis.toUpperCase()+': empieza el gesto en 2 s.');
+    }
+    function finishCalibration() {
+        const active=s.calibration.active;if(!active)return;
+        s.calibration.active=null;
+        const rows=active.samples;if(rows.length<12){tell('No hubo suficientes muestras. Repite el gesto.',true);renderCalibration();return;}
+        const baseCount=Math.max(3,Math.floor(rows.length*.15)),base=[0,0,0];
+        for(const row of rows.slice(0,baseCount))for(let i=0;i<3;i++)base[i]+=row[i]/baseCount;
+        const peaks=[0,0,0],signs=[1,1,1],first=[Infinity,Infinity,Infinity];
+        rows.forEach((row,index)=>row.forEach((value,i)=>{const delta=value-base[i],m=Math.abs(delta);if(m>peaks[i]){peaks[i]=m;signs[i]=Math.sign(delta)||1;first[i]=index;}}));
+        const raw=peaks.indexOf(Math.max(...peaks));
+        if(peaks[raw]<0.7||active.used.has(raw)){tell(active.used.has(raw)?'Ese gesto repitió un eje ya identificado. Hazlo con más claridad.':'El gesto fue demasiado débil. Repite con un movimiento más claro.',true);renderCalibration();return;}
+        s.calibration.map[active.axis]={raw,sign:signs[raw],peak:peaks[raw]};
+        s.calibration.complete=['x','y','z'].every(axis=>s.calibration.map[axis]);
+        tell(s.calibration.complete?'Calibración completa: ejes estructurales normalizados.':'Eje '+active.axis.toUpperCase()+' identificado. Continúa con el siguiente.');renderCalibration();renderDevices();
+    }
+    function correctedVector(values,calibration=s.calibration) {
+        const map=calibration?.map||{};
+        if(!['x','y','z'].every(axis=>map[axis]&&Number.isInteger(map[axis].raw)))return values.slice(0,3);
+        return ['x','y','z'].map(axis=>map[axis].sign*values[map[axis].raw]);
     }
     function tryJointGenericAccelerometer() {
         return new Promise(resolve=>{
@@ -6258,6 +6298,8 @@ function formatTime(
         // Así una corrección posterior del reloj no desplaza de golpe todo el registro.
         const masterAtCapture=s.role==='host'?used:toMaster(used,s.syncModel);
         const sample=[0,timestamp,received,x,y,z,interval,used,masterAtCapture];
+        const calibration=s.calibration.active;
+        if(calibration&&received>=calibration.start&&received<=calibration.end)calibration.samples.push([x,y,z]);
         s.sensor=true;s.lastSample=received;s.rateTimes.push(received);if(s.rateTimes.length>120)s.rateTimes.shift();
         s.recent.push(sample);while(s.recent.length&&s.recent[0][2]<received-2000)s.recent.shift();
         s.preview.push(sample);if(s.preview.length>600)s.preview.shift();
@@ -6281,9 +6323,9 @@ function formatTime(
     function beginRun(id,start,end,duration) {
         s.results.clear();s.compareExport=null;s.storageFailed=false;
         const model=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
-        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,samples:[],incidents:[],persisted:0,chunkIndex:0,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null)},sync:[]};
+        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,samples:[],incidents:[],persisted:0,chunkIndex:0,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
         for(const sample of s.recent){const t=finite(sample[8])?sample[8]:toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
-        tab('Measure');requestWake();persist();renderPlan();renderDevices();tell('Inicio programado. Mantén la página visible y el teléfono inmóvil.');
+        document.body.classList.add('recording-lock');tab('Measure');requestWake();persist();renderPlan();renderDevices();tell('Inicio programado. Mantén la página visible y el teléfono inmóvil.');
     }
     async function startRun() {
         requireHostEdit();
@@ -6295,7 +6337,9 @@ function formatTime(
         for(const p of peers) {
             if(!pointFor(p.id))throw Error('Asigna '+p.name+' a un punto del plano.');
             if(!p.status?.sensor||!p.status.visible||now()-p.lastSeen>6000)throw Error(p.name+' no tiene el sensor preparado o la página visible.');
+            if(!p.status?.calibrated)throw Error(p.name+' debe completar la calibración de ejes.');
         }
+        if(!s.calibration.complete)throw Error('Completa la calibración X, Y y Z del maestro antes de medir.');
         const duration=Number($('jointDuration').value);if(!finite(duration)||duration<5||duration>1800||!Number.isInteger(duration))throw Error('Introduce una duración entera entre 5 y 1800 segundos.');
         const id=uid(),tx={id,ready:new Map(),acks:new Set(),error:null,phase:'clock',peers};
         // Bloqueamos el inicio desde el primer intercambio: la preparación es parte del ensayo.
@@ -6349,7 +6393,7 @@ function formatTime(
     async function finishRun(cancelled=false) {
         const run=s.run;if(!run||run.finishing||run.finished)return;run.finishing=true;
         run.state=cancelled?'cancelled':'finished';run.finalClock=s.role==='host'?run.initialClock:structuredClone(s.syncModel);
-        releaseWake();await persist(run);run.finished=true;run.finishing=false;
+        document.body.classList.remove('recording-lock');releaseWake();await persist(run);run.finished=true;run.finishing=false;
         if(s.run!==run)return;
         const record=localRecord();s.results.set(s.id,record);tab('Results');renderPlan();renderDevices();renderResults();
         tell(cancelled?'Ensayo cancelado. Los datos disponibles se conservan.':'Registro local terminado. Ya puedes descargar los datos.');
@@ -6397,7 +6441,7 @@ function formatTime(
     }
     function renderResults() {
         const r=s.run;
-        $('jointDownload').disabled=!r?.finished;$('jointCsv').disabled=!r?.finished;
+        $('jointDownload').disabled=!r?.finished;$('jointCsv').disabled=!r?.finished;$('jointDownloadProcessed').disabled=!r?.finished;$('jointCsvProcessed').disabled=!r?.finished;
         $('jointNewRun').disabled=!!running()||!!s.transfer;
         $('jointSendData').hidden=s.role!=='guest';$('jointSendData').disabled=!r?.finished||!!s.transfer;
         if(!r){$('jointResultsList').textContent='Todavía no hay un ensayo registrado.';$('jointSyncResults').hidden=true;return;}
@@ -6448,6 +6492,27 @@ function formatTime(
         const expected=s.run.plan.points.filter(p=>p.device).map(p=>p.device);
         download('ensayo_conjunto_'+s.run.id+'.json',{schema:'pasarelas-upm-joint-export-v1',session:s.session,plan:s.run.plan,windowMasterMs:{start:s.run.start,end:s.run.end},complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,p.samples])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'});
     }
+    function processedCommonExport() {
+        const data=comparisonExport();if(!data)throw Error('Termina primero el ensayo y recibe los registros disponibles.');
+        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,records=data.records.filter(record=>record.samples?.length),periods=records.map(record=>samplePeriodMs(record,start,end)).filter(finite);
+        if(!periods.length)throw Error('No hay suficientes marcas temporales para crear la malla común.');
+        const period=Math.max(...periods),grid=[];for(let t=start;t<=end+.1;t+=period)grid.push(t);
+        const processed=records.map(record=>{
+            const axes=[0,1,2].map(axis=>resampleAxis(record.samples,sample=>structuralValue(sample.raw,record,axis),grid));
+            axes[2]=detrendPoints(axes[2]);
+            const byTime=axes.map(series=>new Map(series.map(point=>[Math.round(point.x*1000),point.y])));
+            const samples=grid.map(t=>{const key=Math.round(t*1000);return {masterTimeMs:t,x:byTime[0].get(key)??null,y:byTime[1].get(key)??null,z:byTime[2].get(key)??null};});
+            return {device:record.device,calibration:record.device?.calibration||null,samples};
+        });
+        return {schema:'pasarelas-upm-joint-processed-v1',source:'muestras brutas transformadas y remuestreadas',plan:data.plan,windowMasterMs:data.windowMasterMs,commonPeriodMs:period,commonRateHz:1000/period,zProcessing:'detrend lineal por móvil tras interpolación',records:processed};
+    }
+    function exportProcessedJson() {const data=processedCommonExport();download('ensayo_conjunto_procesado_'+s.run.id+'.json',data);}
+    function exportProcessedCsv() {
+        const data=processedCommonExport(),cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+        const lines=['master_time_s,device,point,x_structural_m_s2,y_structural_m_s2,z_structural_detrended_m_s2'];
+        data.records.forEach(record=>record.samples.forEach(sample=>lines.push([((sample.masterTimeMs-data.windowMasterMs.start)/1000).toFixed(6),record.device.name,record.device.point?.name,sample.x,sample.y,sample.z].map(cell).join(','))));
+        download('ensayo_conjunto_procesado_'+s.run.id+'.csv','\ufeff'+lines.join('\n'),'text/csv;charset=utf-8');
+    }
     function exportCsv() {
         const r=localRecord();if(!r||!s.run.finished)throw Error('No hay un registro terminado.');
         const model=r.finalClock,point=r.device.point;
@@ -6483,21 +6548,29 @@ function formatTime(
         const times=record.samples.map(s=>s.masterTimeMs).filter(t=>finite(t)&&t>=start-1000&&t<=end+1000).sort((a,b)=>a-b);
         return median(times.slice(1).map((t,i)=>t-times[i]).filter(dt=>dt>=5&&dt<=250));
     }
-    function resampleAxis(samples,column,grid) {
-        const source=samples.filter(s=>finite(s.masterTimeMs)&&finite(s.raw[column])).sort((a,b)=>a.masterTimeMs-b.masterTimeMs),out=[];
+    function structuralValue(raw,record,axis) {
+        return correctedVector([raw[3],raw[4],raw[5]],record.device?.calibration)[axis];
+    }
+    function resampleAxis(samples,getValue,grid) {
+        const source=samples.filter(s=>finite(s.masterTimeMs)&&finite(getValue(s))).sort((a,b)=>a.masterTimeMs-b.masterTimeMs),out=[];
         let i=0;
         for(const t of grid) {
             while(i+1<source.length&&source[i+1].masterTimeMs<t)i++;
             const a=source[i],b=source[i+1];
             if(!a||!b||b.masterTimeMs===a.masterTimeMs||t<a.masterTimeMs||t>b.masterTimeMs)continue;
             const r=(t-a.masterTimeMs)/(b.masterTimeMs-a.masterTimeMs);
-            out.push({x:t,y:a.raw[column]+r*(b.raw[column]-a.raw[column])});
+            out.push({x:t,y:getValue(a)+r*(getValue(b)-getValue(a))});
         }
         return out;
     }
+    function detrendPoints(points) {
+        if(points.length<2)return points;
+        const n=points.length,sx=points.reduce((a,p)=>a+p.x,0),sy=points.reduce((a,p)=>a+p.y,0),sxx=points.reduce((a,p)=>a+p.x*p.x,0),sxy=points.reduce((a,p)=>a+p.x*p.y,0),d=n*sxx-sx*sx,m=Math.abs(d)>1e-12?(n*sxy-sx*sy)/d:0,b=(sy-m*sx)/n;
+        return points.map(p=>({x:p.x,y:p.y-(m*p.x+b)}));
+    }
     function renderComparison() {
-        const canvas=$('jointCompareCanvas'),status=$('jointCompareStatus'),data=comparisonExport();
-        if(s.compareChart){s.compareChart.destroy();s.compareChart=null;}
+        const status=$('jointCompareStatus'),data=comparisonExport();
+        for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
         if(!data) {status.textContent='Termina un ensayo y recibe los registros de los participantes para compararlos aquí.';return;}
         const records=data.records.filter(r=>r.samples?.length).sort((a,b)=>{
             const ap=data.plan.points?.find(p=>p.device===a.device.id),bp=data.plan.points?.find(p=>p.device===b.device.id);
@@ -6505,35 +6578,52 @@ function formatTime(
         });
         if(!records.length) {status.textContent='El ensayo no contiene muestras para representar.';return;}
         if(typeof Chart==='undefined') {status.textContent='No se ha cargado la librería de gráficas. Recarga la página con conexión.';return;}
-        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),axes=[['X',3,'#1565c0'],['Y',4,'#c62828'],['Z',5,'#2e7d32']],dashes=[[],[8,5],[3,4],[11,4,2,4]],view=$('jointCompareView').value;
+        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),axes=[['X',0,'#1565c0','jointCompareCanvasX'],['Y',1,'#c62828','jointCompareCanvasY'],['Z',2,'#2e7d32','jointCompareCanvasZ']],dashes=[[],[8,5],[3,4],[11,4,2,4]],view=$('jointCompareView').value;
         const periods=records.map(r=>samplePeriodMs(r,start,end)).filter(finite),commonPeriod=periods.length?Math.max(...periods):null,grid=[];
         if(view==='common'&&!finite(commonPeriod)){status.textContent='No hay suficientes marcas temporales válidas para construir la rejilla común.';return;}
         if(view==='common'&&finite(commonPeriod))for(let t=start;t<=end+.1;t+=commonPeriod)grid.push(t);
-        const datasets=[];
-        records.forEach((record,deviceIndex)=>{
-            const point=data.plan.points?.find(p=>p.device===record.device.id),name=(record.device.name||'Móvil')+(point?' · '+point.name:'');
-            axes.forEach(([axis,column,color])=>{
-                const valid=record.samples.filter(sample=>finite(sample.masterTimeMs)&&finite(sample.raw[column])&&sample.masterTimeMs>=start&&sample.masterTimeMs<=end);
-                const points=view==='common'?resampleAxis(record.samples,column,grid).map(p=>({x:(p.x-start)/1000,y:p.y})):valid.map(sample=>({x:(sample.masterTimeMs-start)/1000,y:sample.raw[column]}));
-                const stride=Math.max(1,Math.ceil(points.length/4500));
-                datasets.push({label:name+' · '+axis,data:points.filter((_,i)=>i%stride===0),borderColor:color,borderDash:dashes[deviceIndex%dashes.length],borderWidth:deviceIndex?1.35:2.15,pointRadius:0,tension:0,parsing:false});
-            });
-        });
         status.textContent=view==='common'?`${records.length} móviles · rejilla común de ${commonPeriod.toFixed(2)} ms (${(1000/commonPeriod).toFixed(1)} Hz) · interpolación lineal a partir de las marcas temporales corregidas al reloj maestro.`:`${records.length} móviles · marcas temporales originales ya referidas al reloj del maestro; sin remuestreo.`;
-        s.compareChart=new Chart(canvas.getContext('2d'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:14,font:{size:11}}},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²'}},zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:span/1000},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:span/1000,title:{display:true,text:'Tiempo en el reloj maestro (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:'Aceleración (m/s²)'},grid:{color:'rgba(0,0,0,.08)'}}}}});
-        enableLegendToggling(s.compareChart);
+        for(const [axis,axisIndex,color,canvasId] of axes) {
+            const datasets=[];
+            records.forEach((record,deviceIndex)=>{
+                const point=data.plan.points?.find(p=>p.device===record.device.id),name=(record.device.name||'Móvil')+(point?' · '+point.name:'');
+                const getter=sample=>structuralValue(sample.raw,record,axisIndex);
+                const valid=record.samples.filter(sample=>finite(sample.masterTimeMs)&&finite(getter(sample))&&sample.masterTimeMs>=start&&sample.masterTimeMs<=end);
+                let points=view==='common'?resampleAxis(record.samples,getter,grid).map(p=>({x:(p.x-start)/1000,y:p.y})):valid.map(sample=>({x:(sample.masterTimeMs-start)/1000,y:getter(sample)}));
+                if(axis==='Z')points=detrendPoints(points);
+                const stride=Math.max(1,Math.ceil(points.length/4500));
+                datasets.push({label:name,data:points.filter((_,i)=>i%stride===0),borderColor:color,borderDash:dashes[deviceIndex%dashes.length],borderWidth:deviceIndex?1.35:2.15,pointRadius:0,tension:0,parsing:false});
+            });
+            const chart=new Chart($(canvasId).getContext('2d'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:14,font:{size:11}}},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²'}},zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:span/1000},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:span/1000,title:{display:true,text:'Tiempo en el reloj maestro (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:(axis==='Z'?'Aceleración Z con detrend':'Aceleración '+axis)+' (m/s²)'},grid:{color:'rgba(0,0,0,.08)'}}}}});
+            s.compareCharts.push(chart);enableLegendToggling(chart);
+        }
     }
     function drawPreview() {
         const canvas=$('jointLive'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
         ctx.clearRect(0,0,w,h);ctx.strokeStyle='#dce6ee';ctx.beginPath();for(let i=1;i<4;i++){ctx.moveTo(0,h*i/4);ctx.lineTo(w,h*i/4);}ctx.stroke();
         const a=s.preview.filter(v=>v[2]>now()-5000);if(a.length<2)return;
-        const span=Math.max(1000,a[a.length-1][2]-a[0][2]),max=Math.max(1,...a.flatMap(v=>v.slice(3,6).map(Math.abs)));
-        for(let axis=0;axis<3;axis++){ctx.strokeStyle=['#4285f4','#0f9d58','#db4437'][axis];ctx.lineWidth=1.6;ctx.beginPath();a.forEach((v,i)=>{const x=35+(v[2]-a[0][2])/span*(w-45),y=h/2-v[axis+3]/max*(h/2-25);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);});ctx.stroke();}
+        const values=a.map(v=>correctedVector(v.slice(3,6))),span=Math.max(1000,a[a.length-1][2]-a[0][2]),max=Math.max(1,...values.flatMap(v=>v.map(Math.abs)));
+        for(let axis=0;axis<3;axis++){ctx.strokeStyle=['#4285f4','#db4437','#0f9d58'][axis];ctx.lineWidth=1.6;ctx.beginPath();a.forEach((v,i)=>{const x=35+(v[2]-a[0][2])/span*(w-45),y=h/2-values[i][axis]/max*(h/2-25);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);});ctx.stroke();}
         ctx.fillStyle='#516b80';ctx.font='13px Arial';ctx.fillText(max.toFixed(1)+' m/s²',8,17);ctx.fillText('0',8,h/2);ctx.fillText('-'+max.toFixed(1),8,h-8);
+    }
+    function drawLiveSpectrum() {
+        const canvas=$('jointLiveSpectrum'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
+        ctx.clearRect(0,0,w,h);ctx.strokeStyle='#dce6ee';ctx.beginPath();for(let i=1;i<4;i++){ctx.moveTo(38,h*i/4);ctx.lineTo(w-8,h*i/4);}ctx.stroke();
+        const rows=s.preview.filter(v=>v[2]>now()-5000);if(rows.length<16)return;
+        const source=rows.map(v=>{const q=correctedVector(v.slice(3,6));return {ax:q[0],ay:q[1],az:q[2]};}),rate=sampleRate();if(!finite(rate)||rate<2)return;
+        const spectra=[calculateSpectrum(source,'ax',rate),calculateSpectrum(source,'ay',rate),calculateSpectrum(source,'az',rate)],max=Math.max(.001,...spectra.flatMap(series=>series.map(p=>p.y)));
+        spectra.forEach((series,axis)=>{ctx.strokeStyle=['#4285f4','#db4437','#0f9d58'][axis];ctx.lineWidth=1.5;ctx.beginPath();series.forEach((p,i)=>{const x=38+p.x/30*(w-46),y=h-24-p.y/max*(h-38);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);});ctx.stroke();});
+        ctx.fillStyle='#516b80';ctx.font='12px Arial';ctx.fillText('0 Hz',38,h-7);ctx.fillText('30 Hz',w-46,h-7);ctx.fillText('Amplitud',4,14);
     }
     function tick() {
         if(root.hidden)return;
         const r=s.run;
+        if(s.calibration.active) {
+            const a=s.calibration.active,t=now();
+            if(t>=a.end)finishCalibration();
+            else if(t<a.start)$('jointCalibrationHelp').textContent='Empieza el gesto en '+Math.max(1,Math.ceil((a.start-t)/1000))+' s.';
+            else $('jointCalibrationHelp').textContent='Registrando gesto de calibración…';
+        }
         if(s.transaction?.phase==='clock') {
             const counts=s.transaction.peers.map(p=>p.samples.filter(row=>row.runId===s.transaction.id&&row.phase==='pretest').length);
             const count=counts.length?Math.min(...counts):0;
@@ -6553,6 +6643,7 @@ function formatTime(
         }
         $('jointSampleCount').textContent=r?.samples.length||0;$('jointRate').textContent=localStatus().sensor?sampleRate().toFixed(1)+' Hz':'—';
         drawPreview();
+        if(s.uiTick%4===0)drawLiveSpectrum();
         if(++s.uiTick%4===0){renderDevices();broadcast({type:'STATUS',status:localStatus()});if(running())persist();}
         // Dos intercambios NTP por segundo durante la ventana coordinada.
         if(s.uiTick%2===0&&s.role==='host'&&r?.state==='recording')for(const p of s.peers.values())syncOnce(p,'during',r.id);
@@ -6563,9 +6654,10 @@ function formatTime(
         if(s.run){if(running())s.run.state='cancelled';persist();}
         stopScan();if($('jointPairDialog').open)$('jointPairDialog').close();
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
-        stopJointSensor();releaseWake();
-        if(s.compareChart){s.compareChart.destroy();s.compareChart=null;}
+        stopJointSensor();document.body.classList.remove('recording-lock');releaseWake();
+        for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
         s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
+        s.calibration={map:{},active:null,complete:false};$('jointCalibration').hidden=true;
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
         if(s.returnTo)s.returnTo.style.display='block';else $('mainMenu').style.display='block';
@@ -6636,11 +6728,14 @@ function formatTime(
     for(const event of ['pointerup','pointercancel'])$('jointPlan').addEventListener(event,guard(()=>{if(s.drag){s.drag=null;savePlan();}}));
     $('jointDeviceName').onchange=()=>{s.name=$('jointDeviceName').value.trim().slice(0,40)||'Mi móvil';broadcast({type:'HELLO',id:s.id,name:s.name,status:localStatus()});renderDevices();renderPlan();};
     $('jointEnableSensor').onclick=guard(enableSensor);
+    $('jointCalibrateX').onclick=guard(()=>startCalibration('x'));
+    $('jointCalibrateY').onclick=guard(()=>startCalibration('y'));
+    $('jointCalibrateZ').onclick=guard(()=>startCalibration('z'));
     $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Estimando desfases mediante nuevos intercambios de mensajes…');});
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
-    $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
+    $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointDownloadProcessed').onclick=guard(exportProcessedJson);$('jointCsvProcessed').onclick=guard(exportProcessedCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
     $('jointCompareView').onchange=renderComparison;
-    $('jointCompareResetZoom').onclick=()=>s.compareChart?.resetZoom('none');
+    $('jointCompareResetZoom').onclick=()=>s.compareCharts?.forEach(chart=>chart.resetZoom('none'));
     $('jointImportSession').onchange=guard(async e=>{
         const file=e.target.files[0];if(!file)return;
         if(file.size>100000000)throw Error('El ensayo JSON es demasiado grande para abrirlo en el navegador.');
