@@ -1473,6 +1473,9 @@ body.recording-lock main {
 .joint-calibration-animation { display: grid; gap: 8px; margin: 14px 0; padding: 10px 10px 8px; border: 1px solid #d8e5ee; border-radius: 9px; background: #f8fbfd; }
 .joint-calibration-animation img { display: block; width: 100%; max-width: 526.89203px; height: auto; margin: 0 auto; }
 .joint-calibration-animation figcaption { min-height: 1.35em; padding: 0 8px; text-align: center; font-size: .86rem; font-weight: 600; color: #49677d; }
+.joint-calibration.complete .joint-calibration-actions,
+.joint-calibration-animation.complete figcaption { display: none; }
+.joint-calibration-animation.complete { padding-bottom: 10px; }
 .joint-calibration-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .joint-calibration-actions button { border-radius:8px; padding:10px 6px; font-weight:700; }
 .joint-axis-x { background:#e8f3ff; color:#1269ad; border:1px solid #9fcdf4; }.joint-axis-y { background:#fff0f0; color:#b83f45; border:1px solid #efb7bb; }.joint-axis-z { background:#eaf7ef; color:#247a50; border:1px solid #a8d9bd; }
