@@ -1475,16 +1475,22 @@ body.recording-lock main {
 .joint-sync-card strong { display: block; color: #244c70; margin-bottom: 5px; }
 .joint-sync-card p { margin: 0 0 5px; color: #3d5a70; }
 .joint-sync-card small { color: #61798b; }
+.joint-sync-burst { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; margin:14px 0; padding:11px 12px; border-radius:8px; background:#edf6ff; color:#245d8b; font-size:.85rem; }
+.joint-sync-burst progress { width:100%; height:12px; accent-color:#087cc3; }
+.joint-sync-animation { min-height:190px; }
 .joint-calibration h4, .joint-axis-compare h4 { margin: 0 0 4px; color: #244c70; }
 .joint-calibration-state { padding: 6px 10px; border-radius: 999px; background: #eaf2f8; color: #526d80; font-size: .8rem; font-weight: 600; white-space: nowrap; }
 .joint-calibration-state.done { background: #e6f6ec; color: #247548; }
-.joint-calibration-animation { display: grid; gap: 8px; margin: 14px 0; padding: 10px 10px 8px; border: 1px solid #d8e5ee; border-radius: 9px; background: #f8fbfd; }
+.joint-calibration-animation { position:relative; display: grid; gap: 8px; margin: 14px 0; padding: 10px 10px 8px; border: 1px solid #d8e5ee; border-radius: 9px; background: #f8fbfd; overflow:hidden; }
 .joint-calibration-animation img { display: block; width: 100%; max-width: 526.89203px; height: auto; margin: 0 auto; }
 .joint-calibration-animation figcaption { min-height: 1.35em; padding: 0 8px; text-align: center; font-size: .86rem; font-weight: 600; color: #49677d; }
 .joint-calibration.complete .joint-calibration-actions,
 .joint-calibration-animation.complete figcaption { display: none; }
 .joint-calibration-animation.complete { padding-bottom: 10px; }
 .joint-calibration-countdown { margin:12px 0 4px; padding:10px; border-radius:9px; background:#edf6ff; color:#1269ad; text-align:center; font-size:1.3rem; font-weight:800; letter-spacing:.02em; }
+.joint-countdown-overlay { position:absolute; z-index:2; left:50%; top:50%; transform:translate(-50%,-50%); min-width:150px; margin:0; padding:16px 22px; border:2px solid #fff; border-radius:18px; background:rgba(8,61,103,.88); color:#fff; box-shadow:0 12px 32px rgba(5,35,60,.32); font-size:clamp(1.6rem,7vw,3rem); line-height:1; text-shadow:0 2px 0 rgba(0,0,0,.2); animation:jointCountdownPulse .8s ease-in-out infinite alternate; }
+.joint-countdown-overlay.go { background:rgba(20,120,72,.9); color:#fff; }
+@keyframes jointCountdownPulse { from { transform:translate(-50%,-50%) scale(.94); } to { transform:translate(-50%,-50%) scale(1.04); } }
 .joint-calibration-countdown.go { background:#eaf7ef; color:#247a50; }
 .joint-calibration-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .joint-calibration-actions button { border-radius:8px; padding:10px 6px; font-weight:700; }
