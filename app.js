@@ -6064,16 +6064,19 @@ function formatTime(
         const recent=samples.slice(-240),sorted=[...recent].sort((a,b)=>a.rtt-b.rtt);
         const cutoff=sorted[Math.max(0,Math.ceil(sorted.length*.3)-1)].rtt;
         const chosen=recent.filter(v=>v.rtt<=cutoff);
-        const reference=chosen.reduce((a,v)=>a+v.local,0)/chosen.length;
-        const offset=chosen.reduce((a,v)=>a+v.offset,0)/chosen.length;
+        const reference=median(chosen.map(v=>v.local));
         const span=Math.max(...chosen.map(v=>v.local))-Math.min(...chosen.map(v=>v.local));
-        let numerator=0,denominator=0;
-        for(const v of chosen){numerator+=(v.local-reference)*(v.offset-offset);denominator+=(v.local-reference)**2;}
-        const drift=span>=20000&&chosen.length>=6&&denominator>0?numerator/denominator:0;
+        const slopes=[];
+        if(span>=20000&&chosen.length>=6)for(let i=0;i<chosen.length;i++)for(let j=i+1;j<chosen.length;j++){
+            const dt=chosen[j].local-chosen[i].local;if(Math.abs(dt)>=50)slopes.push((chosen[j].offset-chosen[i].offset)/dt);
+        }
+        const drift=slopes.length?median(slopes):0;
+        // Offset at the reference instant. Median makes isolated path asymmetries harmless.
+        const offset=median(chosen.map(v=>v.offset-drift*(v.local-reference)));
         // Grossly implausible fits are not used to schedule an acquisition.
         if(!finite(drift)||Math.abs(drift)>.005)return null;
         const residual=Math.sqrt(chosen.reduce((a,v)=>a+(v.offset-offset-drift*(v.local-reference))**2,0)/chosen.length);
-        return {reference,offset,drift,rtt:sorted[0].rtt,residual,count:samples.length,updated:now()};
+        return {reference,offset,drift,rtt:sorted[0].rtt,residual,count:samples.length,selectedCount:chosen.length,rttCutoff:cutoff,rttMedian:median(chosen.map(v=>v.rtt)),span,method:'mediana del 30 % de RTT menor; deriva Theil–Sen',updated:now()};
     }
     const toMaster=(t,m=s.syncModel)=>t-m.offset-m.drift*(t-m.reference);
     const fromMaster=(t,m)=> (t+m.offset-m.drift*m.reference)/(1-m.drift);
@@ -6399,7 +6402,8 @@ function formatTime(
         const model=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
         const quiet=s.recent.filter(sample=>sample[2]>=now()-1000).map(sample=>correctedVector(sample.slice(3,6)));
         const previewBaseline=['x','y','z'].map((_,index)=>quiet.length?quiet.reduce((sum,row)=>sum+row[index],0)/quiet.length:0);
-        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,samples:[],incidents:[],persisted:0,chunkIndex:0,previewBaseline,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
+        const syncModels=s.role==='host'?Object.fromEntries([...s.peers.values()].map(p=>[p.id,structuredClone(p.startModel||p.model||{})])):{[s.id]:structuredClone(model)};
+        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,syncModels,samples:[],incidents:[],persisted:0,chunkIndex:0,previewBaseline,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
         for(const sample of s.recent){const t=finite(sample[8])?sample[8]:toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
         document.body.classList.add('recording-lock');tab('Measure');ensureJointCharts();setTimeout(()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},50);requestWake();persist();renderPlan();renderDevices();tell('Inicio programado. Pantalla y gestos bloqueados durante la medida.');
     }
@@ -6426,9 +6430,11 @@ function formatTime(
             await pause(300);
             if(s.transaction!==tx)throw Error('Inicio cancelado.');
             for(const p of peers) {
-                const count=p.samples.filter(row=>row.runId===id&&row.phase==='pretest').length;
+                const pretest=p.samples.filter(row=>row.runId===id&&row.phase==='pretest'),count=pretest.length;
                 if(count<95)throw Error('Solo se completaron '+count+' de 100 intercambios con '+p.name+'. Comprueba la conexión y repite.');
-                if(!p.model||now()-p.model.updated>3000)throw Error('No se pudo ajustar el reloj de '+p.name+'.');
+                p.model=clockFit(pretest);
+                if(!p.model)throw Error('No se pudo ajustar el reloj de '+p.name+'.');
+                p.startModel=structuredClone(p.model);send(p,{type:'CLOCK_MODEL',model:p.model});
             }
             tx.phase='ready';
             broadcast({type:'PREPARE',runId:id,duration});tell('Solicitando confirmación a los participantes…');
@@ -6463,7 +6469,7 @@ function formatTime(
         if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,now()));incident('stop',reason);broadcast({type:'STOP_AT',runId:s.run.id,end:s.run.end});}
     }
     function runMeta(run) {
-        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,finalClock:run.finalClock,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj fijado al inicio del ensayo; los intercambios posteriores se guardan solo como diagnóstico.',userAgent:navigator.userAgent};
+        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,finalClock:run.finalClock,syncModels:run.syncModels||{},synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj robusto fijado al inicio del ensayo; los intercambios posteriores se guardan solo como diagnóstico.',userAgent:navigator.userAgent};
     }
     function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
     async function finishRun(cancelled=false) {
@@ -6534,7 +6540,13 @@ function formatTime(
         renderSyncResults(r);
     }
     function clearSyncCharts(){for(const chart of s.syncCharts)chart?.destroy();s.syncCharts=[];}
-    function syncMetric(row,metric){return metric==='rtt'?row.rtt:row.offset;}
+    const modelOffsetAt=(model,time)=>{const m=model||{offset:0,drift:0,reference:0};return m.offset+m.drift*(time-m.reference);};
+    const offsetResidual=(row,model)=>row.offset-modelOffsetAt(model,row.local);
+    const selectedForModel=(row,model)=>!finite(model?.rttCutoff)||row.rtt<=model.rttCutoff;
+    function syncMetric(row,metric,model){return metric==='rtt'?row.rtt:offsetResidual(row,model);}
+    function jointTemporalOptions(duration,yTitle,tooltip,legend=true) {
+        return {responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:legend,position:'top',labels:{boxWidth:22,font:{size:11}}},tooltip:{callbacks:{title:items=>items.length?'t = '+items[0].parsed.x.toFixed(3)+' s':'',label:tooltip}},zoom:{pan:{enabled:true,mode:'xy'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:duration},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:duration,title:{display:true,text:'Tiempo desde el inicio del ensayo (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:yTitle},grid:{color:'rgba(0,0,0,.08)'}}}};
+    }
     function histogramBins(values,count) {
         let low=Math.min(...values),high=Math.max(...values);
         if(low===high){const pad=Math.max(.05,Math.abs(low)*.05);low-=pad;high+=pad;}
@@ -6544,14 +6556,15 @@ function formatTime(
     }
     function histogramMarkup(group,phase,metric,values) {
         const key=`${group.key}:${phase}:${metric}`,focus=s.syncView.focus[key],raw=values.filter(finite),data=focus?raw.filter(value=>value>=focus.low&&value<=focus.high):raw;
-        const label=metric==='rtt'?'RTT':'Offset',phaseLabel=phase==='pre'?'Preparación — 100 intercambios':'Durante el ensayo — 2/s';
+        const label=metric==='rtt'?'RTT':'Residuo de offset',phaseLabel=phase==='pre'?'Preparación — 100 intercambios':'Durante el ensayo — 2/s';
         if(!data.length)return `<figure class="joint-rtt-figure"><figcaption>${label} · ${phaseLabel} · sin intercambios en este rango</figcaption></figure>`;
         const suffix=focus?` · zoom: ${focus.low.toFixed(2)} a ${focus.high.toFixed(2)} ms`:'';
-        return `<figure class="joint-rtt-figure joint-sync-histogram"><figcaption><strong>${label}</strong> · ${phaseLabel}<br>${data.length} intercambios · mín. ${Math.min(...data).toFixed(2)} ms · mediana ${median(data).toFixed(2)} ms${suffix}</figcaption><div class="joint-histogram-controls"><label>Clases <select data-sync-bins><option value="8">8</option><option value="12">12</option><option value="20">20</option><option value="32">32</option><option value="48">48</option></select></label>${focus?`<button type="button" class="joint-secondary" data-sync-reset="${escape(key)}">Quitar zoom</button>`:'<span>Pulsa una barra para ampliar</span>'}</div><div class="joint-sync-canvas"><canvas id="syncHist-${escape(key)}" aria-label="Histograma de ${label} en ${phaseLabel}"></canvas></div></figure>`;
+        const detail=metric==='offset'?' · respecto al modelo inicial robusto':'';
+        return `<figure class="joint-rtt-figure joint-sync-histogram"><figcaption><strong>${label}</strong> · ${phaseLabel}${detail}<br>${data.length} intercambios · mín. ${Math.min(...data).toFixed(2)} ms · mediana ${median(data).toFixed(2)} ms${suffix}</figcaption><div class="joint-histogram-controls"><label>Clases <select data-sync-bins><option value="8">8</option><option value="12">12</option><option value="20">20</option><option value="32">32</option><option value="48">48</option></select></label>${focus?`<button type="button" class="joint-secondary" data-sync-reset="${escape(key)}">Quitar zoom</button>`:'<span>Pulsa una barra para ampliar</span>'}</div><div class="joint-sync-canvas"><canvas id="syncHist-${escape(key)}" aria-label="Histograma de ${label} en ${phaseLabel}"></canvas></div></figure>`;
     }
     function timelineMarkup(group,metric) {
-        const label=metric==='rtt'?'RTT':'Offset';
-        return `<figure class="joint-rtt-figure joint-sync-timeline"><figcaption><strong>${label} durante el ensayo</strong> · rueda o pellizco para ampliar en X e Y; arrastra para desplazarte horizontalmente.</figcaption><div class="joint-sync-canvas joint-sync-timeline-canvas"><canvas id="syncTimeline-${escape(group.key)}-${metric}" aria-label="${label} a lo largo del ensayo"></canvas></div><button type="button" class="joint-secondary" data-sync-chart-reset="${escape(group.key)}:${metric}">Restablecer zoom</button></figure>`;
+        const label=metric==='rtt'?'RTT':'Residuo de offset';
+        return `<figure class="joint-rtt-figure joint-sync-timeline"><figcaption><strong>${label} durante el ensayo</strong> · rueda o pellizco para ampliar; arrastra en X e Y. La leyenda permite ocultar series.</figcaption><div class="joint-sync-canvas joint-sync-timeline-canvas"><canvas id="syncTimeline-${escape(group.key)}-${metric}" aria-label="${label} a lo largo del ensayo"></canvas></div><button type="button" class="joint-secondary" data-sync-chart-reset="${escape(group.key)}:${metric}">Restablecer zoom</button></figure>`;
     }
     function makeHistogramChart(canvas,values,key) {
         const focus=s.syncView.focus[key],data=(focus?values.filter(value=>value>=focus.low&&value<=focus.high):values).filter(finite);if(!canvas||!data.length)return;
@@ -6559,11 +6572,18 @@ function formatTime(
         const chart=new Chart(canvas.getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Intercambios',data:bins.map(bin=>bin.count),backgroundColor:'#087cc3',borderColor:'#056aa8',borderWidth:1,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>labels[items[0].dataIndex]+' ms',label:item=>item.raw+' intercambios'}}},scales:{x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:5,font:{size:10}},title:{display:true,text:'ms'}},y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:'Número de intercambios'}}},onClick:(event,elements)=>{if(!elements.length)return;const bin=bins[elements[0].index];s.syncView.focus[key]={low:bin.low,high:bin.high};renderSyncResults(s.run);}}});
         s.syncCharts.push(chart);
     }
-    function makeTimelineChart(canvas,rows,run,metric) {
-        if(!canvas)return;const duration=Math.max(1,(run.end-run.start)/1000),data=rows.filter(row=>finite(syncMetric(row,metric))&&finite(row.t1)&&row.t1>=run.start&&row.t1<=run.end).map(row=>({x:(row.t1-run.start)/1000,y:syncMetric(row,metric)})).sort((a,b)=>a.x-b.x);if(!data.length)return;
-        const color=metric==='rtt'?'#087cc3':'#9c27b0',label=metric==='rtt'?'RTT (ms)':'Offset estimado (ms)';
-        const chart=new Chart(canvas.getContext('2d'),{type:'line',data:{datasets:[{label,data,borderColor:color,backgroundColor:color,pointRadius:2.5,pointHoverRadius:5,borderWidth:1.6,tension:.12}]},options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>label+': '+item.parsed.y.toFixed(3)+' ms'}},zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:duration},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:duration,title:{display:true,text:'Tiempo desde el inicio del ensayo (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:label},grid:{color:'rgba(0,0,0,.08)'}}}}});
-        s.syncCharts.push(chart);
+    function makeTimelineChart(canvas,rows,run,metric,model) {
+        if(!canvas)return;const duration=Math.max(1,(run.end-run.start)/1000),points=rows.filter(row=>finite(syncMetric(row,metric,model))&&finite(row.t1)&&row.t1>=run.start&&row.t1<=run.end).map(row=>({x:(row.t1-run.start)/1000,y:syncMetric(row,metric,model),accepted:selectedForModel(row,model)})).sort((a,b)=>a.x-b.x);if(!points.length)return;
+        const accepted=points.filter(point=>point.accepted),rejected=points.filter(point=>!point.accepted),label=metric==='rtt'?'RTT (ms)':'Residuo de offset (ms)',color=metric==='rtt'?'#087cc3':'#8e24aa';
+        const datasets=[{label:'Intercambios aceptados',data:accepted,borderColor:color,backgroundColor:color,pointRadius:3,pointHoverRadius:5,borderWidth:1.6,tension:.12},{label:'RTT alto / descartados',data:rejected,borderColor:'#98a8b5',backgroundColor:'#98a8b5',pointRadius:3,pointHoverRadius:5,borderWidth:0,showLine:false}];
+        if(metric==='offset')datasets.push({label:'Modelo aplicado (0 ms)',data:[{x:0,y:0},{x:duration,y:0}],borderColor:'#263746',borderDash:[6,4],borderWidth:1.4,pointRadius:0,pointHoverRadius:0});
+        const options=jointTemporalOptions(duration,label,item=>item.dataset.label+': '+item.parsed.y.toFixed(3)+' ms',true);
+        const chart=new Chart(canvas.getContext('2d'),{type:'line',data:{datasets},options});s.syncCharts.push(chart);enableLegendToggling(chart);
+    }
+    function modelSummaryMarkup(model) {
+        if(!model||!finite(model.offset))return '<p class="joint-help">No se conservó el modelo inicial de este dispositivo.</p>';
+        const ppm=finite(model.drift)?model.drift*1e6:0;
+        return `<div class="joint-model-values"><span><b>Offset robusto</b>${model.offset.toFixed(3)} ms</span><span><b>Deriva</b>${model.drift.toExponential(3)} ms/ms · ${ppm.toFixed(3)} ppm</span><span><b>Referencia</b>${model.reference.toFixed(1)} ms</span><span><b>Intercambios</b>${model.selectedCount??'—'} / ${model.count??'—'} seleccionados</span><span><b>RTT seleccionado</b>mín. ${finite(model.rtt)?model.rtt.toFixed(2):'—'} ms · mediana ${finite(model.rttMedian)?model.rttMedian.toFixed(2):'—'} ms</span><span><b>Umbral RTT</b>${finite(model.rttCutoff)?model.rttCutoff.toFixed(2):'—'} ms</span></div>`;
     }
     function renderSyncResults(run) {
         const target=$('jointRttHistograms'),groups=[];clearSyncCharts();
@@ -6571,22 +6591,21 @@ function formatTime(
             for(const p of s.peers.values()) {
                 const rows=p.samples.filter(row=>row.runId===run.id);
                 const duringRows=rows.filter(row=>row.phase==='during');
-                const preRows=rows.filter(row=>row.phase==='pretest');groups.push({key:p.id,name:p.name||'Participante',preRows,duringRows});
+                const preRows=rows.filter(row=>row.phase==='pretest'),model=run.syncModels?.[p.id]||p.startModel||p.model;groups.push({key:p.id,name:p.name||'Participante',preRows,duringRows,model});
             }
         } else {
             const rows=s.syncLog.filter(row=>row.runId===run.id);
             const duringRows=rows.filter(row=>row.phase==='during');
-            groups.push({key:'master',name:'Maestro',preRows:rows.filter(row=>row.phase==='pretest'),duringRows});
+            groups.push({key:'master',name:'Maestro',preRows:rows.filter(row=>row.phase==='pretest'),duringRows,model:run.initialClock});
         }
         const useful=groups.some(group=>group.preRows.length||group.duringRows.length);
         $('jointSyncResults').hidden=!useful;
-        const localModel=run.initialClock||{offset:0,drift:0,reference:0};
-        $('jointSyncFormula').innerHTML=`<div class="joint-sync-formula"><strong>Modelo aplicado a las marcas temporales</strong><div><i>t</i><sub>maestro</sub> = <i>t</i><sub>participante</sub> − offset − deriva · (<i>t</i><sub>participante</sub> − referencia)</div><small>En este móvil, el modelo se fijó al inicio: offset ${finite(localModel.offset)?localModel.offset.toFixed(3):'—'} ms · deriva ${finite(localModel.drift)?localModel.drift.toExponential(3):'—'} ms/ms · referencia ${finite(localModel.reference)?localModel.reference.toFixed(1):'—'} ms. Los intercambios posteriores son diagnóstico: no desplazan las muestras registradas.</small></div>`;
-        target.innerHTML=groups.map(group=>{const preRtt=group.preRows.map(row=>row.rtt),duringRtt=group.duringRows.map(row=>row.rtt),preOffset=group.preRows.map(row=>row.offset),duringOffset=group.duringRows.map(row=>row.offset);return `<article class="joint-rtt-group"><h5>${escape(group.name)}</h5><div class="joint-rtt-grid">${histogramMarkup(group,'pre','rtt',preRtt)}${histogramMarkup(group,'pre','offset',preOffset)}${histogramMarkup(group,'during','rtt',duringRtt)}${histogramMarkup(group,'during','offset',duringOffset)}</div><div class="joint-sync-timeline-grid">${timelineMarkup(group,'rtt')}${timelineMarkup(group,'offset')}</div></article>`;}).join('');
+        $('jointSyncFormula').innerHTML=`<div class="joint-sync-formula"><strong>Modelo aplicado a las marcas temporales</strong><div><i>t</i><sub>maestro</sub> = <i>t</i><sub>participante</sub> − [offset<sub>0</sub> + deriva · (<i>t</i><sub>participante</sub> − referencia)]</div><small>El offset<sub>0</sub> es la mediana del 30 % de intercambios con RTT menor. La deriva se estima con Theil–Sen si hay al menos 20 s de datos útiles. El modelo se fija antes del ensayo; los intercambios posteriores solo diagnostican su estabilidad.</small></div>`;
+        target.innerHTML=groups.map(group=>{const preRtt=group.preRows.map(row=>row.rtt),duringRtt=group.duringRows.map(row=>row.rtt),preOffset=group.preRows.map(row=>syncMetric(row,'offset',group.model)),duringOffset=group.duringRows.map(row=>syncMetric(row,'offset',group.model));return `<article class="joint-rtt-group"><h5>${escape(group.name)}</h5>${modelSummaryMarkup(group.model)}<div class="joint-rtt-grid">${histogramMarkup(group,'pre','rtt',preRtt)}${histogramMarkup(group,'pre','offset',preOffset)}${histogramMarkup(group,'during','rtt',duringRtt)}${histogramMarkup(group,'during','offset',duringOffset)}</div><div class="joint-sync-timeline-grid">${timelineMarkup(group,'rtt')}${timelineMarkup(group,'offset')}</div></article>`;}).join('');
         target.querySelectorAll('[data-sync-bins]').forEach(select=>{select.value=String(s.syncView.bins);select.addEventListener('change',event=>{s.syncView.bins=Number(event.target.value);renderSyncResults(run);});});
         target.querySelectorAll('[data-sync-reset]').forEach(button=>button.addEventListener('click',()=>{delete s.syncView.focus[button.dataset.syncReset];renderSyncResults(run);}));
         target.querySelectorAll('[data-sync-chart-reset]').forEach(button=>button.addEventListener('click',()=>{const [groupKey,metric]=button.dataset.syncChartReset.split(':');const chart=s.syncCharts.find(item=>item.canvas.id===`syncTimeline-${groupKey}-${metric}`);chart?.resetZoom();}));
-        for(const group of groups){for(const [phase,rows] of [['pre',group.preRows],['during',group.duringRows]])for(const metric of ['rtt','offset'])makeHistogramChart($(`syncHist-${group.key}:${phase}:${metric}`),rows.map(row=>syncMetric(row,metric)),`${group.key}:${phase}:${metric}`);for(const metric of ['rtt','offset'])makeTimelineChart($(`syncTimeline-${group.key}-${metric}`),group.duringRows,run,metric);}
+        for(const group of groups){for(const [phase,rows] of [['pre',group.preRows],['during',group.duringRows]])for(const metric of ['rtt','offset'])makeHistogramChart($(`syncHist-${group.key}:${phase}:${metric}`),rows.map(row=>syncMetric(row,metric,group.model)),`${group.key}:${phase}:${metric}`);for(const metric of ['rtt','offset'])makeTimelineChart($(`syncTimeline-${group.key}-${metric}`),group.duringRows,run,metric,group.model);}
     }
     function exportSession() {
         if(!s.run?.finished)throw Error('Termina primero el ensayo.');
@@ -6702,7 +6721,8 @@ function formatTime(
                 const stride=Math.max(1,Math.ceil(points.length/4500));
                 datasets.push({label:name,data:points.filter((_,i)=>i%stride===0),borderColor:color,borderDash:dashes[deviceIndex%dashes.length],borderWidth:deviceIndex?1.35:2.15,pointRadius:0,tension:0,parsing:false});
             });
-            const chart=new Chart($(canvasId).getContext('2d'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:14,font:{size:11}}},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²'}},zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:span/1000},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:span/1000,title:{display:true,text:'Tiempo en el reloj maestro (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:(axis==='Z'?'Aceleración Z con detrend':'Aceleración '+axis)+' (m/s²)'},grid:{color:'rgba(0,0,0,.08)'}}}}});
+            const options=jointTemporalOptions(span/1000,axis==='Z'?'Aceleración Z con detrend (m/s²)':'Aceleración '+axis+' (m/s²)',item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²',true);options.scales.x.title.text='Tiempo en el reloj maestro (s)';
+            const chart=new Chart($(canvasId).getContext('2d'),{type:'line',data:{datasets},options});
             s.compareCharts.push(chart);enableLegendToggling(chart);
         }
     }
