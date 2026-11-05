@@ -5434,7 +5434,8 @@ function formatTime(
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
         storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null,
-        compareExport:null, compareCharts:[], jointCharts:{time:null,spectrum:null}
+        compareExport:null, compareCharts:[], jointCharts:{time:null,spectrum:null},
+        syncCharts:[], syncView:{bins:12,focus:{}}
     };
     const running = () => s.run && activeStates.has(s.run.state);
     function tell(message, error=false) { $('jointNotice').textContent=message; $('jointNotice').dataset.error=String(error); }
@@ -6532,44 +6533,60 @@ function formatTime(
         $('jointResultsList').innerHTML=html;
         renderSyncResults(r);
     }
-    function rttHistogram(values,title) {
-        const data=values.filter(finite);if(!data.length)return `<figure class="joint-rtt-figure"><figcaption>${escape(title)} · sin intercambios recibidos</figcaption></figure>`;
-        const low=Math.min(...data),high=Math.max(...data),spread=Math.max(.1,high-low),bins=Math.min(12,Math.max(5,Math.ceil(Math.sqrt(data.length))));
-        const counts=Array(bins).fill(0);
-        for(const value of data)counts[Math.min(bins-1,Math.floor((value-low)/spread*bins))]++;
-        const top=Math.max(...counts,1),width=360,height=112,base=88,usable=300,bar=usable/bins;
-        const bars=counts.map((count,i)=>{const h=count/top*64,x=42+i*bar;return `<rect x="${x.toFixed(1)}" y="${(base-h).toFixed(1)}" width="${Math.max(2,bar-3).toFixed(1)}" height="${h.toFixed(1)}" rx="1"/>`;}).join('');
-        return `<figure class="joint-rtt-figure"><figcaption>${escape(title)} · ${data.length} RTT · mín. ${low.toFixed(2)} ms · mediana ${median(data).toFixed(2)} ms</figcaption><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Histograma de RTT: desde ${low.toFixed(2)} hasta ${high.toFixed(2)} milisegundos"><line x1="42" y1="${base}" x2="342" y2="${base}"/><g class="joint-rtt-bars">${bars}</g><text x="42" y="106">${low.toFixed(1)} ms</text><text x="342" y="106" text-anchor="end">${high.toFixed(1)} ms</text></svg></figure>`;
+    function clearSyncCharts(){for(const chart of s.syncCharts)chart?.destroy();s.syncCharts=[];}
+    function syncMetric(row,metric){return metric==='rtt'?row.rtt:row.offset;}
+    function histogramBins(values,count) {
+        let low=Math.min(...values),high=Math.max(...values);
+        if(low===high){const pad=Math.max(.05,Math.abs(low)*.05);low-=pad;high+=pad;}
+        const span=high-low, step=span/count, bins=Array.from({length:count},(_,index)=>({low:low+index*step,high:index===count-1?high:low+(index+1)*step,count:0}));
+        for(const value of values){const index=Math.min(count-1,Math.max(0,Math.floor((value-low)/span*count)));bins[index].count++;}
+        return bins;
     }
-    function rttTimeline(rows,run,title) {
-        const duration=Math.max(1,(run.end-run.start)/1000),data=rows.filter(row=>finite(row.rtt)&&finite(row.t1)&&row.t1>=run.start&&row.t1<=run.end).map(row=>({x:(row.t1-run.start)/1000,y:row.rtt})).sort((a,b)=>a.x-b.x);
-        if(!data.length)return `<figure class="joint-rtt-figure joint-rtt-timeline"><figcaption>${escape(title)} · sin intercambios durante el ensayo</figcaption></figure>`;
-        const display=data.length>900?data.filter((_,index)=>index%Math.ceil(data.length/900)===0):data;
-        const min=Math.min(...data.map(point=>point.y)),max=Math.max(...data.map(point=>point.y)),pad=Math.max(.25,(max-min)*.12),low=Math.max(0,min-pad),high=max+pad,range=Math.max(.1,high-low);
-        const width=700,height=190,left=48,right=16,top=16,bottom=34,plotWidth=width-left-right,plotHeight=height-top-bottom;
-        const px=point=>left+point.x/duration*plotWidth,py=point=>top+(high-point.y)/range*plotHeight;
-        const path=display.map((point,index)=>(index?'L':'M')+px(point).toFixed(1)+' '+py(point).toFixed(1)).join(' ');
-        const ticks=[0,.25,.5,.75,1].map(fraction=>{const x=left+fraction*plotWidth,t=(fraction*duration).toFixed(duration<20?1:0);return `<line x1="${x.toFixed(1)}" y1="${top}" x2="${x.toFixed(1)}" y2="${top+plotHeight}"/><text x="${x.toFixed(1)}" y="${height-10}" text-anchor="middle">${t} s</text>`;}).join('');
-        const yTicks=[0,.5,1].map(fraction=>{const y=top+fraction*plotHeight,value=(high-fraction*range).toFixed(1);return `<line x1="${left}" y1="${y.toFixed(1)}" x2="${left+plotWidth}" y2="${y.toFixed(1)}"/><text x="${left-6}" y="${(y+3).toFixed(1)}" text-anchor="end">${value}</text>`;}).join('');
-        const points=display.map(point=>`<circle cx="${px(point).toFixed(1)}" cy="${py(point).toFixed(1)}" r="2.2"/>`).join('');
-        return `<figure class="joint-rtt-figure joint-rtt-timeline"><figcaption>${escape(title)} · ${data.length} intercambios · mín. ${min.toFixed(2)} ms · mediana ${median(data.map(point=>point.y)).toFixed(2)} ms · máx. ${max.toFixed(2)} ms</figcaption><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="RTT durante el ensayo, desde ${min.toFixed(2)} hasta ${max.toFixed(2)} milisegundos"><g class="joint-rtt-grid-lines">${ticks}${yTicks}</g><path class="joint-rtt-line" d="${path}"/><g class="joint-rtt-points">${points}</g><text x="8" y="13">RTT (ms)</text><text x="${width-16}" y="${height-10}" text-anchor="end">tiempo del ensayo</text></svg></figure>`;
+    function histogramMarkup(group,phase,metric,values) {
+        const key=`${group.key}:${phase}:${metric}`,focus=s.syncView.focus[key],raw=values.filter(finite),data=focus?raw.filter(value=>value>=focus.low&&value<=focus.high):raw;
+        const label=metric==='rtt'?'RTT':'Offset',phaseLabel=phase==='pre'?'Preparación — 100 intercambios':'Durante el ensayo — 2/s';
+        if(!data.length)return `<figure class="joint-rtt-figure"><figcaption>${label} · ${phaseLabel} · sin intercambios en este rango</figcaption></figure>`;
+        const suffix=focus?` · zoom: ${focus.low.toFixed(2)} a ${focus.high.toFixed(2)} ms`:'';
+        return `<figure class="joint-rtt-figure joint-sync-histogram"><figcaption><strong>${label}</strong> · ${phaseLabel}<br>${data.length} intercambios · mín. ${Math.min(...data).toFixed(2)} ms · mediana ${median(data).toFixed(2)} ms${suffix}</figcaption><div class="joint-histogram-controls"><label>Clases <select data-sync-bins><option value="8">8</option><option value="12">12</option><option value="20">20</option><option value="32">32</option><option value="48">48</option></select></label>${focus?`<button type="button" class="joint-secondary" data-sync-reset="${escape(key)}">Quitar zoom</button>`:'<span>Pulsa una barra para ampliar</span>'}</div><div class="joint-sync-canvas"><canvas id="syncHist-${escape(key)}" aria-label="Histograma de ${label} en ${phaseLabel}"></canvas></div></figure>`;
+    }
+    function timelineMarkup(group,metric) {
+        const label=metric==='rtt'?'RTT':'Offset';
+        return `<figure class="joint-rtt-figure joint-sync-timeline"><figcaption><strong>${label} durante el ensayo</strong> · rueda o pellizco para ampliar en X e Y; arrastra para desplazarte horizontalmente.</figcaption><div class="joint-sync-canvas joint-sync-timeline-canvas"><canvas id="syncTimeline-${escape(group.key)}-${metric}" aria-label="${label} a lo largo del ensayo"></canvas></div><button type="button" class="joint-secondary" data-sync-chart-reset="${escape(group.key)}:${metric}">Restablecer zoom</button></figure>`;
+    }
+    function makeHistogramChart(canvas,values,key) {
+        const focus=s.syncView.focus[key],data=(focus?values.filter(value=>value>=focus.low&&value<=focus.high):values).filter(finite);if(!canvas||!data.length)return;
+        const bins=histogramBins(data,s.syncView.bins),labels=bins.map(bin=>`${bin.low.toFixed(2)}–${bin.high.toFixed(2)}`);
+        const chart=new Chart(canvas.getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Intercambios',data:bins.map(bin=>bin.count),backgroundColor:'#087cc3',borderColor:'#056aa8',borderWidth:1,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>labels[items[0].dataIndex]+' ms',label:item=>item.raw+' intercambios'}}},scales:{x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:5,font:{size:10}},title:{display:true,text:'ms'}},y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:'Número de intercambios'}}},onClick:(event,elements)=>{if(!elements.length)return;const bin=bins[elements[0].index];s.syncView.focus[key]={low:bin.low,high:bin.high};renderSyncResults(s.run);}}});
+        s.syncCharts.push(chart);
+    }
+    function makeTimelineChart(canvas,rows,run,metric) {
+        if(!canvas)return;const duration=Math.max(1,(run.end-run.start)/1000),data=rows.filter(row=>finite(syncMetric(row,metric))&&finite(row.t1)&&row.t1>=run.start&&row.t1<=run.end).map(row=>({x:(row.t1-run.start)/1000,y:syncMetric(row,metric)})).sort((a,b)=>a.x-b.x);if(!data.length)return;
+        const color=metric==='rtt'?'#087cc3':'#9c27b0',label=metric==='rtt'?'RTT (ms)':'Offset estimado (ms)';
+        const chart=new Chart(canvas.getContext('2d'),{type:'line',data:{datasets:[{label,data,borderColor:color,backgroundColor:color,pointRadius:2.5,pointHoverRadius:5,borderWidth:1.6,tension:.12}]},options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>label+': '+item.parsed.y.toFixed(3)+' ms'}},zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:duration},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:duration,title:{display:true,text:'Tiempo desde el inicio del ensayo (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:label},grid:{color:'rgba(0,0,0,.08)'}}}}});
+        s.syncCharts.push(chart);
     }
     function renderSyncResults(run) {
-        const target=$('jointRttHistograms'),groups=[];
+        const target=$('jointRttHistograms'),groups=[];clearSyncCharts();
         if(s.role==='host') {
             for(const p of s.peers.values()) {
                 const rows=p.samples.filter(row=>row.runId===run.id);
                 const duringRows=rows.filter(row=>row.phase==='during');
-                groups.push({name:p.name||'Participante',pre:rows.filter(row=>row.phase==='pretest').map(row=>row.rtt),during:duringRows.map(row=>row.rtt),duringRows});
+                const preRows=rows.filter(row=>row.phase==='pretest');groups.push({key:p.id,name:p.name||'Participante',preRows,duringRows});
             }
         } else {
             const rows=s.syncLog.filter(row=>row.runId===run.id);
             const duringRows=rows.filter(row=>row.phase==='during');
-            groups.push({name:'Maestro',pre:rows.filter(row=>row.phase==='pretest').map(row=>row.rtt),during:duringRows.map(row=>row.rtt),duringRows});
+            groups.push({key:'master',name:'Maestro',preRows:rows.filter(row=>row.phase==='pretest'),duringRows});
         }
-        const useful=groups.some(group=>group.pre.length||group.during.length);
+        const useful=groups.some(group=>group.preRows.length||group.duringRows.length);
         $('jointSyncResults').hidden=!useful;
-        target.innerHTML=groups.map(group=>`<article class="joint-rtt-group"><h5>${escape(group.name)}</h5><div class="joint-rtt-grid">${rttHistogram(group.pre,'Preparación — 100 intercambios')}${rttHistogram(group.during,'Durante el ensayo — 2/s')}</div>${rttTimeline(group.duringRows,run,'Evolución temporal del RTT durante el ensayo')}</article>`).join('');
+        const localModel=run.initialClock||{offset:0,drift:0,reference:0};
+        $('jointSyncFormula').innerHTML=`<div class="joint-sync-formula"><strong>Modelo aplicado a las marcas temporales</strong><div><i>t</i><sub>maestro</sub> = <i>t</i><sub>participante</sub> − offset − deriva · (<i>t</i><sub>participante</sub> − referencia)</div><small>En este móvil, el modelo se fijó al inicio: offset ${finite(localModel.offset)?localModel.offset.toFixed(3):'—'} ms · deriva ${finite(localModel.drift)?localModel.drift.toExponential(3):'—'} ms/ms · referencia ${finite(localModel.reference)?localModel.reference.toFixed(1):'—'} ms. Los intercambios posteriores son diagnóstico: no desplazan las muestras registradas.</small></div>`;
+        target.innerHTML=groups.map(group=>{const preRtt=group.preRows.map(row=>row.rtt),duringRtt=group.duringRows.map(row=>row.rtt),preOffset=group.preRows.map(row=>row.offset),duringOffset=group.duringRows.map(row=>row.offset);return `<article class="joint-rtt-group"><h5>${escape(group.name)}</h5><div class="joint-rtt-grid">${histogramMarkup(group,'pre','rtt',preRtt)}${histogramMarkup(group,'pre','offset',preOffset)}${histogramMarkup(group,'during','rtt',duringRtt)}${histogramMarkup(group,'during','offset',duringOffset)}</div><div class="joint-sync-timeline-grid">${timelineMarkup(group,'rtt')}${timelineMarkup(group,'offset')}</div></article>`;}).join('');
+        target.querySelectorAll('[data-sync-bins]').forEach(select=>{select.value=String(s.syncView.bins);select.addEventListener('change',event=>{s.syncView.bins=Number(event.target.value);renderSyncResults(run);});});
+        target.querySelectorAll('[data-sync-reset]').forEach(button=>button.addEventListener('click',()=>{delete s.syncView.focus[button.dataset.syncReset];renderSyncResults(run);}));
+        target.querySelectorAll('[data-sync-chart-reset]').forEach(button=>button.addEventListener('click',()=>{const [groupKey,metric]=button.dataset.syncChartReset.split(':');const chart=s.syncCharts.find(item=>item.canvas.id===`syncTimeline-${groupKey}-${metric}`);chart?.resetZoom();}));
+        for(const group of groups){for(const [phase,rows] of [['pre',group.preRows],['during',group.duringRows]])for(const metric of ['rtt','offset'])makeHistogramChart($(`syncHist-${group.key}:${phase}:${metric}`),rows.map(row=>syncMetric(row,metric)),`${group.key}:${phase}:${metric}`);for(const metric of ['rtt','offset'])makeTimelineChart($(`syncTimeline-${group.key}-${metric}`),group.duringRows,run,metric);}
     }
     function exportSession() {
         if(!s.run?.finished)throw Error('Termina primero el ensayo.');
