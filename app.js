@@ -5041,10 +5041,10 @@ function formatTime(
     const $ = id => document.getElementById(id);
     const root = $('jointApp');
     if (!root) return;
-    const VERSION = 3;
+    const VERSION = 4;
     // Only these app-owned endpoints are used; invitation codes cannot inject servers.
     const STUN_SERVERS = [{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}];
-    const MAX_PEERS = 8, MAX_POINTS = 64, MAX_SAMPLES = 500000;
+    const MAX_PEERS = 8, MAX_POINTS = 64, MAX_SAMPLES = 500000, MAX_SYNC_SAMPLES = 25000;
     const MAX_TOKEN = 50000, MAX_MESSAGE = 90000, QR_CHUNK_SIZE = 175, MAX_QR_PAGES = 256;
     const activeStates = new Set(['preparing', 'armed', 'recording']);
     const uid = () => {
@@ -5070,7 +5070,9 @@ function formatTime(
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
         storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null,
         compareExport:null, compareCharts:[], jointCharts:{time:null,spectrum:null},
-        syncCharts:[], syncView:{bins:12,focus:{}}
+        syncCharts:[], syncView:{bins:12,focus:{}},
+        syncCalibration:{phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0},
+        duringSyncTimer:null
     };
     const running = () => s.run && activeStates.has(s.run.state);
     function tell(message, error=false) { $('jointNotice').textContent=message; $('jointNotice').dataset.error=String(error); }
@@ -5085,7 +5087,7 @@ function formatTime(
         document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
     }
     function tab(name) {
-        for (const n of ['Plan','Devices','Measure','Results','Compare']) {
+        for (const n of ['Plan','Devices','Sync','Measure','Results','Compare']) {
             $('jointPanel'+n).hidden=n!==name; $('jointTab'+n).setAttribute('aria-selected',String(n===name));
         }
         if(name==='Compare') renderComparison();
@@ -5187,11 +5189,12 @@ function formatTime(
         if(s.role==='guest'&&s.syncModel.count) html+=`<p class="joint-help">Mi reloj respecto al maestro: ${s.syncModel.offset.toFixed(2)} ms (estimado). RTT mínimo: ${s.syncModel.rtt.toFixed(2)} ms.</p>`;
         $('jointDevices').innerHTML=html;
         $('jointStart').hidden=s.role!=='host'; $('jointSync').hidden=s.role!=='host';
-        $('jointStart').disabled=!!running()||!!s.transaction;
+        $('jointStart').disabled=!!running()||!!s.transaction||!s.syncCalibration.accepted;
         $('jointDuration').disabled=s.role!=='host'||!!running()||!!s.transaction;
         $('jointEnableSensor').disabled=s.sensorEnabled;
         $('jointStop').disabled=!running()&&!s.transaction;
         $('jointPair').disabled=!!running()||!!s.transaction;
+        renderSyncCalibration();
     }
 
     // Bidirectional manual signaling, compressible QR; never send SDP to a service.
@@ -5746,15 +5749,31 @@ function formatTime(
             if(!finite(m.t2)||!finite(m.t3)||m.t3<m.t2)return;
             const rtt=(received-t1)-(m.t3-m.t2);if(rtt<0||rtt>2000)return;
             const row={t1,t2:m.t2,t3:m.t3,t4:received,rtt,offset:((m.t2-t1)+(m.t3-received))/2,local:(m.t2+m.t3)/2,phase:request.phase,runId:request.runId};
-            p.samples.push(row);if(p.samples.length>1200)p.samples.shift();p.model=clockFit(p.samples);
+            p.samples.push(row);if(p.samples.length>MAX_SYNC_SAMPLES)p.samples.shift();p.model=clockFit(p.samples);
             if(p.model){send(p,{type:'CLOCK_MODEL',model:p.model,exchange:row});}
             return;
         }
         if(m.type==='CLOCK_MODEL'&&s.role==='guest') {
             if(!validModel(m.model))return;
             s.syncModel={...m.model,updated:now()};p.model=m.model;
-            if(m.exchange){s.syncLog.push(m.exchange);if(s.syncLog.length>1200)s.syncLog.shift();}
+            if(m.exchange){s.syncLog.push(m.exchange);if(s.syncLog.length>MAX_SYNC_SAMPLES)s.syncLog.shift();}
             return;
+        }
+        if(m.type==='SYNC_GESTURE_ARM'&&s.role==='guest') {
+            if(typeof m.id!=='string'||!finite(m.start)||!finite(m.end)||m.end-m.start<6000||!localStatus().sensor||!s.calibration.complete){send(p,{type:'SYNC_GESTURE_REJECT',id:m.id,reason:'Sensor o calibración de ejes no disponibles.'});return;}
+            armSyncGesture(m,s.syncModel);send(p,{type:'SYNC_GESTURE_READY',id:m.id});tell('Prueba física preparada. Sigue la cuenta atrás junto al maestro.');return;
+        }
+        if(m.type==='SYNC_GESTURE_READY'&&s.role==='host')return;
+        if(m.type==='SYNC_GESTURE_REJECT'&&s.role==='host'){if(s.syncCalibration.id===m.id){s.syncCalibration.phase='failed';tell(p.name+': '+String(m.reason||'no pudo preparar la prueba.'),true);renderSyncCalibration();}return;}
+        if(m.type==='SYNC_GESTURE_RESULT'&&s.role==='host') {
+            if(s.syncCalibration.id!==m.id||!Array.isArray(m.samples)||m.samples.length<20||m.samples.length>1800)return;
+            if(!m.calibration?.map)return;
+            s.syncCalibration.results[p.id]={samples:m.samples,calibration:m.calibration,accepted:false};renderSyncCalibration();return;
+        }
+        if(m.type==='SYNC_GESTURE_APPLY'&&s.role==='guest') {
+            if(s.syncCalibration.gesture?.id!==m.id||!finite(m.correctionMs)||!m.axes)return;
+            s.syncCalibration.results[s.id]={axes:m.axes,correctionMs:m.correctionMs,accepted:true};s.syncCalibration.correctionMs=m.correctionMs;s.syncCalibration.accepted=true;s.syncCalibration.phase='accepted';
+            tell('Sincronización física validada: corrección fija '+m.correctionMs.toFixed(2)+' ms.');renderSyncCalibration();renderDevices();return;
         }
         if(m.type==='PLAN'&&s.role==='guest'&&!running()) {s.plan=checkPlan(m.plan);s.selected=pointFor()?.id||s.plan.points[0]?.id;renderPlan();return;}
         if(m.type==='PREPARE'&&s.role==='guest') {
@@ -5762,7 +5781,9 @@ function formatTime(
             if(running())reason='Ya hay un ensayo activo.';
             else if(!localStatus().sensor||document.hidden)reason='Sensor sin datos o página oculta.';
             else if(!pointFor())reason='Falta asignación a un punto.';
-            else if(s.syncModel.count<8||now()-s.syncModel.updated>15000)reason='Sincronización no reciente.';
+            // La ráfaga y el gesto ya han fijado la corrección del ensayo. El reloj
+            // puede llevar más de 15 s sin mensajes porque el gesto físico dura 12 s.
+            else if(!s.syncCalibration.accepted||s.syncModel.count<8)reason='Falta una sincronización física válida.';
             else if(typeof m.runId!=='string'||!finite(m.duration)||m.duration<5||m.duration>1800)reason='Duración no válida.';
             if(!reason)s.pending={id:m.runId,duration:m.duration,expires:now()+15000};
             send(p,{type:'READY',runId:m.runId,ok:!reason,reason});tell(reason||'Preparado. Esperando confirmación del maestro.',!!reason);return;
@@ -5856,6 +5877,42 @@ function formatTime(
         window.addEventListener('devicemotion',motion);s.sensorEnabled=true;s.sensorSource='DeviceMotionEvent';
         tell('Esperando datos del acelerómetro mediante DeviceMotionEvent…');showCalibration();renderDevices();
         setTimeout(()=>{if(s.sensorEnabled&&!s.sensor)tell('No llegan datos mediante '+s.sensorSource+'. Revisa permiso de movimiento/sensores, que la página esté visible y que no esté activada la privacidad de sensores del teléfono.',true);},4000);
+    }
+    function renderSyncCalibration() {
+        const state=s.syncCalibration,button=$('jointSyncStart');
+        if(!button)return;
+        const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
+        const axesReady=s.calibration.complete&&peers.every(p=>p.status?.calibrated);
+        button.hidden=s.role!=='host';button.disabled=s.role!=='host'||!axesReady||state.phase==='network'||state.phase==='gesture'||state.phase==='processing';
+        const badge=$('jointSyncState');
+        const labels={idle:'Pendiente',network:'Ráfaga de reloj',gesture:'Gesto en curso',processing:'Procesando',accepted:'Validada',failed:'Repetir prueba'};
+        badge.textContent=labels[state.phase]||'Pendiente';badge.classList.toggle('done',state.phase==='accepted');
+        const gesture=state.gesture;
+        const box=$('jointSyncCountdown');
+        if(!gesture||!finite(gesture.start)||!finite(gesture.end)||now()>gesture.end+1200){box.hidden=true;box.classList.remove('go');}
+        else {
+            const masterNow=s.role==='host'?now():toMaster(now(),gesture.model||s.syncModel),d=masterNow-gesture.start;
+            box.hidden=false;
+            if(d<0){box.classList.remove('go');box.textContent='Quietos · '+Math.max(1,Math.ceil(-d/1000));}
+            else {box.classList.add('go');box.textContent=gesturePrompt(d);}
+        }
+        const localRows=[];
+        const own=state.results?.[s.id];
+        if(own?.axes)localRows.push(`<article class="joint-sync-card"><strong>${escape(s.name)} · ${state.phase==='accepted'?'referencia':'maestro'}</strong><p>${axisResultMarkup(own.axes)}</p><small>${own.accepted?'Corrección: '+own.correctionMs.toFixed(2)+' ms':'Sin corrección física local'}</small></article>`);
+        for(const p of peers){const result=state.results?.[p.id],model=state.models?.[p.id]||p.startModel,clock=finite(model?.offset)?`Offset inicial: ${model.offset.toFixed(2)} ms · RTT mín.: ${finite(model.rtt)?model.rtt.toFixed(2):'—'} ms`:'Modelo de reloj pendiente';localRows.push(`<article class="joint-sync-card"><strong>${escape(p.name)}</strong><p>${result?.axes?axisResultMarkup(result.axes):state.phase==='network'?'Midiendo RTT y offset…':state.phase==='gesture'?'Esperando gesto común…':'Pendiente'}</p><small>${clock}<br>${result?.accepted?'Corrección aplicada: '+result.correctionMs.toFixed(2)+' ms':result?.error?escape(result.error):'Se correlacionarán X–X, Y–Y y Z–Z.'}</small></article>`);}
+        $('jointSyncSummary').innerHTML=localRows.length?localRows.join(''):`<p class="joint-help">Activa y calibra todos los acelerómetros antes de validar la sincronización.</p>`;
+        if(state.phase==='accepted')$('jointSyncHelp').textContent='Sincronización validada. La corrección física se conservará para el próximo ensayo; los mensajes de 10 Hz durante la medida solo se guardarán como diagnóstico.';
+        else if(!axesReady)$('jointSyncHelp').textContent='Completa los factores +1/−1 de X, Y y Z en todos los móviles antes de iniciar la prueba conjunta.';
+    }
+    function axisResultMarkup(axes) {return ['x','y','z'].map(axis=>{const a=axes[axis];return a&&finite(a.lag)?`${axis.toUpperCase()}: ${a.lag.toFixed(2)} ms · r ${a.correlation.toFixed(3)}`:`${axis.toUpperCase()}: —`;}).join('<br>');}
+    function gesturePrompt(d) {
+        if(d<2000)return 'Quietos · preparando señal';
+        if(d<4200)return 'X AZUL · movimiento ida · vuelta · ida';
+        if(d<5000)return 'Quietos';
+        if(d<7200)return 'Y ROJO · movimiento ida · vuelta · ida';
+        if(d<8000)return 'Quietos';
+        if(d<10200)return 'Z VERDE · movimiento ida · vuelta · ida';
+        return 'Quietos · guardando la prueba';
     }
     function showCalibration() {
         $('jointCalibration').hidden=false;$('jointCalibrationOverride').hidden=false;renderCalibration();
@@ -5966,6 +6023,82 @@ function formatTime(
         // Los canales nunca se permutan: X corrige X, Y corrige Y y Z corrige Z.
         return ['x','y','z'].map((axis,index)=>(map[axis].sign||1)*values[index]);
     }
+    function filteredGestureSeries(samples,axis,calibration) {
+        const index={x:1,y:2,z:3}[axis],rows=samples.filter(row=>Array.isArray(row)&&finite(row[0])&&finite(row[index])).sort((a,b)=>a[0]-b[0]);
+        if(rows.length<20)return [];
+        const factor=calibration?.map?.[axis]?.sign||1;
+        const values=linearDetrend(rows.map(row=>factor*row[index]));
+        const dt=median(rows.slice(1).map((row,i)=>row[0]-rows[i][0]).filter(value=>value>=5&&value<=100));
+        const rate=dt?1000/dt:60;
+        const lowPass=(input=>{if(input.length<4)return input.slice();const step=1/Math.max(20,rate),rc=1/(2*Math.PI*10),alpha=step/(rc+step),pass=x=>{const out=[x[0]];for(let i=1;i<x.length;i++)out.push(out[i-1]+alpha*(x[i]-out[i-1]));return out;};let out=input.slice();for(let order=0;order<2;order++)out=pass(pass(out).reverse()).reverse();return out;})(values);
+        return rows.map((row,i)=>[row[0],lowPass[i]]);
+    }
+    function interpolateGesture(series,time) {
+        let low=0,high=series.length-1;
+        if(!series.length||time<series[0][0]||time>series[high][0])return null;
+        while(high-low>1){const mid=(low+high)>>1;if(series[mid][0]<=time)low=mid;else high=mid;}
+        const a=series[low],b=series[high];if(!b||b[0]===a[0])return a[1];
+        return a[1]+(b[1]-a[1])*(time-a[0])/(b[0]-a[0]);
+    }
+    function correlationAt(master,participant,lag,start,end) {
+        let n=0,sumA=0,sumB=0,sumAA=0,sumBB=0,sumAB=0;
+        for(let t=start;t<=end;t+=1){const a=interpolateGesture(master,t),b=interpolateGesture(participant,t+lag);if(!finite(a)||!finite(b))continue;n++;sumA+=a;sumB+=b;sumAA+=a*a;sumBB+=b*b;sumAB+=a*b;}
+        const top=n*sumAB-sumA*sumB,den=Math.sqrt(Math.max(0,(n*sumAA-sumA*sumA)*(n*sumBB-sumB*sumB)));
+        return n>100&&den>1e-9?top/den:null;
+    }
+    function estimateGestureAxis(masterSamples,participantSamples,axis,masterCalibration,participantCalibration,start,end) {
+        const master=filteredGestureSeries(masterSamples,axis,masterCalibration),participant=filteredGestureSeries(participantSamples,axis,participantCalibration);
+        if(master.length<20||participant.length<20)return {axis,error:'muestras insuficientes'};
+        let best={lag:0,correlation:-Infinity};
+        for(let lag=-100;lag<=100;lag++){const correlation=correlationAt(master,participant,lag,start,end);if(finite(correlation)&&correlation>best.correlation)best={lag,correlation};}
+        const values=master.map(row=>row[1]),rms=Math.sqrt(values.reduce((sum,value)=>sum+value*value,0)/values.length);
+        if(!finite(best.correlation)||best.correlation<.55||rms<.05)return {...best,axis,error:'gesto poco claro'};
+        return {...best,axis,rms};
+    }
+    function armSyncGesture(payload,model=s.syncModel) {
+        s.syncCalibration.phase='gesture';s.syncCalibration.gesture={id:payload.id,start:payload.start,end:payload.end,model:structuredClone(model),samples:[],sent:false};
+        tab('Sync');renderSyncCalibration();
+    }
+    async function startSyncCalibration() {
+        requireHostEdit();
+        if(!localStatus().sensor||!s.calibration.complete)throw Error('Activa y calibra los ejes del maestro antes de iniciar.');
+        const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
+        if(!peers.length)throw Error('Conecta al menos un participante.');
+        for(const p of peers)if(!p.status?.sensor||!p.status?.calibrated||!p.status?.visible)throw Error(p.name+' debe tener el acelerómetro visible y los tres ejes calibrados.');
+        // El estado se exporta con el ensayo: guarda IDs, nunca objetos RTCPeerConnection.
+        const id=uid();s.syncCalibration={phase:'network',accepted:false,gesture:null,results:{},models:{},correctionMs:0,id,peerIds:peers.map(p=>p.id)};tab('Sync');renderSyncCalibration();
+        tell('Midiendo 200 intercambios de reloj a 20 Hz por participante (unos 10 s)…');
+        await Promise.all(peers.map(p=>startSync(p,200,50,'precal',id)));
+        await pause(500);
+        for(const p of peers){const rows=p.samples.filter(row=>row.runId===id&&row.phase==='precal');if(rows.length<185)throw Error('Solo se completaron '+rows.length+' de 200 intercambios con '+p.name+'. Repite la calibración.');const model=clockFit(rows);if(!model)throw Error('No se pudo ajustar el reloj de '+p.name+'.');p.model=model;p.startModel=structuredClone(model);s.syncCalibration.models[p.id]=structuredClone(model);send(p,{type:'CLOCK_MODEL',model});}
+        const start=now()+4000,end=start+12000,payload={type:'SYNC_GESTURE_ARM',id,start,end};
+        armSyncGesture(payload,{offset:0,drift:0,reference:0,count:0,rtt:0});broadcast(payload);
+        tell('Relojes listos. Fija los móviles en la tablilla y sigue la cuenta atrás X, Y y Z.');
+        setTimeout(()=>finalizeSyncGesture(id),19000);
+    }
+    function finalizeSyncGesture(id) {
+        const state=s.syncCalibration,g=state.gesture;if(s.role!=='host'||state.id!==id||!g||g.id!==id||state.phase==='accepted'||state.phase==='failed')return;
+        state.phase='processing';const masterSamples=g.samples,masterCalibration=s.calibration;
+        state.results[s.id]={axes:{},accepted:true,correctionMs:0};
+        let missing=[];
+        // Cada eje se correlaciona únicamente durante su propio gesto. Así X–X,
+        // Y–Y y Z–Z no se contaminan entre sí aunque exista acoplamiento mecánico.
+        const windows={x:[g.start+2000,g.start+4200],y:[g.start+5000,g.start+7200],z:[g.start+8000,g.start+10200]};
+        const peers=(state.peerIds||[]).map(peerId=>s.peers.get(peerId)).filter(Boolean);
+        for(const peerId of state.peerIds||[])if(!s.peers.has(peerId))missing.push('un participante desconectado');
+        for(const p of peers){const result=state.results[p.id];if(!result?.samples){missing.push(p.name);continue;}
+            const axes={};for(const axis of ['x','y','z']){const [start,end]=windows[axis];axes[axis]=estimateGestureAxis(masterSamples,result.samples,axis,masterCalibration,result.calibration,start,end);}
+            const valid=Object.values(axes).filter(value=>!value.error);const lags=valid.map(value=>value.lag),correction=median(lags),spread=lags.length?Math.max(...lags)-Math.min(...lags):Infinity;
+            result.axes=axes;result.correctionMs=correction??0;result.accepted=valid.length===3&&spread<=8;
+            if(!result.accepted)result.error=valid.length<3?'No se validaron los tres ejes.':'Los retardos X, Y y Z no son coherentes.';
+        }
+        if(missing.length){state.phase='failed';tell('No llegaron las ventanas de gesto de '+missing.join(', ')+'. Repite la prueba.',true);renderSyncCalibration();return;}
+        const rejected=peers.filter(p=>!state.results[p.id]?.accepted);
+        if(rejected.length){state.phase='failed';tell('La prueba física no es consistente para '+rejected.map(p=>p.name).join(', ')+'. Repite los tres gestos.',true);renderSyncCalibration();return;}
+        state.phase='accepted';state.accepted=true;
+        for(const p of peers){const result=state.results[p.id];p.syncCalibration=structuredClone(result);send(p,{type:'SYNC_GESTURE_APPLY',id,correctionMs:result.correctionMs,axes:result.axes});}
+        tell('Sincronización física validada. Ya puedes pasar a Medir.');renderSyncCalibration();renderDevices();
+    }
     function motion(event) {
         const a=event.accelerationIncludingGravity;
         if(!a)return;
@@ -5984,6 +6117,8 @@ function formatTime(
         const captureModel=run&&activeStates.has(run.state)?run.initialClock:s.syncModel;
         const masterAtCapture=s.role==='host'?used:toMaster(used,captureModel);
         const sample=[0,timestamp,received,x,y,z,interval,used,masterAtCapture];
+        const gesture=s.syncCalibration.gesture;
+        if(gesture&&gesture.phase!=='finished'&&masterAtCapture>=gesture.start-700&&masterAtCapture<=gesture.end+700)gesture.samples.push([masterAtCapture,x,y,z]);
         const calibration=s.calibration.active;
         if(calibration&&received<calibration.start)calibration.baseline.push([x,y,z]);
         else if(calibration&&received<=calibration.end)calibration.samples.push([x,y,z]);
@@ -6003,17 +6138,28 @@ function formatTime(
         if(run.samples.length>=MAX_SAMPLES){if(!run.sampleLimit){run.sampleLimit=true;incident('limit','Se ha alcanzado el límite de muestras.');}run.end=Math.min(run.end,toMaster(now(),run.initialClock));return;}
         const row=[...sample];row[0]=run.samples.length;run.samples.push(row);
     }
+    function startDuringSync() {
+        clearInterval(s.duringSyncTimer);s.duringSyncTimer=null;
+        if(s.role!=='host')return;
+        s.duringSyncTimer=setInterval(()=>{
+            if(!running()||s.role!=='host')return;
+            for(const p of s.peers.values())if(p.channel?.readyState==='open')syncOnce(p,'during',s.run.id);
+        },100);
+    }
+    function stopDuringSync(){clearInterval(s.duringSyncTimer);s.duringSyncTimer=null;}
     async function requestWake() {try{if(navigator.wakeLock)s.wake=await navigator.wakeLock.request('screen');}catch(e){incident('screen','No se pudo mantener la pantalla activa.');}}
     function releaseWake(){if(s.wake){s.wake.release().catch(()=>{});s.wake=null;}}
     function beginRun(id,start,end,duration) {
         s.results.clear();s.compareExport=null;s.storageFailed=false;
-        const model=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
+        const networkModel=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
+        const physicalCorrection=s.role==='host'?0:Number(s.syncCalibration.correctionMs||0);
+        const model={...networkModel,offset:networkModel.offset+physicalCorrection,physicalCorrectionMs:physicalCorrection};
         const quiet=s.recent.filter(sample=>sample[2]>=now()-1000).map(sample=>correctedVector(sample.slice(3,6)));
         const previewBaseline=['x','y','z'].map((_,index)=>quiet.length?quiet.reduce((sum,row)=>sum+row[index],0)/quiet.length:0);
         const syncModels=s.role==='host'?Object.fromEntries([...s.peers.values()].map(p=>[p.id,structuredClone(p.startModel||p.model||{})])):{[s.id]:structuredClone(model)};
-        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,finalClock:model,syncModels,samples:[],incidents:[],persisted:0,chunkIndex:0,previewBaseline,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
+        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,networkClock:structuredClone(networkModel),finalClock:model,syncModels,synchronizationCalibration:structuredClone(s.syncCalibration),samples:[],incidents:[],persisted:0,chunkIndex:0,previewBaseline,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
         for(const sample of s.recent){const t=finite(sample[8])?sample[8]:toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
-        document.body.classList.add('recording-lock');tab('Measure');ensureJointCharts();setTimeout(()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},50);requestWake();persist();renderPlan();renderDevices();tell('Inicio programado. Pantalla y gestos bloqueados durante la medida.');
+        document.body.classList.add('recording-lock');tab('Measure');ensureJointCharts();setTimeout(()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},50);requestWake();startDuringSync();persist();renderPlan();renderDevices();tell('Inicio programado. Pantalla y gestos bloqueados durante la medida.');
     }
     async function startRun() {
         requireHostEdit();
@@ -6028,23 +6174,11 @@ function formatTime(
             if(!p.status?.calibrated)throw Error(p.name+' debe completar la calibración de ejes.');
         }
         if(!s.calibration.complete)throw Error('Completa la calibración X, Y y Z del maestro antes de medir.');
+        if(!s.syncCalibration.accepted)throw Error('Completa primero la pestaña Calibrar y sincronizar.');
         const duration=Number($('jointDuration').value);if(!finite(duration)||duration<5||duration>1800||!Number.isInteger(duration))throw Error('Introduce una duración entera entre 5 y 1800 segundos.');
-        const id=uid(),tx={id,ready:new Map(),acks:new Set(),error:null,phase:'clock',peers};
-        // Bloqueamos el inicio desde el primer intercambio: la preparación es parte del ensayo.
-        s.transaction=tx;tab('Measure');$('jointMeasureState').textContent='Sincronizando relojes… 0 / 100';renderPlan();renderDevices();
+        const id=uid(),tx={id,ready:new Map(),acks:new Set(),error:null,phase:'ready',peers};
+        s.transaction=tx;tab('Measure');$('jointMeasureState').textContent='Confirmando dispositivos…';renderPlan();renderDevices();
         try {
-            tell('Midiendo 100 intercambios de reloj por participante (unos 10 s)…');
-            await Promise.all(peers.map(p=>startSync(p,100,100,'pretest',id)));
-            await pause(300);
-            if(s.transaction!==tx)throw Error('Inicio cancelado.');
-            for(const p of peers) {
-                const pretest=p.samples.filter(row=>row.runId===id&&row.phase==='pretest'),count=pretest.length;
-                if(count<95)throw Error('Solo se completaron '+count+' de 100 intercambios con '+p.name+'. Comprueba la conexión y repite.');
-                p.model=clockFit(pretest);
-                if(!p.model)throw Error('No se pudo ajustar el reloj de '+p.name+'.');
-                p.startModel=structuredClone(p.model);send(p,{type:'CLOCK_MODEL',model:p.model});
-            }
-            tx.phase='ready';
             broadcast({type:'PREPARE',runId:id,duration});tell('Solicitando confirmación a los participantes…');
             const limit=now()+5000;
             while(tx.ready.size<peers.length&&now()<limit&&s.transaction===tx)await pause(50);
@@ -6077,13 +6211,13 @@ function formatTime(
         if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,now()));incident('stop',reason);broadcast({type:'STOP_AT',runId:s.run.id,end:s.run.end});}
     }
     function runMeta(run) {
-        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,finalClock:run.finalClock,syncModels:run.syncModels||{},synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj robusto fijado al inicio del ensayo; los intercambios posteriores se guardan solo como diagnóstico.',userAgent:navigator.userAgent};
+        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,networkClock:run.networkClock||run.initialClock,finalClock:run.finalClock,syncModels:run.syncModels||{},synchronizationCalibration:run.synchronizationCalibration||null,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj robusto fijado al inicio del ensayo más la corrección física fija de la tablilla; los intercambios posteriores solo diagnostican su estabilidad.',userAgent:navigator.userAgent};
     }
     function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
     async function finishRun(cancelled=false) {
         const run=s.run;if(!run||run.finishing||run.finished)return;run.finishing=true;
         run.state=cancelled?'cancelled':'finished';run.finalClock=s.role==='host'?run.initialClock:structuredClone(s.syncModel);
-        document.body.classList.remove('recording-lock');releaseWake();await persist(run);run.finished=true;run.finishing=false;
+        stopDuringSync();document.body.classList.remove('recording-lock');releaseWake();await persist(run);run.finished=true;run.finishing=false;
         if(s.run!==run)return;
         const record=localRecord();s.results.set(s.id,record);tab('Results');renderPlan();renderDevices();renderResults();
         tell(cancelled?'Ensayo cancelado. Los datos disponibles se conservan.':'Registro local terminado. Ya puedes descargar los datos.');
@@ -6164,7 +6298,7 @@ function formatTime(
     }
     function histogramMarkup(group,phase,metric,values) {
         const key=`${group.key}:${phase}:${metric}`,focus=s.syncView.focus[key],raw=values.filter(finite),data=focus?raw.filter(value=>value>=focus.low&&value<=focus.high):raw;
-        const label=metric==='rtt'?'RTT':'Residuo de offset',phaseLabel=phase==='pre'?'Preparación — 100 intercambios':'Durante el ensayo — 2/s';
+        const label=metric==='rtt'?'RTT':'Residuo de offset',phaseLabel=phase==='pre'?'Calibración — 200 intercambios a 20 Hz':'Durante el ensayo — 10/s';
         if(!data.length)return `<figure class="joint-rtt-figure"><figcaption>${label} · ${phaseLabel} · sin intercambios en este rango</figcaption></figure>`;
         const suffix=focus?` · zoom: ${focus.low.toFixed(2)} a ${focus.high.toFixed(2)} ms`:'';
         const detail=metric==='offset'?' · respecto al modelo inicial robusto':'';
@@ -6199,12 +6333,12 @@ function formatTime(
             for(const p of s.peers.values()) {
                 const rows=p.samples.filter(row=>row.runId===run.id);
                 const duringRows=rows.filter(row=>row.phase==='during');
-                const preRows=rows.filter(row=>row.phase==='pretest'),model=run.syncModels?.[p.id]||p.startModel||p.model;groups.push({key:p.id,name:p.name||'Participante',preRows,duringRows,model});
+                const preRows=p.samples.filter(row=>row.phase==='precal'),model=run.syncModels?.[p.id]||p.startModel||p.model;groups.push({key:p.id,name:p.name||'Participante',preRows,duringRows,model});
             }
         } else {
             const rows=s.syncLog.filter(row=>row.runId===run.id);
             const duringRows=rows.filter(row=>row.phase==='during');
-            groups.push({key:'master',name:'Maestro',preRows:rows.filter(row=>row.phase==='pretest'),duringRows,model:run.initialClock});
+            groups.push({key:'master',name:'Maestro',preRows:s.syncLog.filter(row=>row.phase==='precal'),duringRows,model:run.networkClock||run.initialClock});
         }
         const useful=groups.some(group=>group.preRows.length||group.duringRows.length);
         $('jointSyncResults').hidden=!useful;
@@ -6371,11 +6505,17 @@ function formatTime(
             else $('jointCalibrationHelp').textContent='Registrando gesto: detrend y filtro paso bajo de 10 Hz…';
             renderCalibrationCountdown();
         }
-        if(s.transaction?.phase==='clock') {
-            const counts=s.transaction.peers.map(p=>p.samples.filter(row=>row.runId===s.transaction.id&&row.phase==='pretest').length);
-            const count=counts.length?Math.min(...counts):0;
-            $('jointMeasureState').textContent='Sincronizando relojes… '+Math.min(100,count)+' / 100';
-        } else if(s.transaction?.phase==='ready') {
+        const gesture=s.syncCalibration.gesture;
+        if(gesture&&now()>=gesture.end&&gesture.phase!=='finished') {
+            gesture.phase='finished';
+            if(s.role==='guest'&&!gesture.sent){
+                gesture.sent=true;const host=[...s.peers.values()][0];
+                send(host,{type:'SYNC_GESTURE_RESULT',id:gesture.id,samples:gesture.samples,calibration:s.calibration});
+                tell('Ventana del gesto enviada al maestro. Procesando correlaciones…');
+            }
+        }
+        renderSyncCalibration();
+        if(s.transaction?.phase==='ready') {
             $('jointMeasureState').textContent='Confirmando dispositivos…';
         }
         if(r&&activeStates.has(r.state)) {
@@ -6397,8 +6537,6 @@ function formatTime(
         drawPreview();
         if(s.uiTick%4===0)drawLiveSpectrum();
         if(++s.uiTick%4===0){renderDevices();broadcast({type:'STATUS',status:localStatus()});if(running())persist();}
-        // Dos intercambios NTP por segundo durante la ventana coordinada.
-        if(s.uiTick%2===0&&s.role==='host'&&r?.state==='recording')for(const p of s.peers.values())syncOnce(p,'during',r.id);
     }
     function resetSession() {
         if((running()||s.transaction)&&!confirm('¿Cancelar la medida y salir? Los bloques guardados seguirán disponibles en este navegador.'))return;
@@ -6406,10 +6544,10 @@ function formatTime(
         if(s.run){if(running())s.run.state='cancelled';persist();}
         stopScan();if($('jointPairDialog').open)$('jointPairDialog').close();
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
-        stopJointSensor();document.body.classList.remove('recording-lock');releaseWake();
+        stopJointSensor();stopDuringSync();document.body.classList.remove('recording-lock');releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
         s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
-        s.calibration={map:{},active:null,complete:false};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
+        s.calibration={map:{},active:null,complete:false};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
         if(s.returnTo)s.returnTo.style.display='block';else $('mainMenu').style.display='block';
@@ -6424,7 +6562,7 @@ function formatTime(
         if(accelerationChart===null){createAccelerationChart();createSpectrumChart();createPsdChart();createRmsChart();[accelerationChart,spectrumChart,psdChart,rmsChart].forEach(enableLegendToggling);}
     }));
     $('jointExit').addEventListener('click',resetSession);
-    document.querySelectorAll('[data-joint-tab]').forEach(b=>b.onclick=()=>{tab(b.dataset.jointTab);if(b.dataset.jointTab==='Results')renderResults();});
+    document.querySelectorAll('[data-joint-tab]').forEach(b=>b.onclick=()=>{tab(b.dataset.jointTab);if(b.dataset.jointTab==='Results')renderResults();if(b.dataset.jointTab==='Sync')renderSyncCalibration();});
     $('jointCreate').onclick=guard(()=>{
         open();s.id=uid();s.role='host';s.name='Maestro';s.session=uid();
         try{const stored=localStorage.getItem('upm-joint-plan-v1');if(stored)s.plan=checkPlan(JSON.parse(stored));}catch(e){tell('No se pudo recuperar el plano anterior.',true);}
@@ -6486,7 +6624,8 @@ function formatTime(
     $('jointSkipCalibration').onclick=guard(chooseManualCalibration);
     $('jointManualPlus').onclick=guard(()=>setManualCalibration(1));
     $('jointManualMinus').onclick=guard(()=>setManualCalibration(-1));
-    $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Estimando desfases mediante nuevos intercambios de mensajes…');});
+    $('jointSyncStart').onclick=guard(startSyncCalibration);
+    $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Comprobando el enlace con 24 intercambios. Esto no cambia la calibración física ya validada.');});
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointDownloadProcessed').onclick=guard(exportProcessedJson);$('jointCsvProcessed').onclick=guard(exportProcessedCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
     $('jointCompareView').onchange=renderComparison;
