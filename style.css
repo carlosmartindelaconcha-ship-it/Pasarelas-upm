@@ -1538,6 +1538,9 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
 .joint-sync-formula { margin: 12px 0 18px; padding: 12px 14px; border-left: 4px solid #087cc3; border-radius: 0 7px 7px 0; background: #f0f7fc; color: #34546b; }
 .joint-sync-formula > div { margin: 8px 0; font: 600 1.02rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: #173d5d; overflow-x: auto; }
 .joint-sync-formula small { display:block; line-height:1.45; }
+.joint-model-values { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:7px; margin:0 0 14px; }
+.joint-model-values span { display:block; padding:8px 9px; border:1px solid #dce7ef; border-radius:6px; background:#fff; color:#476277; font-size:.76rem; line-height:1.35; }
+.joint-model-values b { display:block; color:#234d72; font-size:.72rem; }
 .joint-histogram-controls { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:30px; margin:6px 0 3px; color:#587084; font-size:.76rem; }
 .joint-histogram-controls label { display:flex; align-items:center; gap:5px; font-weight:600; }
 .joint-histogram-controls select { width:auto; min-width:58px; padding:3px 5px; font-size:.78rem; }
