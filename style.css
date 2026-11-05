@@ -1467,6 +1467,14 @@ body.recording-lock main {
 .joint-measurement-chart { height: 270px; padding: 5px; box-sizing: border-box; background: #fff; border: 1px solid #dbe6ee; border-radius: 8px; }
 #jointLive, #jointLiveSpectrum { display:block; width:100%; height:100%; }
 .joint-calibration { margin: 18px 0; padding: 16px; border: 1px solid #cfe0ec; border-radius: 10px; background: #fbfdff; }
+.joint-physical-sync { margin: 18px 0; padding: 16px; border: 1px solid #cfe0ec; border-radius: 10px; background: linear-gradient(135deg,#f8fcff,#f8fbfd); }
+.joint-physical-sync h4 { margin: 0 0 7px; color: #244c70; }
+.joint-physical-sync > p { color: #506b7d; font-size: .88rem; line-height: 1.45; }
+.joint-sync-summary { display: grid; grid-template-columns: repeat(auto-fit,minmax(205px,1fr)); gap: 9px; margin-top: 14px; }
+.joint-sync-card { padding: 11px; border: 1px solid #d8e5ee; border-radius: 8px; background: #fff; font-size: .82rem; line-height: 1.45; }
+.joint-sync-card strong { display: block; color: #244c70; margin-bottom: 5px; }
+.joint-sync-card p { margin: 0 0 5px; color: #3d5a70; }
+.joint-sync-card small { color: #61798b; }
 .joint-calibration h4, .joint-axis-compare h4 { margin: 0 0 4px; color: #244c70; }
 .joint-calibration-state { padding: 6px 10px; border-radius: 999px; background: #eaf2f8; color: #526d80; font-size: .8rem; font-weight: 600; white-space: nowrap; }
 .joint-calibration-state.done { background: #e6f6ec; color: #247548; }
