@@ -5768,7 +5768,9 @@ function formatTime(
         if(m.type==='SYNC_GESTURE_RESULT'&&s.role==='host') {
             if(s.syncCalibration.id!==m.id||!Array.isArray(m.samples)||m.samples.length<20||m.samples.length>1800)return;
             if(!m.calibration?.map)return;
-            s.syncCalibration.results[p.id]={samples:m.samples,calibration:m.calibration,accepted:false};renderSyncCalibration();return;
+            if(!['x','y','z'].includes(m.axis))return;
+            const result=s.syncCalibration.results[p.id]||{windows:{},axes:{},calibration:m.calibration,accepted:false};
+            result.windows[m.axis]=m.samples;result.calibration=m.calibration;s.syncCalibration.results[p.id]=result;renderSyncCalibration();return;
         }
         if(m.type==='SYNC_GESTURE_APPLY'&&s.role==='guest') {
             if(s.syncCalibration.gesture?.id!==m.id||!finite(m.correctionMs)||!m.axes)return;
@@ -5885,35 +5887,39 @@ function formatTime(
         const axesReady=s.calibration.complete&&peers.every(p=>p.status?.calibrated);
         button.hidden=s.role!=='host';button.disabled=s.role!=='host'||!axesReady||state.phase==='network'||state.phase==='gesture'||state.phase==='processing';
         const badge=$('jointSyncState');
-        const labels={idle:'Pendiente',network:'Ráfaga de reloj',gesture:'Gesto en curso',processing:'Procesando',accepted:'Validada',failed:'Repetir prueba'};
+        const labels={idle:'Pendiente',network:'Ráfaga de reloj','gesture-ready':'Elige un gesto',gesture:'Gesto en curso',processing:'Procesando',accepted:'Validada',failed:'Repetir prueba'};
         badge.textContent=labels[state.phase]||'Pendiente';badge.classList.toggle('done',state.phase==='accepted');
+        const burst=$('jointSyncBurst'),burstProgress=$('jointSyncBurstProgress'),burstCount=$('jointSyncBurstCount');
+        burst.hidden=state.phase!=='network';
+        if(state.phase==='network'){
+            const counts=peers.map(p=>p.samples.filter(row=>row.runId===state.id&&row.phase==='precal').length),count=counts.length?Math.min(...counts):0;
+            burstProgress.value=Math.min(200,count);burstCount.textContent=Math.min(200,count)+' / 200 respuestas confirmadas';
+        }
         const gesture=state.gesture;
         const box=$('jointSyncCountdown');
         if(!gesture||!finite(gesture.start)||!finite(gesture.end)||now()>gesture.end+1200){box.hidden=true;box.classList.remove('go');}
         else {
             const masterNow=s.role==='host'?now():toMaster(now(),gesture.model||s.syncModel),d=masterNow-gesture.start;
             box.hidden=false;
-            if(d<0){box.classList.remove('go');box.textContent='Quietos · '+Math.max(1,Math.ceil(-d/1000));}
-            else {box.classList.add('go');box.textContent=gesturePrompt(d);}
+            if(d<0){box.classList.remove('go');box.textContent=Math.max(1,Math.ceil(-d/1000));}
+            else {box.classList.add('go');box.textContent='¡AHORA!';}
         }
+        const syncImage=$('jointSyncImage'),syncInstruction=$('jointSyncInstruction'),gestureActions=$('jointSyncGestureActions');
+        const axis=gesture?.axis||['x','y','z'].find(key=>!state.results?.[s.id]?.axes?.[key])||'x';
+        syncImage.src='assets/calibration/telefono-eje-'+axis+'.svg';syncImage.alt='Gesto de sincronización en el eje '+axis.toUpperCase();
+        syncInstruction.textContent=gesture?(now()<(s.role==='host'?gesture.start:fromMaster(gesture.start,gesture.model||s.syncModel))?'Quieto hasta la cuenta atrás.':'Mueve el conjunto en '+axis.toUpperCase()+' · ida · vuelta · ida durante 6 s.'):state.phase==='gesture-ready'?'El maestro elige el siguiente eje.':'Primero calibra los relojes.';
+        gestureActions.hidden=state.phase!=='gesture-ready';
+        for(const key of ['x','y','z']){const control=$('jointSyncGesture'+key.toUpperCase()),done=!!state.results?.[s.id]?.axes?.[key];control.hidden=s.role!=='host';control.disabled=s.role!=='host'||done||state.phase!=='gesture-ready';control.classList.toggle('done',done);}
         const localRows=[];
         const own=state.results?.[s.id];
         if(own?.axes)localRows.push(`<article class="joint-sync-card"><strong>${escape(s.name)} · ${state.phase==='accepted'?'referencia':'maestro'}</strong><p>${axisResultMarkup(own.axes)}</p><small>${own.accepted?'Corrección: '+own.correctionMs.toFixed(2)+' ms':'Sin corrección física local'}</small></article>`);
         for(const p of peers){const result=state.results?.[p.id],model=state.models?.[p.id]||p.startModel,clock=finite(model?.offset)?`Offset inicial: ${model.offset.toFixed(2)} ms · RTT mín.: ${finite(model.rtt)?model.rtt.toFixed(2):'—'} ms`:'Modelo de reloj pendiente';localRows.push(`<article class="joint-sync-card"><strong>${escape(p.name)}</strong><p>${result?.axes?axisResultMarkup(result.axes):state.phase==='network'?'Midiendo RTT y offset…':state.phase==='gesture'?'Esperando gesto común…':'Pendiente'}</p><small>${clock}<br>${result?.accepted?'Corrección aplicada: '+result.correctionMs.toFixed(2)+' ms':result?.error?escape(result.error):'Se correlacionarán X–X, Y–Y y Z–Z.'}</small></article>`);}
         $('jointSyncSummary').innerHTML=localRows.length?localRows.join(''):`<p class="joint-help">Activa y calibra todos los acelerómetros antes de validar la sincronización.</p>`;
         if(state.phase==='accepted')$('jointSyncHelp').textContent='Sincronización validada. La corrección física se conservará para el próximo ensayo; los mensajes de 10 Hz durante la medida solo se guardarán como diagnóstico.';
+        else if(state.phase==='gesture-ready')$('jointSyncHelp').textContent='Relojes calibrados. Pulsa X, Y y Z por separado: cada gesto tiene 3 s de cuenta atrás y 6 s para mover la tablilla.';
         else if(!axesReady)$('jointSyncHelp').textContent='Completa los factores +1/−1 de X, Y y Z en todos los móviles antes de iniciar la prueba conjunta.';
     }
     function axisResultMarkup(axes) {return ['x','y','z'].map(axis=>{const a=axes[axis];return a&&finite(a.lag)?`${axis.toUpperCase()}: ${a.lag.toFixed(2)} ms · r ${a.correlation.toFixed(3)}`:`${axis.toUpperCase()}: —`;}).join('<br>');}
-    function gesturePrompt(d) {
-        if(d<2000)return 'Quietos · preparando señal';
-        if(d<4200)return 'X AZUL · movimiento ida · vuelta · ida';
-        if(d<5000)return 'Quietos';
-        if(d<7200)return 'Y ROJO · movimiento ida · vuelta · ida';
-        if(d<8000)return 'Quietos';
-        if(d<10200)return 'Z VERDE · movimiento ida · vuelta · ida';
-        return 'Quietos · guardando la prueba';
-    }
     function showCalibration() {
         $('jointCalibration').hidden=false;$('jointCalibrationOverride').hidden=false;renderCalibration();
     }
@@ -6056,7 +6062,7 @@ function formatTime(
         return {...best,axis,rms};
     }
     function armSyncGesture(payload,model=s.syncModel) {
-        s.syncCalibration.phase='gesture';s.syncCalibration.gesture={id:payload.id,start:payload.start,end:payload.end,model:structuredClone(model),samples:[],sent:false};
+        s.syncCalibration.phase='gesture';s.syncCalibration.gesture={id:payload.id,axis:payload.axis,start:payload.start,end:payload.end,model:structuredClone(model),samples:[],sent:false};
         tab('Sync');renderSyncCalibration();
     }
     async function startSyncCalibration() {
@@ -6071,30 +6077,34 @@ function formatTime(
         await Promise.all(peers.map(p=>startSync(p,200,50,'precal',id)));
         await pause(500);
         for(const p of peers){const rows=p.samples.filter(row=>row.runId===id&&row.phase==='precal');if(rows.length<185)throw Error('Solo se completaron '+rows.length+' de 200 intercambios con '+p.name+'. Repite la calibración.');const model=clockFit(rows);if(!model)throw Error('No se pudo ajustar el reloj de '+p.name+'.');p.model=model;p.startModel=structuredClone(model);s.syncCalibration.models[p.id]=structuredClone(model);send(p,{type:'CLOCK_MODEL',model});}
-        const start=now()+4000,end=start+12000,payload={type:'SYNC_GESTURE_ARM',id,start,end};
-        armSyncGesture(payload,{offset:0,drift:0,reference:0,count:0,rtt:0});broadcast(payload);
-        tell('Relojes listos. Fija los móviles en la tablilla y sigue la cuenta atrás X, Y y Z.');
-        setTimeout(()=>finalizeSyncGesture(id),19000);
+        s.syncCalibration.phase='gesture-ready';s.syncCalibration.results[s.id]={axes:{},accepted:true,correctionMs:0};
+        tell('Relojes listos. Fija los móviles en la tablilla y pulsa el primer gesto.');renderSyncCalibration();
     }
-    function finalizeSyncGesture(id) {
+    function startSyncGesture(axis) {
+        requireHostEdit();const state=s.syncCalibration;
+        if(state.phase!=='gesture-ready'||!['x','y','z'].includes(axis)||state.results?.[s.id]?.axes?.[axis])return;
+        const start=now()+3000,end=start+6000,payload={type:'SYNC_GESTURE_ARM',id:state.id,axis,start,end};
+        armSyncGesture(payload,{offset:0,drift:0,reference:0,count:0,rtt:0});broadcast(payload);
+        tell('Gesto '+axis.toUpperCase()+' preparado: quietos durante la cuenta atrás.');
+        setTimeout(()=>finalizeSyncGesture(state.id,axis),11000);
+    }
+    function finalizeSyncGesture(id,axis) {
         const state=s.syncCalibration,g=state.gesture;if(s.role!=='host'||state.id!==id||!g||g.id!==id||state.phase==='accepted'||state.phase==='failed')return;
         state.phase='processing';const masterSamples=g.samples,masterCalibration=s.calibration;
-        state.results[s.id]={axes:{},accepted:true,correctionMs:0};
+        state.results[s.id]??={axes:{},accepted:true,correctionMs:0};
         let missing=[];
-        // Cada eje se correlaciona únicamente durante su propio gesto. Así X–X,
-        // Y–Y y Z–Z no se contaminan entre sí aunque exista acoplamiento mecánico.
-        const windows={x:[g.start+2000,g.start+4200],y:[g.start+5000,g.start+7200],z:[g.start+8000,g.start+10200]};
         const peers=(state.peerIds||[]).map(peerId=>s.peers.get(peerId)).filter(Boolean);
         for(const peerId of state.peerIds||[])if(!s.peers.has(peerId))missing.push('un participante desconectado');
-        for(const p of peers){const result=state.results[p.id];if(!result?.samples){missing.push(p.name);continue;}
-            const axes={};for(const axis of ['x','y','z']){const [start,end]=windows[axis];axes[axis]=estimateGestureAxis(masterSamples,result.samples,axis,masterCalibration,result.calibration,start,end);}
-            const valid=Object.values(axes).filter(value=>!value.error);const lags=valid.map(value=>value.lag),correction=median(lags),spread=lags.length?Math.max(...lags)-Math.min(...lags):Infinity;
-            result.axes=axes;result.correctionMs=correction??0;result.accepted=valid.length===3&&spread<=8;
-            if(!result.accepted)result.error=valid.length<3?'No se validaron los tres ejes.':'Los retardos X, Y y Z no son coherentes.';
+        for(const p of peers){const result=state.results[p.id];if(!result?.windows?.[axis]){missing.push(p.name);continue;}
+            result.axes??={};result.axes[axis]=estimateGestureAxis(masterSamples,result.windows[axis],axis,masterCalibration,result.calibration,g.start,g.end);
         }
         if(missing.length){state.phase='failed';tell('No llegaron las ventanas de gesto de '+missing.join(', ')+'. Repite la prueba.',true);renderSyncCalibration();return;}
+        if(peers.every(p=>!state.results[p.id]?.axes?.[axis]?.error))state.results[s.id].axes[axis]={axis,lag:0,correlation:1};
+        const allAxes=['x','y','z'].every(key=>peers.every(p=>state.results[p.id]?.axes?.[key]&&!state.results[p.id].axes[key].error));
+        if(!allAxes){state.phase='gesture-ready';state.gesture=null;tell('Gesto '+axis.toUpperCase()+' procesado. Continúa con el siguiente eje.');renderSyncCalibration();return;}
+        for(const p of peers){const result=state.results[p.id],lags=['x','y','z'].map(key=>result.axes[key].lag),spread=Math.max(...lags)-Math.min(...lags);result.correctionMs=median(lags);result.accepted=spread<=8;if(!result.accepted)result.error='Los retardos X, Y y Z no son coherentes.';}
         const rejected=peers.filter(p=>!state.results[p.id]?.accepted);
-        if(rejected.length){state.phase='failed';tell('La prueba física no es consistente para '+rejected.map(p=>p.name).join(', ')+'. Repite los tres gestos.',true);renderSyncCalibration();return;}
+        if(rejected.length){state.phase='failed';tell('Los tres ejes no son coherentes para '+rejected.map(p=>p.name).join(', ')+'. Repite la calibración.',true);renderSyncCalibration();return;}
         state.phase='accepted';state.accepted=true;
         for(const p of peers){const result=state.results[p.id];p.syncCalibration=structuredClone(result);send(p,{type:'SYNC_GESTURE_APPLY',id,correctionMs:result.correctionMs,axes:result.axes});}
         tell('Sincronización física validada. Ya puedes pasar a Medir.');renderSyncCalibration();renderDevices();
@@ -6510,7 +6520,7 @@ function formatTime(
             gesture.phase='finished';
             if(s.role==='guest'&&!gesture.sent){
                 gesture.sent=true;const host=[...s.peers.values()][0];
-                send(host,{type:'SYNC_GESTURE_RESULT',id:gesture.id,samples:gesture.samples,calibration:s.calibration});
+                send(host,{type:'SYNC_GESTURE_RESULT',id:gesture.id,axis:gesture.axis,samples:gesture.samples,calibration:s.calibration});
                 tell('Ventana del gesto enviada al maestro. Procesando correlaciones…');
             }
         }
@@ -6625,6 +6635,9 @@ function formatTime(
     $('jointManualPlus').onclick=guard(()=>setManualCalibration(1));
     $('jointManualMinus').onclick=guard(()=>setManualCalibration(-1));
     $('jointSyncStart').onclick=guard(startSyncCalibration);
+    $('jointSyncGestureX').onclick=guard(()=>startSyncGesture('x'));
+    $('jointSyncGestureY').onclick=guard(()=>startSyncGesture('y'));
+    $('jointSyncGestureZ').onclick=guard(()=>startSyncGesture('z'));
     $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Comprobando el enlace con 24 intercambios. Esto no cambia la calibración física ya validada.');});
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointDownloadProcessed').onclick=guard(exportProcessedJson);$('jointCsvProcessed').onclick=guard(exportProcessedCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
