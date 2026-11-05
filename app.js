@@ -8,17 +8,6 @@
    ========================================================= */
 
 /*
-   Frecuencia que pedimos cuando el navegador
-   soporta Generic Sensor API.
-
-   IMPORTANTE:
-   250 Hz es una frecuencia SOLICITADA.
-   Después calculamos siempre la frecuencia real.
-*/
-const requestedSensorFrequency = 250;
-
-
-/*
    La gráfica muestra únicamente
    los últimos 5 segundos.
 */
@@ -252,14 +241,6 @@ let rmsChart = null;
 let lastChartUpdate = 0;
 
 let lastSpectrumUpdate = 0;
-
-
-/*
-   Sensor de Generic Sensor API.
-
-   Será null cuando utilicemos DeviceMotionEvent.
-*/
-let genericSensor = null;
 
 
 /*
@@ -2669,325 +2650,14 @@ async function requestIOSMotionPermissionIfNeeded() {
 
 
 /* =========================================================
-   22. DETECTAR IOS
-   ========================================================= */
-
-function isIOSDevice() {
-
-    /*
-       iPhone / iPad / iPod tradicionales.
-    */
-    const classicIOS =
-        /iPhone|iPad|iPod/i.test(
-            navigator.userAgent
-        );
-
-
-    /*
-       Algunos iPad modernos se identifican
-       como Macintosh.
-    */
-    const modernIPad =
-        navigator.platform ===
-            "MacIntel" &&
-        navigator.maxTouchPoints >
-            1;
-
-
-    return (
-        classicIOS ||
-        modernIPad
-    );
-
-}
-
-
-/* =========================================================
-   23. ELEGIR EL MEJOR SENSOR
+   22. ELEGIR EL SENSOR COMÚN
    ========================================================= */
 
 async function startBestAvailableSensor() {
-
-    /*
-       =====================================================
-       IOS
-
-       Aquí NO intentamos Generic Sensor API.
-
-       Vamos directamente al sistema que ya sabemos
-       que funciona en Safari/iPhone.
-       =====================================================
-    */
-
-    if (
-        isIOSDevice()
-    ) {
-
-        console.log(
-            "iOS detectado → DeviceMotionEvent"
-        );
-
-
-        return startDeviceMotionSensor();
-
-    }
-
-
-    /*
-       =====================================================
-       ANDROID / CHROME
-
-       Intentamos Generic Sensor API.
-       =====================================================
-    */
-
-    if (
-        "Accelerometer" in window
-    ) {
-
-        console.log(
-            "Accelerometer disponible → intentando " +
-            requestedSensorFrequency +
-            " Hz"
-        );
-
-
-        const worked =
-            await tryGenericAccelerometer();
-
-
-        if (
-            worked
-        ) {
-
-            return true;
-
-        }
-
-    }
-
-
-    /*
-       =====================================================
-       FALLBACK
-
-       Si Generic Sensor API no existe o falla,       usamos DeviceMotionEvent.
-       =====================================================
-    */
-
-    console.log(
-        "Fallback → DeviceMotionEvent"
-    );
-
-
+    // Una única ruta en iOS y Android: evita mezclar APIs que no entregan
+    // necesariamente la misma magnitud ni la misma cadena de filtrado.
+    console.log("DeviceMotionEvent → ruta común iOS/Android");
     return startDeviceMotionSensor();
-
-}
-
-
-/* =========================================================
-   24. GENERIC SENSOR API
-   ========================================================= */
-
-function tryGenericAccelerometer() {
-
-    return new Promise(
-
-        function (resolve) {
-
-            try {
-
-                /*
-                   Creamos el acelerómetro solicitando
-                   250 Hz.
-                */
-                const sensor =
-                    new Accelerometer({
-
-                        frequency:
-                            requestedSensorFrequency
-
-                    });
-
-
-                let confirmed =
-                    false;
-
-
-                /*
-                   Si en 1 segundo no obtenemos
-                   ninguna lectura, hacemos fallback.
-                */
-                const timeout =
-                    setTimeout(
-
-                        function () {
-
-                            if (
-                                confirmed
-                            ) {
-
-                                return;
-
-                            }
-
-
-                            try {
-
-                                sensor.stop();
-
-                            }
-
-                            catch (error) {
-
-                                console.log(
-                                    error
-                                );
-
-                            }
-
-
-                            resolve(
-                                false
-                            );
-
-                        },
-
-                        1000
-                    );
-
-
-                /*
-                   Lectura del sensor.
-                */
-                sensor.addEventListener(
-                    "reading",
-                    function () {
-
-                        /*
-                           La primera lectura solo
-                           confirma que funciona.
-                        */
-                        if (
-                            !confirmed
-                        ) {
-
-                            confirmed =
-                                true;
-
-
-                            clearTimeout(
-                                timeout
-                            );
-
-
-                            genericSensor =
-                                sensor;
-
-
-                            currentSensorMode =
-                                "Generic Sensor API";
-
-
-                            currentSensorType =
-                                "Accelerometer";
-
-
-                            sensorModeElement.textContent =
-                                "Accelerometer";
-
-
-                            targetFrequencyElement.textContent =
-                                requestedSensorFrequency +
-                                " Hz";
-
-
-                            resolve(
-                                true
-                            );
-
-
-                            /*
-                               Esta primera lectura ocurre
-                               antes del comienzo oficial.
-                            */
-                            return;
-
-                        }
-
-
-                        /*
-                           Después del inicio oficial
-                           procesamos muestras.
-                        */
-                        processAccelerationSample(
-
-                            sensor.x ?? 0,
-
-                            sensor.y ?? 0,
-
-                            sensor.z ?? 0
-
-                        );
-
-                    }
-                );
-
-
-                /*
-                   Error del sensor.
-                */
-                sensor.addEventListener(
-                    "error",
-                    function (event) {
-
-                        console.log(
-                            "Error Generic Sensor:",
-                            event.error
-                        );
-
-
-                        if (
-                            !confirmed
-                        ) {
-
-                            clearTimeout(
-                                timeout
-                            );
-
-
-                            resolve(
-                                false
-                            );
-
-                        }
-
-                    }
-                );
-
-
-                sensor.start();
-
-            }
-
-            catch (error) {
-
-                console.log(
-                    "Generic Sensor API no disponible:",
-                    error
-                );
-
-
-                resolve(
-                    false
-                );
-
-            }
-
-        }
-
-    );
-
 }
 
 
@@ -3926,34 +3596,6 @@ function stopSensor() {
     );
 
 
-    /*
-       Generic Sensor API.
-    */
-    if (
-        genericSensor !== null
-    ) {
-
-        try {
-
-            genericSensor.stop();
-
-        }
-
-        catch (error) {
-
-            console.log(
-                "Error al detener sensor:",
-                error
-            );
-
-        }
-
-
-        genericSensor =
-            null;
-
-    }
-
 }
 
 
@@ -4073,14 +3715,7 @@ function stopRecording() {
             sensorType:
                 currentSensorType,
 
-            requestedFrequency:
-
-                currentSensorMode ===
-                    "Generic Sensor API"
-
-                    ? requestedSensorFrequency
-
-                    : null,
+            requestedFrequency: null,
 
             averageFrequency:
                 averageFrequency,
@@ -5425,7 +5060,7 @@ function formatTime(
     const s = {
         id: uid(), name: 'Mi móvil', role: null, session: null, peers: new Map(),
         plan: {length:30, width:3, name:'Ensayo multipunto', points:[]}, selected:null,
-        sensor:false, sensorEnabled:false, sensorSource:'', genericSensor:null, lastSample:0, recent:[], rateTimes:[],
+        sensor:false, sensorEnabled:false, sensorSource:'', lastSample:0, recent:[], rateTimes:[],
         calibration:{map:{},active:null,complete:false},
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
         scan:null, scanFrame:null, currentInvite:null, pairBusy:false, capturePermission:false,
@@ -6216,13 +5851,7 @@ function formatTime(
         if(s.sensorEnabled)return;
         s.sensor=false;s.sensorSource='';
 
-        // En Android probamos primero la misma ruta que usa el ensayo individual.
-        // Algunos navegadores no emiten DeviceMotionEvent, pero sí Accelerometer.
-        if(!isIOSDevice()&&'Accelerometer' in window&&await tryJointGenericAccelerometer()) {
-            tell('Acelerómetro activo mediante Generic Sensor API. Calibra los tres ejes antes de medir.');showCalibration();renderDevices();return;
-        }
-
-        if(typeof DeviceMotionEvent==='undefined')throw Error('Este navegador no ofrece DeviceMotionEvent ni un acelerómetro compatible.');
+        if(typeof DeviceMotionEvent==='undefined')throw Error('Este navegador no ofrece DeviceMotionEvent.');
         if(typeof DeviceMotionEvent.requestPermission==='function'&&await DeviceMotionEvent.requestPermission()!=='granted')throw Error('Debes permitir el acceso al movimiento.');
         window.addEventListener('devicemotion',motion);s.sensorEnabled=true;s.sensorSource='DeviceMotionEvent';
         tell('Esperando datos del acelerómetro mediante DeviceMotionEvent…');showCalibration();renderDevices();
@@ -6337,26 +5966,6 @@ function formatTime(
         // Los canales nunca se permutan: X corrige X, Y corrige Y y Z corrige Z.
         return ['x','y','z'].map((axis,index)=>(map[axis].sign||1)*values[index]);
     }
-    function tryJointGenericAccelerometer() {
-        return new Promise(resolve=>{
-            let sensor,confirmed=false,settled=false;
-            const finish=value=>{if(settled)return;settled=true;clearTimeout(timeout);resolve(value);};
-            const stop=()=>{try{sensor?.stop();}catch(e){}if(s.genericSensor===sensor)s.genericSensor=null;};
-            const timeout=setTimeout(()=>{if(!confirmed){stop();finish(false);}},1500);
-            try {
-                sensor=new Accelerometer({frequency:requestedSensorFrequency});
-                sensor.addEventListener('reading',()=>{
-                    recordJointMotion(finite(sensor.timestamp)?sensor.timestamp:null,sensor.x,sensor.y,sensor.z,null);
-                    if(!confirmed){confirmed=true;s.genericSensor=sensor;s.sensorEnabled=true;s.sensorSource='Generic Sensor API';finish(true);}
-                });
-                sensor.addEventListener('error',event=>{
-                    incident('sensor-api','Generic Sensor API: '+(event.error?.message||event.error?.name||'error desconocido'));
-                    if(!confirmed){stop();finish(false);}
-                });
-                sensor.start();
-            } catch(e) {stop();finish(false);}
-        });
-    }
     function motion(event) {
         const a=event.accelerationIncludingGravity;
         if(!a)return;
@@ -6388,7 +5997,6 @@ function formatTime(
     }
     function stopJointSensor() {
         window.removeEventListener('devicemotion',motion);
-        if(s.genericSensor){try{s.genericSensor.stop();}catch(e){}s.genericSensor=null;}
         s.sensor=false;s.sensorEnabled=false;s.sensorSource='';
     }
     function appendSample(run,sample) {
