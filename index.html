@@ -14,7 +14,7 @@
     <title>Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261101-joint-plan">
+    <link rel="stylesheet" href="style.css?v=20261105-sync-results">
 
     <!-- MapLibre -->
     <link
@@ -781,7 +781,7 @@
                 </div>
                 <div id="jointPanelCompare" role="tabpanel" aria-labelledby="jointTabCompare" hidden>
                     <h3>Señales sincronizadas</h3>
-                    <p class="joint-help">X azul, Y rojo y Z verde. La línea del maestro es continua; las de los participantes son discontinuas. Puedes ampliar con dos dedos o rueda y desplazar la ventana en horizontal.</p>
+                    <p class="joint-help">X azul, Y rojo y Z verde. La línea del maestro es continua; las de los participantes son discontinuas. Puedes ampliar con rueda o dos dedos, arrastrar en X e Y, ocultar series desde la leyenda y restablecer el zoom.</p>
                     <div class="joint-actions"><label>Representación<select id="jointCompareView"><option value="common" selected>Rejilla temporal común</option><option value="raw">Marcas originales</option></select></label><button id="jointCompareResetZoom" type="button" class="joint-secondary">Restablecer zoom</button><label class="joint-file">Abrir ensayo JSON del maestro<input id="jointImportSession" type="file" accept="application/json,.json"></label></div>
                     <p id="jointCompareStatus" class="joint-help">Termina un ensayo y recibe los registros de los participantes para compararlos aquí.</p>
                     <div class="joint-axis-compare"><h4>X estructural · longitudinal</h4><div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvasX" aria-label="Aceleraciones X estructurales comparadas"></canvas></div></div>
