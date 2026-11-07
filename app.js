@@ -5136,11 +5136,16 @@ function formatTime(
         return {x:Math.max(0,Math.min(s.plan.length-w,base.x)),y:Math.max(0,Math.min(s.plan.width-h,base.y)),w,h};
     }
     function geometry(view=planViewport()) {
-        // Escala idéntica en X/Y: un metro ocupa lo mismo en ambas direcciones.
-        const scale=Math.min(690/view.w,285/view.h),w=view.w*scale,h=view.h*scale;
-        return {view,scale,left:(800-w)/2,top:(335-h)/2,w,h};
+        // Márgenes reservados para ejes y etiquetas; escala idéntica en X/Y.
+        const scale=Math.min(680/view.w,300/view.h),w=view.w*scale,h=view.h*scale;
+        return {view,scale,left:74+(680-w)/2,top:32+(300-h)/2,w,h};
     }
-    function planGridStep(view) {return view.w>80||view.h>40?5:1;}
+    function niceMetricStep(minimum) {
+        const power=10**Math.floor(Math.log10(Math.max(1,minimum))),scaled=minimum/power;
+        return (scaled<=1?1:scaled<=2?2:scaled<=5?5:10)*power;
+    }
+    function planGridStep(g) {return niceMetricStep(5/g.scale);}
+    function planLabelStep(g) {return niceMetricStep(42/g.scale);}
     function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
     function renderPlan() {
@@ -5149,12 +5154,12 @@ function formatTime(
         $('jointPlanTools').hidden=s.role!=='host';
         for(const id of ['jointAddPoint','jointRemovePoint','jointImportPlan','jointResetView']) $(id).disabled=!edit;
         $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
-        const view=planViewport(),g=geometry(view), selected=s.plan.points.find(p=>p.id===s.selected),gridStep=planGridStep(view);
-        let svg=`<title>Planta de ${escape(s.plan.name)}</title><defs><clipPath id="jointPlanClip"><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}"/></clipPath></defs><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
-        const firstX=Math.ceil(view.x),lastX=Math.floor(view.x+view.w),firstY=Math.ceil(view.y),lastY=Math.floor(view.y+view.h);
-        for(let x=firstX;x<=lastX;x++){const sx=g.left+(x-view.x)*g.scale,major=x%gridStep===0;svg+=`<line x1="${sx}" y1="${g.top}" x2="${sx}" y2="${g.top+g.h}" stroke="${major?'#aec6d8':'#dce8f0'}" stroke-width="${major?1.1:.6}"/>`;if(major)svg+=`<text x="${sx}" y="${g.top+g.h+18}" text-anchor="middle">${x}</text>`;}
-        for(let y=firstY;y<=lastY;y++){const sy=g.top+(view.y+view.h-y)*g.scale,major=y%gridStep===0;svg+=`<line x1="${g.left}" y1="${sy}" x2="${g.left+g.w}" y2="${sy}" stroke="${major?'#aec6d8':'#dce8f0'}" stroke-width="${major?1.1:.6}"/>`;if(major)svg+=`<text x="${g.left-9}" y="${sy+4}" text-anchor="end">${y}</text>`;}
-        svg+=`<text x="400" y="${g.top+g.h+42}" text-anchor="middle">X (m)</text><text x="${g.left}" y="${g.top-10}">Y (m)</text><g clip-path="url(#jointPlanClip)">`;
+        const view=planViewport(),g=geometry(view),selected=s.plan.points.find(p=>p.id===s.selected),gridStep=planGridStep(g),labelStep=planLabelStep(g);
+        let svg=`<title>Planta de ${escape(s.plan.name)}</title><defs><clipPath id="jointPlanClip"><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4"/></clipPath></defs><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
+        const firstX=Math.ceil(view.x/gridStep)*gridStep,lastX=Math.floor((view.x+view.w)/gridStep)*gridStep,firstY=Math.ceil(view.y/gridStep)*gridStep,lastY=Math.floor((view.y+view.h)/gridStep)*gridStep;
+        for(let x=firstX;x<=lastX;x+=gridStep){const sx=g.left+(x-view.x)*g.scale,label=x%labelStep===0;svg+=`<line x1="${sx}" y1="${g.top}" x2="${sx}" y2="${g.top+g.h}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${sx}" y1="${g.top+g.h}" x2="${sx}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${sx}" y="${g.top+g.h+21}" text-anchor="middle">${x}</text>`;}
+        for(let y=firstY;y<=lastY;y+=gridStep){const sy=g.top+(view.y+view.h-y)*g.scale,label=y%labelStep===0;svg+=`<line x1="${g.left}" y1="${sy}" x2="${g.left+g.w}" y2="${sy}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${g.left-6}" y1="${sy}" x2="${g.left}" y2="${sy}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${sy+4}" text-anchor="end">${y}</text>`;}
+        svg+=`<text class="joint-plan-axis" x="400" y="${g.top+g.h+48}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text><g clip-path="url(#jointPlanClip)">`;
         for(const p of s.plan.points) {
             const x=g.left+(p.x-view.x)*g.scale,y=g.top+(view.y+view.h-p.y)*g.scale;
             const color=p.device===s.id?'#087cc3':p.device?'#00897b':'#788c9e';
@@ -6642,7 +6647,10 @@ function formatTime(
     $('jointCopyCode').onclick=guard(async()=>{const text=$('jointPairOutput').value;try{await navigator.clipboard.writeText(text);$('jointPairStatus').textContent='Código copiado.';}catch(e){$('jointPairOutput').focus();$('jointPairOutput').select();$('jointPairStatus').textContent='Selecciona y copia el código completo.';}});
     $('jointApplyGeometry').onclick=guard(()=>{
         requireHostEdit();const candidate={...s.plan,name:$('jointName').value,length:Number($('jointLength').value),width:Number($('jointWidth').value)};
-        s.plan=checkPlan(candidate);savePlan();tell('Dimensiones guardadas.');
+        s.plan=checkPlan(candidate);
+        // Una geometría nueva siempre se muestra completa y sin arrastrar la cámara previa.
+        s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();
+        savePlan();tell('Dimensiones guardadas. Vista del plano reajustada.');
     });
     $('jointAddPoint').onclick=guard(()=>{requireHostEdit();s.adding=!s.adding;renderPlan();});
     $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');s.plan.points=s.plan.points.filter(p=>p.id!==s.selected);s.selected=s.plan.points[0]?.id;savePlan();});
@@ -6655,7 +6663,7 @@ function formatTime(
         s.plan=checkPlan({...s.plan,points:s.plan.points.map(p=>p.id===candidate.id?candidate:p)});savePlan();renderDevices();tell('Punto actualizado.');
     });
     $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
-    $('jointImportPlan').onchange=guard(async e=>{requireHostEdit();const file=e.target.files[0];if(!file)return;if(file.size>100000)throw Error('El archivo de plano es demasiado grande.');const plan=checkPlan(JSON.parse(await file.text()));plan.points.forEach(p=>p.device=null);s.plan=plan;s.selected=plan.points[0]?.id;savePlan();e.target.value='';tell('Plano importado. Asigna los móviles a los puntos.');});
+    $('jointImportPlan').onchange=guard(async e=>{requireHostEdit();const file=e.target.files[0];if(!file)return;if(file.size>100000)throw Error('El archivo de plano es demasiado grande.');const plan=checkPlan(JSON.parse(await file.text()));plan.points.forEach(p=>p.device=null);s.plan=plan;s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();s.selected=plan.points[0]?.id;savePlan();e.target.value='';tell('Plano importado. Asigna los móviles a los puntos.');});
     $('jointPointsTable').onclick=e=>{const b=e.target.closest('[data-select-point]');if(b){s.selected=b.dataset.selectPoint;renderPlan();}};
     $('jointPlan').addEventListener('keydown',guard(e=>{
         const el=e.target.closest('[data-point]');if(!el)return;
@@ -6670,7 +6678,7 @@ function formatTime(
     }));
     $('jointPlan').addEventListener('pointermove',e=>{
         if(s.planPointers.has(e.pointerId))s.planPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-        if(s.planPinch&&s.planPointers.size>=2){const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y,distance=Math.max(20,Math.hypot(dx,dy)),factor=s.planPinch.distance/distance,base=s.planPinch.view,rect=$('jointPlan').getBoundingClientRect(),g=geometry(base),qx=(s.planPinch.center.x-rect.left)/rect.width*800,qy=(s.planPinch.center.y-rect.top)/rect.height*360,world={x:base.x+(qx-g.left)/g.scale,y:base.y+base.h-(qy-g.top)/g.scale};zoomPlanAt(world,factor,base);renderPlan();return;}
+        if(s.planPinch&&s.planPointers.size>=2){const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y,distance=Math.max(20,Math.hypot(dx,dy)),factor=s.planPinch.distance/distance,base=s.planPinch.view,rect=$('jointPlan').getBoundingClientRect(),box=$('jointPlan').viewBox.baseVal,g=geometry(base),qx=(s.planPinch.center.x-rect.left)/rect.width*box.width,qy=(s.planPinch.center.y-rect.top)/rect.height*box.height,world={x:base.x+(qx-g.left)/g.scale,y:base.y+base.h-(qy-g.top)/g.scale};zoomPlanAt(world,factor,base);renderPlan();return;}
         if(s.drag){const pos=svgPosition(e),p=s.plan.points.find(p=>p.id===s.drag);if(!p||!pos)return;const snapped=snapPlanPosition(pos);p.x=snapped.x;p.y=snapped.y;renderPlan();return;}
         if(s.planPan){const base=s.planPan.view,g=geometry(base);s.planView=planViewport({x:base.x-(e.clientX-s.planPan.x)/g.scale,y:base.y+(e.clientY-s.planPan.y)/g.scale,w:base.w,h:base.h});renderPlan();}
     });
