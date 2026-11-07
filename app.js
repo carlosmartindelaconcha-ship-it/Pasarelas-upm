@@ -5153,6 +5153,15 @@ function formatTime(
     function planLabelStep(g) {return niceMetricStep(42/g.scale);}
     function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
+    // Mantiene las etiquetas visibles también en Y=0, Y=anchura y los extremos de X.
+    function pointLabelPlacement(x,y,g) {
+        const bottomDistance=g.top+g.h-y,topDistance=y-g.top;
+        const above=bottomDistance<38&&bottomDistance<=topDistance;
+        const leftDistance=x-g.left,rightDistance=g.left+g.w-x;
+        if(leftDistance<30&&leftDistance<=rightDistance)return {x:x+18,y:y+(above?-32:35),anchor:'start'};
+        if(rightDistance<30)return {x:x-18,y:y+(above?-32:35),anchor:'end'};
+        return {x,y:y+(above?-32:35),anchor:'middle'};
+    }
     function renderPlan() {
         const edit=s.role==='host'&&!running()&&!s.transaction;
         $('jointGeometry').disabled=!edit;
@@ -5160,16 +5169,33 @@ function formatTime(
         for(const id of ['jointAddPoint','jointAddPointInline','jointRemovePoint','jointResetView']) $(id).disabled=!edit;
         $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
         const view=planViewport(),g=geometry(view),selected=s.plan.points.find(p=>p.id===s.selected),gridStep=planGridStep(g),labelStep=planLabelStep(g);
-        let svg=`<title>Planta de ${escape(s.plan.name)}</title><defs><clipPath id="jointPlanClip"><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4"/></clipPath></defs><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
+        let svg=`<title>Planta de ${escape(s.plan.name)}</title><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
         const firstX=Math.ceil(view.x/gridStep)*gridStep,lastX=Math.floor((view.x+view.w)/gridStep)*gridStep,firstY=Math.ceil(view.y/gridStep)*gridStep,lastY=Math.floor((view.y+view.h)/gridStep)*gridStep;
         for(let x=firstX;x<=lastX;x+=gridStep){const sx=g.left+(x-view.x)*g.scale,label=x%labelStep===0;svg+=`<line x1="${sx}" y1="${g.top}" x2="${sx}" y2="${g.top+g.h}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${sx}" y1="${g.top+g.h}" x2="${sx}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${sx}" y="${g.top+g.h+21}" text-anchor="middle">${x}</text>`;}
         for(let y=firstY;y<=lastY;y+=gridStep){const sy=g.top+(view.y+view.h-y)*g.scale,label=y%labelStep===0;svg+=`<line x1="${g.left}" y1="${sy}" x2="${g.left+g.w}" y2="${sy}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${g.left-6}" y1="${sy}" x2="${g.left}" y2="${sy}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${sy+4}" text-anchor="end">${y}</text>`;}
-        svg+=`<text class="joint-plan-axis" x="400" y="${g.top+g.h+48}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text><g clip-path="url(#jointPlanClip)">`;
+        svg+=`<text class="joint-plan-axis" x="400" y="${g.top+g.h+48}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
         for(const p of s.plan.points) {
+            // Los puntos fuera de la ventana de zoom no se dibujan, pero los del borde sí.
+            if(p.x<view.x-1e-7||p.x>view.x+view.w+1e-7||p.y<view.y-1e-7||p.y>view.y+view.h+1e-7)continue;
             const x=g.left+(p.x-view.x)*g.scale,y=g.top+(view.y+view.h-p.y)*g.scale;
-            const color=p.device===s.id?'#087cc3':p.device?'#00897b':'#788c9e';
-            svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.id)}, X ${p.x}, Y ${p.y}"><title>${escape(p.id)} · ${p.device?escape(deviceName(p.device)):'Sin asignar'}</title><circle cx="${x}" cy="${y}" r="12" fill="${color}" stroke="white" stroke-width="2"/><path d="M ${x} ${y-5} l 0 -16 m -4 5 l 4 -5 l 4 5" fill="none" stroke="${color}" stroke-width="2" transform="rotate(${-p.angle} ${x} ${y})"/><text x="${x}" y="${y+29}" text-anchor="middle">${escape(p.id)}</text></g>`;
-        } svg+='</g>';
+            const phoneColor=p.device===s.id?'#467c9f':p.device?'#548d85':'#7f8fa1';
+            const label=pointLabelPlacement(x,y,g);
+            svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.id)}, X ${p.x}, Y ${p.y}">
+                <title>${escape(p.id)} · ${p.device?escape(deviceName(p.device)):'Sin asignar'}</title>
+                <circle class="joint-point-hitbox" cx="${x}" cy="${y}" r="27"/>
+                <g class="joint-phone-marker" transform="translate(${x} ${y}) rotate(${-p.angle})">
+                    <rect class="joint-phone-body" x="-9.5" y="-14" width="19" height="28" rx="3.6" fill="${phoneColor}"/>
+                    <rect x="-6.1" y="-10.2" width="12.2" height="18.3" rx="1.7" fill="#edf4f9"/>
+                    <path d="M -2.5 -11.8 H 2.5" fill="none" stroke="#e7edf3" stroke-width="1" stroke-linecap="round"/>
+                    <circle cx="0" cy="10.9" r="1.2" fill="#e2eaf1"/>
+                    <path d="M 9.5 3 H 22 M 22 3 L 17.5 -1 M 22 3 L 17.5 7" fill="none" stroke="#1766d6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M 0 -14 V -24 M 0 -24 L -4 -19 M 0 -24 L 4 -19" fill="none" stroke="#d94751" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="0" cy="-1" r="4.2" fill="#20a567" stroke="#fff" stroke-width="1.2"/>
+                    <circle cx="0" cy="-1" r="1.25" fill="#effff6"/>
+                </g>
+                <text class="joint-point-label" x="${label.x}" y="${label.y}" text-anchor="${label.anchor}">${escape(p.id)}</text>
+            </g>`;
+        }
         $('jointPlan').innerHTML=svg;
         $('jointPlanHelp').textContent=s.adding?'Toca dentro del rectángulo para colocar un punto en la rejilla de 1 m.':s.role==='host'?'Arrastra una zona libre para desplazar X/Y; rueda o pellizca para ampliar. Los puntos creados y arrastrados se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
         const devices=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
