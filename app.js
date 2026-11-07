@@ -5167,15 +5167,11 @@ function formatTime(
         } svg+='</g>';
         $('jointPlan').innerHTML=svg;
         $('jointPlanHelp').textContent=s.adding?'Toca dentro del rectángulo para colocar un punto en la rejilla de 1 m.':s.role==='host'?'Arrastra una zona libre para desplazar X/Y; rueda o pellizca para ampliar. Los puntos creados y arrastrados se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
-        $('jointPointEditor').hidden=!selected;
         const devices=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${escape(d.name)}${d.id===s.id?' (este móvil)':''}</option>`).join('');
-        if(selected) {
-            $('jointPointAngle').value=selected.angle;
-        }
         $('jointPointsTable').innerHTML=s.plan.points.map(p=>{
-            const assigned=!!p.device, mobile=assigned?deviceName(p.device):'Sin asignar';
-            return `<tr data-point-id="${escape(p.id)}"><td colspan="5" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg><span>Eliminar</span></button><div class="joint-point-row ${p.id===s.selected?'selected':''}" data-select-point="${escape(p.id)}"><label><span>Punto <span class="joint-point-status ${assigned?'assigned':''}">${escape(mobile)}</span></span><input data-point-field="name" value="${escape(p.name)}" maxlength="40" aria-label="Nombre de ${escape(p.name)}" ${edit?'':'disabled'}></label><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.name)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.name)}" ${edit?'':'disabled'}></label><label><span>Eje</span><select data-point-field="axis" aria-label="Eje de ${escape(p.name)}" ${edit?'':'disabled'}><option value="x" ${p.axis==='x'?'selected':''}>X</option><option value="y" ${p.axis==='y'?'selected':''}>Y</option><option value="z" ${p.axis==='z'?'selected':''}>Z</option></select></label><label><span>Móvil</span><select data-point-field="device" aria-label="Móvil de ${escape(p.name)}" ${edit?'':'disabled'}><option value="">Sin asignar</option>${deviceOptions}</select></label></div></div></td></tr>`;
+            const assigned=!!p.device;
+            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row ${p.id===s.selected?'selected':''}" data-select-point="${escape(p.id)}"><label class="joint-point-name ${assigned?'assigned':'unassigned'}"><span>Punto</span><input data-point-field="name" value="${escape(p.name)}" maxlength="40" aria-label="Nombre de ${escape(p.name)}" ${edit?'':'disabled'}></label><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.name)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.name)}" ${edit?'':'disabled'}></label><label><span>Móvil</span><select data-point-field="device" aria-label="Móvil de ${escape(p.name)}" ${edit?'':'disabled'}><option value="">Sin asignar</option>${deviceOptions}</select></label></div></div></td></tr>`;
         }).join('');
         for(const p of s.plan.points) {const select=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(p.id)}"] select[data-point-field="device"]`);if(select)select.value=p.device||'';}
         $('jointMyPoint').textContent=pointFor()?.name||'Sin asignar';
@@ -5206,8 +5202,14 @@ function formatTime(
         const candidate={...original,[field]:next};
         s.plan=checkPlan({...s.plan,points:s.plan.points.map(p=>p.id===id?candidate:p)}); savePlan(); renderDevices();
     }
-    function deletePlanPoint(id) {
+    function deletePlanPoint(id, animate=true) {
         requireHostEdit(); const point=s.plan.points.find(p=>p.id===id); if(!point) return;
+        const record=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(id)}"]`),swipe=record?.querySelector('.joint-point-swipe');
+        if(animate&&swipe&&!record.dataset.deleting) {
+            record.dataset.deleting='true';swipe.style.height=swipe.offsetHeight+'px';
+            requestAnimationFrame(()=>{swipe.style.height='0px';swipe.style.opacity='0';swipe.style.marginTop='0';swipe.style.marginBottom='0';});
+            setTimeout(()=>deletePlanPoint(id,false),240);return;
+        }
         s.plan.points=s.plan.points.filter(p=>p.id!==id); if(s.selected===id)s.selected=s.plan.points[0]?.id||null;
         savePlan(); renderDevices(); tell(`${point.name} eliminado del plano.`);
     }
@@ -6671,11 +6673,6 @@ function formatTime(
     $('jointAddPointInline').onclick=guard(()=>{requireHostEdit();addPoint();});
     $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');s.plan.points=s.plan.points.filter(p=>p.id!==s.selected);s.selected=s.plan.points[0]?.id;savePlan();});
     $('jointResetView').onclick=guard(()=>{requireHostEdit();resetPlanView();});
-    $('jointApplyPoint').onclick=guard(()=>{
-        requireHostEdit();const original=s.plan.points.find(p=>p.id===s.selected);if(!original)return;
-        const angle=Number($('jointPointAngle').value);if(!finite(angle)||Math.abs(angle)>360)throw Error('Introduce un giro válido entre −360° y 360°.');
-        s.plan=checkPlan({...s.plan,points:s.plan.points.map(p=>p.id===original.id?{...p,angle}:p)});savePlan();tell('Orientación actualizada.');
-    });
     $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
     $('jointImportPlan').onchange=guard(async e=>{requireHostEdit();const file=e.target.files[0];if(!file)return;if(file.size>100000)throw Error('El archivo de plano es demasiado grande.');const plan=checkPlan(JSON.parse(await file.text()));plan.points.forEach(p=>p.device=null);s.plan=plan;s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();s.selected=plan.points[0]?.id;savePlan();e.target.value='';tell('Plano importado. Asigna los móviles a los puntos.');});
     $('jointPointsTable').onclick=guard(e=>{
@@ -6688,22 +6685,22 @@ function formatTime(
         updatePlanPoint(row.dataset.pointId,field,e.target.value);
     }));
     $('jointPointsTable').addEventListener('focusin',e=>{
-        const row=e.target.closest('[data-select-point]');if(row&&s.selected!==row.dataset.selectPoint){s.selected=row.dataset.selectPoint;const point=s.plan.points.find(p=>p.id===s.selected);if(point)$('jointPointAngle').value=point.angle;for(const item of $('jointPointsTable').querySelectorAll('.joint-point-row'))item.classList.toggle('selected',item===row);for(const mark of $('jointPlan').querySelectorAll('.joint-point'))mark.classList.toggle('selected',mark.dataset.point===s.selected);}
+        const row=e.target.closest('[data-select-point]');if(row&&s.selected!==row.dataset.selectPoint){s.selected=row.dataset.selectPoint;for(const item of $('jointPointsTable').querySelectorAll('.joint-point-row'))item.classList.toggle('selected',item===row);for(const mark of $('jointPlan').querySelectorAll('.joint-point'))mark.classList.toggle('selected',mark.dataset.point===s.selected);}
     });
     $('jointPointsTable').addEventListener('pointerdown',e=>{
-        const row=e.target.closest('.joint-point-row');if(!row||e.target.closest('input,select,button')||s.role!=='host'||running()||s.transaction)return;
+        const row=e.target.closest('.joint-point-row');if(!row||e.target.closest('select,button')||s.role!=='host'||running()||s.transaction)return;
         s.rowSwipe={row,startX:e.clientX,offset:row.classList.contains('swipe-open')?-124:0,moved:false};row.setPointerCapture?.(e.pointerId);
     });
     $('jointPointsTable').addEventListener('pointermove',e=>{
         const swipe=s.rowSwipe;if(!swipe)return;const dx=e.clientX-swipe.startX;
         if(Math.abs(dx)>7)swipe.moved=true;
-        const offset=Math.max(-swipe.row.clientWidth,Math.min(0,swipe.offset+dx));swipe.row.style.transition='none';swipe.row.style.transform=`translateX(${offset}px)`;
+        const offset=Math.max(-swipe.row.clientWidth,Math.min(0,swipe.offset+dx));swipe.row.style.transition='none';swipe.row.style.transform=`translateX(${offset}px)`;swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth+offset/2)+'px');
         if(swipe.moved)e.preventDefault();
     });
     for(const event of ['pointerup','pointercancel'])$('jointPointsTable').addEventListener(event,guard(e=>{
         const swipe=s.rowSwipe;if(!swipe)return;s.rowSwipe=null;swipe.row.style.transition='';const x=Number((swipe.row.style.transform.match(/-?[\d.]+/)||['0'])[0]);swipe.row.style.transform='';
         if(event==='pointerup'&&x<=-swipe.row.clientWidth*.62){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId);return;}
-        swipe.row.classList.toggle('swipe-open',x<=-42);
+        const open=x<=-42;swipe.row.classList.toggle('swipe-open',open);if(open)swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth-62)+'px');else swipe.row.parentElement.style.removeProperty('--trash-center');
     }));
     $('jointPlan').addEventListener('keydown',guard(e=>{
         const el=e.target.closest('[data-point]');if(!el)return;
