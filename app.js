@@ -6687,7 +6687,7 @@ function formatTime(
         const row=e.target.closest('[data-row-point]');
         if(!row||row.dataset.rowPoint===s.selected)return;
         // First touch/click only selects the row; subsequent interaction edits it.
-        if(e.target.closest('input,select,button')){e.preventDefault();e.stopPropagation();}
+        if(e.target.closest('input,select,button'))e.preventDefault();
         selectTablePoint(row.dataset.rowPoint);
     },true);
     let swipeStart=null;

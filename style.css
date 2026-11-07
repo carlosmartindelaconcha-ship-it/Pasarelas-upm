@@ -1602,31 +1602,22 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
 #jointPointsTable tr.joint-swipe-reveal .joint-delete-row { background: #b42332; color: #fff; border: 2px solid #b42332; font-weight: 700; }
 #jointPointsTable .joint-delete-row { min-width: 44px; min-height: 40px; }
 
-/* One calm selected row, legible controls and a compact mobile point editor. */
-.joint-table tr.joint-row-selected, .joint-table tr.joint-row-hover { background: #e8f1fb; color: #203b58; }
-.joint-table tr.joint-row-selected td { border-bottom-color: #bfd4ed; }
+/* Keep the original table layout: no cards, no reflow of rows. */
+.joint-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.joint-table { width: 100%; min-width: 670px; border-collapse: collapse; }
+.joint-table tr.joint-row-selected { background: #e8f1fb; color: #203b58; }
+.joint-table tr.joint-row-selected td { border-bottom-color: #b7cee8; }
 .joint-table tr.joint-row-selected button, .joint-table tr.joint-row-hover button { color: #234b78; }
-.joint-table tr.joint-row-selected [data-select-point] { background: #fff; border-color: #7ba5d4; }
+.joint-table tr.joint-row-hover:not(.joint-row-selected) { background: #f4f8fc; color: #203b58; }
 .joint-table tr[data-row-point] { --swipe-x: 0px; transform: translateX(var(--swipe-x)); transition: transform .16s ease, opacity .16s ease; }
 .joint-table tr.joint-row-removing { opacity: 0; transform: translateX(-100%); }
-.joint-table td input, .joint-table td select { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; font-size: 14px; padding: 7px 5px; color: #203b58; background: #fff; }
-.joint-table td .joint-delete-row { color: #b42332; background: #fff; }
-@media(max-width:650px) {
-  .joint-table-wrap { overflow: visible; }
-  .joint-table { display: block; width: 100%; border-collapse: separate; }
-  .joint-table thead { display: none; }
-  .joint-table tbody { display: grid; gap: 9px; }
-  .joint-table tr[data-row-point] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px 12px; position: relative; padding: 12px; border: 1px solid #d5e2ed; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px #17365712; }
-  .joint-table tr.joint-row-selected { background: #e8f1fb; border-color: #80a9d6; box-shadow: 0 0 0 1px #80a9d6; }
-  .joint-table td { display: block; min-width: 0; padding: 0; border: 0; }
-  .joint-table td::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600; color: #536a80; margin-bottom: 4px; }
-  .joint-table td:first-child { grid-column: 1 / -1; }
-  .joint-table td:first-child::before { display: none; }
-  .joint-table td:first-child button { padding: 4px 12px; }
-  .joint-table td:nth-child(6) { grid-column: 1 / -1; }
-  .joint-table td:last-child { grid-column: 1 / -1; text-align: right; }
-  .joint-table td:last-child::before { display: none; }
-  .joint-table td input,.joint-table td select { min-height: 42px; font-size: 16px; padding: 7px 9px; }
-  .joint-table tr.joint-swipe-reveal .joint-delete-row { background: #b42332; color: white; }
-}
-@media(prefers-reduced-motion:reduce){ .joint-table tr[data-row-point] { transition: none; } }
+.joint-table td input,.joint-table td select { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; font-size: 16px; padding: 6px 5px; color: #203b58; background: white; }
+.joint-table td:nth-child(1) { min-width: 65px; }
+.joint-table td:nth-child(2),.joint-table td:nth-child(3) { min-width: 76px; }
+.joint-table td:nth-child(4) { min-width: 70px; }
+.joint-table td:nth-child(5) { min-width: 78px; }
+.joint-table td:nth-child(6) { min-width: 140px; }
+.joint-table td:last-child { min-width: 54px; }
+.joint-table .joint-delete-row { min-width: 44px; min-height: 40px; color: #b42332; background: #fff; }
+.joint-table tr.joint-swipe-reveal .joint-delete-row { background: #b42332; color: #fff; }
+@media(prefers-reduced-motion:reduce){.joint-table tr[data-row-point]{transition:none;}}
