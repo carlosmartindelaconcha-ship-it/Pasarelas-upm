@@ -5136,21 +5136,29 @@ function formatTime(
         return id===s.id?'S1':'M';
     }
     function planViewport(candidate=s.planView) {
-        const base=candidate||{x:0,y:0,w:s.plan.length,h:s.plan.width};
-        const minW=Math.min(1,s.plan.length),minH=Math.min(1,s.plan.width),w=Math.max(minW,Math.min(s.plan.length,base.w)),h=Math.max(minH,Math.min(s.plan.width,base.h));
-        return {x:Math.max(0,Math.min(s.plan.length-w,base.x)),y:Math.max(0,Math.min(s.plan.width-h,base.y)),w,h};
+        const L=s.plan.length,W=s.plan.width;
+        const base=candidate||{x:0,y:0,w:L,h:W};
+        // Un único factor de zoom en X/Y: no deformar la pasarela.
+        const factor=Math.max(1/20,Math.min(1,Math.min(base.w/L,base.h/W)));
+        const w=L*factor,h=W*factor;
+        return {x:Math.max(0,Math.min(L-w,base.x+(base.w-w)/2)),
+                y:Math.max(0,Math.min(W-h,base.y+(base.h-h)/2)),w,h};
     }
     function geometry(view=planViewport()) {
-        // Márgenes reservados para ejes y etiquetas; escala idéntica en X/Y.
-        // Reservamos espacio a la derecha del tablero para mostrar siempre las etiquetas.
-        const scale=Math.min(660/view.w,320/view.h),w=view.w*scale,h=view.h*scale;
-        return {view,scale,left:54+(660-w)/2,top:46+(320-h)/2,w,h};
+        // El marco es una ventana fija; el tablero se amplía y se recorta dentro.
+        // Dos coordenadas de origen independientes del tamaño físico del tablero.
+        const left=54,top=46,w=660,h=320;
+        const scale=Math.min(w/view.w,h/view.h);
+        const centerX=view.x+view.w/2,centerY=view.y+view.h/2;
+        return {view,scale,left,top,w,h,
+            originX:left+w/2-centerX*scale,
+            originY:top+h/2+centerY*scale};
     }
     function niceMetricStep(minimum) {
-        const power=10**Math.floor(Math.log10(Math.max(1,minimum))),scaled=minimum/power;
+        const power=10**Math.floor(Math.log10(Math.max(.000001,minimum))),scaled=minimum/power;
         return (scaled<=1?1:scaled<=2?2:scaled<=5?5:10)*power;
     }
-    function planGridStep(g) {return niceMetricStep(5/g.scale);}
+    function planGridStep(g) {return niceMetricStep(20/g.scale);}
     function planLabelStep(g) {return niceMetricStep(42/g.scale);}
     function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
@@ -5187,16 +5195,39 @@ function formatTime(
         for(const id of ['jointAddPointInline','jointRemovePoint','jointResetView']) $(id).disabled=!edit;
         $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
         const view=planViewport(),g=geometry(view),selected=s.plan.points.find(p=>p.id===s.selected),gridStep=planGridStep(g),labelStep=planLabelStep(g);
-        let svg=`<title>Planta de ${escape(s.plan.name)}</title><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
-        const firstX=Math.ceil(view.x/gridStep)*gridStep,lastX=Math.floor((view.x+view.w)/gridStep)*gridStep,firstY=Math.ceil(view.y/gridStep)*gridStep,lastY=Math.floor((view.y+view.h)/gridStep)*gridStep;
-        for(let x=firstX;x<=lastX;x+=gridStep){const sx=g.left+(x-view.x)*g.scale,label=x%labelStep===0;svg+=`<line x1="${sx}" y1="${g.top}" x2="${sx}" y2="${g.top+g.h}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${sx}" y1="${g.top+g.h}" x2="${sx}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${sx}" y="${g.top+g.h+21}" text-anchor="middle">${x}</text>`;}
-        for(let y=firstY;y<=lastY;y+=gridStep){const sy=g.top+(view.y+view.h-y)*g.scale,label=y%labelStep===0;svg+=`<line x1="${g.left}" y1="${sy}" x2="${g.left+g.w}" y2="${sy}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${g.left-6}" y1="${sy}" x2="${g.left}" y2="${sy}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${sy+4}" text-anchor="end">${y}</text>`;}
+        const deckX=g.originX,deckY=g.originY-s.plan.width*g.scale;
+        const deckW=s.plan.length*g.scale,deckH=s.plan.width*g.scale;
+        // El rectángulo de visualización permanece siempre fijo: zoom/pan mueven
+        // únicamente el tablero, no redibujan el marco con la silueta inicial.
+        let svg=`<title>Planta de ${escape(s.plan.name)}</title>
+            <defs><clipPath id="jointPlanViewportClip"><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4"/></clipPath></defs>
+            <rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4" fill="#f8fbfd" stroke="#a9bfd1" stroke-width="1.5"/>
+            <g clip-path="url(#jointPlanViewportClip)">
+                <rect x="${deckX}" y="${deckY}" width="${deckW}" height="${deckH}" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
+        const minX=Math.max(0,(g.left-g.originX)/g.scale),maxX=Math.min(s.plan.length,(g.left+g.w-g.originX)/g.scale);
+        const minY=Math.max(0,(g.originY-g.top-g.h)/g.scale),maxY=Math.min(s.plan.width,(g.originY-g.top)/g.scale);
+        const xTicks=[],yTicks=[];
+        for(let i=Math.ceil(minX/gridStep-1e-7);i<=Math.floor(maxX/gridStep+1e-7);i++){
+            const x=Number((i*gridStep).toFixed(6)),sx=g.originX+x*g.scale;
+            svg+=`<line x1="${sx}" y1="${deckY}" x2="${sx}" y2="${deckY+deckH}" stroke="#bdcfdd" stroke-width="1"/>`;
+            if(Math.abs(x/labelStep-Math.round(x/labelStep))<1e-6)xTicks.push({value:x,pixel:sx});
+        }
+        for(let i=Math.ceil(minY/gridStep-1e-7);i<=Math.floor(maxY/gridStep+1e-7);i++){
+            const y=Number((i*gridStep).toFixed(6)),sy=g.originY-y*g.scale;
+            svg+=`<line x1="${deckX}" y1="${sy}" x2="${deckX+deckW}" y2="${sy}" stroke="#bdcfdd" stroke-width="1"/>`;
+            if(Math.abs(y/labelStep-Math.round(y/labelStep))<1e-6)yTicks.push({value:y,pixel:sy});
+        }
+        svg+='</g>';
+        // Las marcas de los ejes se anclan al marco, no al tablero.
+        for(const tick of xTicks)svg+=`<line x1="${tick.pixel}" y1="${g.top+g.h}" x2="${tick.pixel}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${tick.pixel}" y="${g.top+g.h+21}" text-anchor="middle">${tick.value}</text>`;
+        for(const tick of yTicks)svg+=`<line x1="${g.left-6}" y1="${tick.pixel}" x2="${g.left}" y2="${tick.pixel}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${tick.pixel+4}" text-anchor="end">${tick.value}</text>`;
         svg+=`<text class="joint-plan-axis" x="${g.left+g.w/2}" y="${g.top+g.h+48}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
         const placedLabels=[];
         for(const p of s.plan.points) {
-            // Los puntos fuera de la ventana de zoom no se dibujan, pero los del borde sí.
-            if(p.x<view.x-1e-7||p.x>view.x+view.w+1e-7||p.y<view.y-1e-7||p.y>view.y+view.h+1e-7)continue;
-            const x=g.left+(p.x-view.x)*g.scale,y=g.top+(view.y+view.h-p.y)*g.scale;
+            const x=g.originX+p.x*g.scale,y=g.originY-p.y*g.scale;
+            // Los marcadores que quedan fuera del visor no se dibujan. Los que
+            // están sobre los bordes permanecen completos y seleccionables.
+            if(x<g.left-1e-7||x>g.left+g.w+1e-7||y<g.top-1e-7||y>g.top+g.h+1e-7)continue;
             const phoneColor=p.device===s.id?'#467c9f':p.device?'#548d85':'#7f8fa1';
             const label=pointLabelPlacement(x,y,p.id,placedLabels);
             svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.id)}, X ${p.x}, Y ${p.y}">
@@ -5216,7 +5247,7 @@ function formatTime(
             </g>`;
         }
         $('jointPlan').innerHTML=svg;
-        $('jointPlanHelp').textContent=s.role==='host'?'Doble toque o doble clic en una zona libre del tablero para añadir un punto. Arrastra para mover puntos o desplazar X/Y; pellizca o usa la rueda para ampliar. Las posiciones añadidas y arrastradas se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
+        $('jointPlanHelp').textContent=s.role==='host'?'Doble toque o doble clic en el tablero para añadir un punto. Arrastra para mover puntos o desplazar el plano; pellizca o usa la rueda para ampliar dentro de la ventana. Las posiciones añadidas y arrastradas se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
         const devices=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
         $('jointPointsTable').innerHTML=s.plan.points.map(p=>{
@@ -5229,7 +5260,7 @@ function formatTime(
     function svgPosition(e) {
         const svg=$('jointPlan'), matrix=svg.getScreenCTM(); if(!matrix) return null;
         const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(matrix.inverse()),g=geometry();
-        const view=planViewport();return {x:view.x+(q.x-g.left)/g.scale,y:view.y+view.h-(q.y-g.top)/g.scale};
+        return {x:(q.x-g.originX)/g.scale,y:(g.originY-q.y)/g.scale};
     }
     function zoomPlanAt(position,factor,base=planViewport()) {
         const w=base.w*factor,h=base.h*factor;
@@ -6884,7 +6915,7 @@ function formatTime(
         }
         if(s.planPinch&&s.planPointers.size>=2){
             s.planTapStart=null;s.lastPlanTap=null;
-            const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y,distance=Math.max(20,Math.hypot(dx,dy)),factor=s.planPinch.distance/distance,base=s.planPinch.view,rect=$('jointPlan').getBoundingClientRect(),box=$('jointPlan').viewBox.baseVal,g=geometry(base),qx=(s.planPinch.center.x-rect.left)/rect.width*box.width,qy=(s.planPinch.center.y-rect.top)/rect.height*box.height,world={x:base.x+(qx-g.left)/g.scale,y:base.y+base.h-(qy-g.top)/g.scale};
+            const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y,distance=Math.max(20,Math.hypot(dx,dy)),factor=s.planPinch.distance/distance,base=s.planPinch.view,rect=$('jointPlan').getBoundingClientRect(),box=$('jointPlan').viewBox.baseVal,g=geometry(base),qx=(s.planPinch.center.x-rect.left)/rect.width*box.width,qy=(s.planPinch.center.y-rect.top)/rect.height*box.height,world={x:(qx-g.originX)/g.scale,y:(g.originY-qy)/g.scale};
             zoomPlanAt(world,factor,base);renderPlan();return;
         }
         if(s.drag){
