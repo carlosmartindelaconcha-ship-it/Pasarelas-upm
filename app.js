@@ -5259,7 +5259,7 @@ function formatTime(
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
         $('jointPointsTable').innerHTML=s.plan.points.map(p=>{
             const assigned=!!p.device;
-            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row" data-point-id="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Sensor</span><select data-point-field="device" aria-label="Sensor asignado a ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div></div></td></tr>`;
+            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" tabindex="-1" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row" data-point-id="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Sensor</span><select data-point-field="device" aria-label="Sensor asignado a ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div></div></td></tr>`;
         }).join('');
         for(const p of s.plan.points) {const select=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(p.id)}"] select[data-point-field="device"]`);if(select)select.value=p.device||'';}
         $('jointMyPoint').textContent=pointFor()?.name||'Sin asignar';
@@ -5305,28 +5305,44 @@ function formatTime(
         s.plan=checkPlan({...s.plan,points:s.plan.points.map(p=>p.id===id?candidate:p)}); savePlan(); renderDevices();
     }
     function deletePlanPoint(id, animate=true, exitLeft=true) {
-        requireHostEdit(); const point=s.plan.points.find(p=>p.id===id); if(!point) return;
-        const record=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(id)}"]`),swipe=record?.querySelector('.joint-point-swipe'),row=record?.querySelector('.joint-point-row');
-        if(animate&&swipe&&!record.dataset.deleting) {
-            record.dataset.deleting='true';swipe.style.height=swipe.offsetHeight+'px';
-            const currentX=Number((row?.style.transform.match(/translate(?:3d|X)\((-?[\d.]+)/)||['','0'])[1]);
-            if(exitLeft&&row){
-                row.style.transition='none';
-                row.style.transform=`translate3d(${currentX}px,0,0)`;
-                swipe.style.setProperty('--trash-translate-x','0px');
-                void row.offsetWidth;
-            }
-            requestAnimationFrame(()=>{
-                if(exitLeft&&row){swipe.style.setProperty('--trash-translate-x',`${-(row.clientWidth/2-24)}px`);row.style.transition='transform 360ms cubic-bezier(.2,.8,.2,1)';row.style.transform=`translate3d(-${row.clientWidth}px,0,0)`;}
-                setTimeout(()=>{swipe.style.height='0px';swipe.style.opacity='0';swipe.style.marginTop='0';swipe.style.marginBottom='0';},exitLeft?390:0);
-            });
-            setTimeout(()=>deletePlanPoint(id,false),exitLeft?750:240);return;
+        requireHostEdit();
+        const point=s.plan.points.find(p=>p.id===id);
+        if(!point)return;
+        const record=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(id)}"]`);
+        const swipe=record?.querySelector('.joint-point-swipe');
+        const row=record?.querySelector('.joint-point-row');
+        const commitDelete=()=>{
+            if(!s.plan.points.some(p=>p.id===id))return;
+            s.plan.points=s.plan.points.filter(p=>p.id!==id);
+            if(s.selected===id)s.selected=s.plan.points[0]?.id||null;
+            savePlan(false);
+            record?.remove();
+            $('jointPlan').querySelector(`[data-point="${CSS.escape(id)}"]`)?.remove();
+            $('jointPlan').querySelectorAll('[data-point]').forEach(el=>el.classList.toggle('selected',el.dataset.point===s.selected));
+            renderDevices();
+            tell(`${point.id} eliminado del plano.`);
+        };
+        if(!animate||!swipe||record.dataset.deleting){if(!record?.dataset.deleting)commitDelete();return;}
+        record.dataset.deleting='true';
+        s.rowSwipe=null;
+        swipe.style.height=swipe.getBoundingClientRect().height+'px';
+        const collapse=()=>{
+            swipe.style.transition='height 230ms cubic-bezier(.22,.8,.25,1), opacity 230ms ease';
+            swipe.style.height='0px';
+            swipe.style.opacity='0';
+            setTimeout(commitDelete,250);
+        };
+        if(exitLeft&&row){
+            // Flick: la fila termina de salir mientras la papelera permanece
+            // inmóvil en el centro del fondo rojo. Después se contrae la altura.
+            row.style.transition='transform 270ms cubic-bezier(.2,.8,.2,1)';
+            row.style.transform=`translate3d(-${row.offsetWidth}px,0,0)`;
+            setTimeout(collapse,285);
+        }else{
+            // Borrado confirmado tocando el fondo rojo: no vuelve a aparecer
+            // la fila ni se reconstruye toda la tabla.
+            collapse();
         }
-        s.plan.points=s.plan.points.filter(p=>p.id!==id); if(s.selected===id)s.selected=s.plan.points[0]?.id||null;
-        savePlan(false); record?.remove();
-        $('jointPlan').querySelector(`[data-point="${CSS.escape(id)}"]`)?.remove();
-        $('jointPlan').querySelectorAll('[data-point]').forEach(el=>el.classList.toggle('selected',el.dataset.point===s.selected));
-        renderDevices(); tell(`${point.id} eliminado del plano.`);
     }
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
     function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}
@@ -6849,35 +6865,104 @@ function formatTime(
     $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');s.plan.points=s.plan.points.filter(p=>p.id!==s.selected);s.selected=s.plan.points[0]?.id;savePlan();});
     $('jointResetView').onclick=guard(()=>{requireHostEdit();resetPlanView();});
     $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
-    let ignorePointSwipeClickUntil=0;
-    $('jointPointsTable').addEventListener('click',e=>{
-        if(performance.now()<ignorePointSwipeClickUntil){e.preventDefault();e.stopPropagation();}
-    });
-    $('jointPointsTable').addEventListener('change',guard(e=>{
-        const field=e.target.dataset.pointField,row=e.target.closest('[data-point-id]');if(!field||!row)return;
+    // Interacción tipo swipe-to-reveal: reconocer primero la dirección del gesto,
+    // permitir el scroll vertical y no confundir edición de campos con eliminar.
+    const pointsTable=$('jointPointsTable');
+    let suppressRowClickUntil=0;
+    function setPointRowOpen(row,open) {
+        if(!row||!row.isConnected)return;
+        row.style.transition='transform 310ms cubic-bezier(.22,.8,.25,1)';
+        row.style.transform=open?`translate3d(-${row.offsetWidth}px,0,0)`:'translate3d(0,0,0)';
+        row.dataset.swipeOpen=open?'true':'false';
+        const button=row.closest('.joint-point-record')?.querySelector('.joint-point-delete');
+        if(button)button.tabIndex=open?0:-1;
+    }
+    function closeOtherPointRows(except=null) {
+        pointsTable.querySelectorAll('.joint-point-row[data-swipe-open="true"]').forEach(row=>{
+            if(row!==except)setPointRowOpen(row,false);
+        });
+    }
+    // El botón existe detrás de cada fila y, una vez revelado, tiene acción real.
+    pointsTable.addEventListener('click',guard(e=>{
+        const deleteButton=e.target.closest('[data-delete-point]');
+        if(deleteButton){
+            e.preventDefault();
+            const record=deleteButton.closest('.joint-point-record');
+            if(record&&!record.dataset.deleting)deletePlanPoint(deleteButton.dataset.deletePoint,true,false);
+            return;
+        }
+        if(performance.now()<suppressRowClickUntil){
+            e.preventDefault();e.stopPropagation();
+        }
+    }));
+    pointsTable.addEventListener('change',guard(e=>{
+        const field=e.target.dataset.pointField,row=e.target.closest('[data-point-id]');
+        if(!field||!row)return;
         updatePlanPoint(row.dataset.pointId,field,e.target.value);
     }));
-    $('jointPointsTable').addEventListener('pointerdown',e=>{
-        const row=e.target.closest('.joint-point-row');if(!row||s.role!=='host'||running()||s.transaction)return;
+    pointsTable.addEventListener('pointerdown',e=>{
+        const row=e.target.closest('.joint-point-row');
+        if(!row||!e.isPrimary||e.button!==0||s.role!=='host'||running()||s.transaction||row.closest('.joint-point-record')?.dataset.deleting)return;
+        closeOtherPointRows(row);
         const time=performance.now();
-        s.rowSwipe={row,pointerId:e.pointerId,startX:e.clientX,lastX:e.clientX,lastTime:time,velocity:0,offset:0,moved:false};row.setPointerCapture?.(e.pointerId);
+        s.rowSwipe={row,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,startedAt:time,
+            samples:[{x:e.clientX,time}],dx:0,active:false,frame:0};
     });
-    $('jointPointsTable').addEventListener('pointermove',e=>{
-        const swipe=s.rowSwipe;if(!swipe||e.pointerId!==swipe.pointerId)return;const time=performance.now(),dx=e.clientX-swipe.startX,dt=Math.max(1,time-swipe.lastTime);
-        swipe.velocity=(e.clientX-swipe.lastX)/dt;swipe.lastX=e.clientX;swipe.lastTime=time;
-        if(Math.abs(dx)>7)swipe.moved=true;
-        const offset=Math.max(-swipe.row.clientWidth,Math.min(0,dx));swipe.row.style.transition='none';swipe.row.style.transform=`translate3d(${offset}px,0,0)`;
-        if(swipe.moved)e.preventDefault();
+    pointsTable.addEventListener('pointermove',e=>{
+        const swipe=s.rowSwipe;
+        if(!swipe||e.pointerId!==swipe.pointerId)return;
+        const dx=e.clientX-swipe.startX,dy=e.clientY-swipe.startY;
+        if(!swipe.active){
+            if(Math.abs(dx)<9&&Math.abs(dy)<9)return;
+            if(dx>=0||Math.abs(dy)>=Math.abs(dx)*1.15){
+                s.rowSwipe=null;return;
+            }
+            swipe.active=true;
+            swipe.row.style.transition='none';
+            try{swipe.row.setPointerCapture(e.pointerId);}catch(_) {}
+        }
+        swipe.dx=Math.max(-swipe.row.offsetWidth,Math.min(0,dx));
+        const time=performance.now();
+        swipe.samples.push({x:e.clientX,time});
+        while(swipe.samples.length>2&&time-swipe.samples[1].time>120)swipe.samples.shift();
+        if(!swipe.frame)swipe.frame=requestAnimationFrame(()=>{
+            swipe.frame=0;
+            if(s.rowSwipe===swipe&&swipe.row.isConnected)
+                swipe.row.style.transform=`translate3d(${swipe.dx}px,0,0)`;
+        });
+        e.preventDefault();
     });
-    for(const event of ['pointerup','pointercancel'])$('jointPointsTable').addEventListener(event,guard(e=>{
-        const swipe=s.rowSwipe;if(!swipe||e.pointerId!==swipe.pointerId)return;s.rowSwipe=null;
-        const x=Number((swipe.row.style.transform.match(/translate(?:3d|X)\((-?[\d.]+)/)||['','0'])[1]);
-        if(swipe.moved)ignorePointSwipeClickUntil=performance.now()+700;
-        const fastLeft=swipe.velocity<-.75&&x<-22;
-        const crossedDeleteThreshold=x<=-(swipe.row.clientWidth*2/3);
-        if(event==='pointerup'&&(fastLeft||crossedDeleteThreshold)){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId,true,true);return;}
-        swipe.row.style.transition='';
-        swipe.row.style.transform='';
+    for(const type of ['pointerup','pointercancel'])pointsTable.addEventListener(type,guard(e=>{
+        const swipe=s.rowSwipe;
+        if(!swipe||e.pointerId!==swipe.pointerId)return;
+        s.rowSwipe=null;
+        if(swipe.frame)cancelAnimationFrame(swipe.frame);
+        if(!swipe.active)return;
+        suppressRowClickUntil=performance.now()+420;
+        const dx=Math.max(-swipe.row.offsetWidth,Math.min(0,e.clientX-swipe.startX));
+        const time=performance.now();
+        const samples=[...swipe.samples,{x:e.clientX,time}];
+        while(samples.length>2&&time-samples[1].time>120)samples.shift();
+        const first=samples[0];
+        const recentSpeed=(e.clientX-first.x)/Math.max(1,time-first.time);
+        const averageSpeed=dx/Math.max(1,time-swipe.startedAt);
+        const fastLeft=type==='pointerup'&&dx<-(Math.min(48,swipe.row.offsetWidth*.22))&&
+            (recentSpeed<-.72||averageSpeed<-.9);
+        if(fastLeft){
+            // Eliminar solo con flick verdaderamente rápido, no con un gesto
+            // lento que recorra la fila completa.
+            swipe.row.style.transition='none';
+            swipe.row.style.transform=`translate3d(${dx}px,0,0)`;
+            void swipe.row.offsetWidth;
+            deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId,true,true);
+            return;
+        }
+        if(type==='pointerup'&&dx<-Math.min(72,swipe.row.offsetWidth*.2)){
+            // Gesto lento: completar hasta una fila roja con papelera centrada.
+            setPointRowOpen(swipe.row,true);
+        }else{
+            setPointRowOpen(swipe.row,false);
+        }
     }));
     $('jointPlan').addEventListener('keydown',guard(e=>{
         const el=e.target.closest('[data-point]');if(!el)return;
