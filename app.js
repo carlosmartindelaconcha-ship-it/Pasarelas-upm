@@ -5176,7 +5176,7 @@ function formatTime(
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
         $('jointPointsTable').innerHTML=s.plan.points.map(p=>{
             const assigned=!!p.device;
-            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row" data-point-id="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Sensor</span><select data-point-field="device" aria-label="Sensor asignado a ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div></div></td></tr>`;
+            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row" data-point-id="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Sensor</span><select data-point-field="device" aria-label="Sensor asignado a ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div></div></td></tr>`;
         }).join('');
         for(const p of s.plan.points) {const select=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(p.id)}"] select[data-point-field="device"]`);if(select)select.value=p.device||'';}
         $('jointMyPoint').textContent=pointFor()?.name||'Sin asignar';
@@ -5190,17 +5190,31 @@ function formatTime(
         const w=base.w*factor,h=base.h*factor;
         s.planView=planViewport({x:position.x-(position.x-base.x)*(w/base.w),y:position.y-(position.y-base.y)*(h/base.h),w,h});
     }
-    function addPoint(x=s.plan.length/2,y=s.plan.width/2) {
+    // Colocación automática: 7 posiciones longitudinales en el centro, borde Y=0 y borde Y=anchura.
+    // Las filas adicionales (a partir de P22) utilizan bandas interiores sin superponerse.
+    const pointXFractions=[1/2,1/4,3/4,1/6,5/6,3/8,5/8];
+    const pointYFractions=[1/2,0,1,1/4,3/4,1/8,7/8,3/8,5/8,1/16];
+    function suggestedPointPosition(number) {
+        const index=number-1,band=Math.floor(index/pointXFractions.length);
+        const xFraction=pointXFractions[index%pointXFractions.length];
+        const yFraction=pointYFractions[band]??1/2;
+        const x=Number((s.plan.length*xFraction).toFixed(3));
+        // En los bordes se conservan los valores exactos Y=0 e Y=anchura.
+        const y=band===1?0:band===2?s.plan.width:Number((s.plan.width*yFraction).toFixed(3));
+        return {x,y};
+    }
+    function addPoint(x,y) {
         requireHostEdit(); if(s.plan.points.length>=MAX_POINTS) throw Error('Máximo 64 puntos por plano.');
         let n=1; while(s.plan.points.some(p=>p.id==='P'+n)) n++;
-        const snapped=snapPlanPosition({x,y}),p={id:'P'+n,name:'P'+n,x:snapped.x,y:snapped.y,angle:0,axis:'z',device:null};
+        const position=x===undefined&&y===undefined?suggestedPointPosition(n):snapPlanPosition({x,y});
+        const p={id:'P'+n,name:'P'+n,x:position.x,y:position.y,angle:0,axis:'z',device:null};
         s.plan.points.push(p); s.selected=p.id; s.adding=false; savePlan();
     }
     function updatePlanPoint(id, field, value) {
         requireHostEdit(); const original=s.plan.points.find(p=>p.id===id); if(!original) throw Error('El punto ya no existe.');
         let next=value;
         if(field==='name') next=String(value).trim().slice(0,40)||original.id;
-        if(field==='x'||field==='y') {next=Math.round(Number(value));if(!finite(next)) throw Error('Introduce una coordenada válida en metros.');}
+        if(field==='x'||field==='y') {next=Number(Number(value).toFixed(3));if(!finite(next)) throw Error('Introduce una coordenada válida en metros.');}
         if(field==='device') next=value||null;
         if(field==='axis'&&!['x','y','z'].includes(value)) throw Error('Eje no válido.');
         if(field==='device'&&next&&s.plan.points.some(p=>p.id!==id&&p.device===next)) throw Error('Ese móvil ya está asignado a otro punto.');
