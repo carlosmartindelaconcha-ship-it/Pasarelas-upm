@@ -1595,3 +1595,9 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
 .joint-table tr.joint-swipe-reveal { box-shadow: inset -5px 0 #bd3441; }
 .joint-table tr.joint-swipe-reveal .joint-delete-row { background: #bd3441; color: #fff; border-radius: 6px; }
 #jointPlan .joint-point-hover circle { stroke: #174ea6; stroke-width: 4px; }
+
+/* Swipe on touch devices: the row itself follows the finger. */
+#jointPointsTable tr[data-row-point] { touch-action: pan-y; transition: transform .16s ease-out; }
+#jointPointsTable tr[data-row-point] input, #jointPointsTable tr[data-row-point] select { touch-action: auto; }
+#jointPointsTable tr.joint-swipe-reveal .joint-delete-row { background: #b42332; color: #fff; border: 2px solid #b42332; font-weight: 700; }
+#jointPointsTable .joint-delete-row { min-width: 44px; min-height: 40px; }
