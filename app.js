@@ -5130,6 +5130,11 @@ function formatTime(
     }
     function pointFor(device=s.id, plan=s.plan) {return plan.points.find(p=>p.device===device);}
     function deviceName(id) {return id===s.id?s.name:(s.peers.get(id)?.name||'Sin conectar');}
+    function deviceCode(id) {
+        if(!id)return '';
+        if(s.role==='host') {if(id===s.id)return 'M';const index=[...s.peers.keys()].indexOf(id);return index>=0?'S'+(index+1):'S?';}
+        return id===s.id?'S1':'M';
+    }
     function planViewport(candidate=s.planView) {
         const base=candidate||{x:0,y:0,w:s.plan.length,h:s.plan.width};
         const minW=Math.min(1,s.plan.length),minH=Math.min(1,s.plan.width),w=Math.max(minW,Math.min(s.plan.length,base.w)),h=Math.max(minH,Math.min(s.plan.width,base.h));
@@ -5163,15 +5168,15 @@ function formatTime(
         for(const p of s.plan.points) {
             const x=g.left+(p.x-view.x)*g.scale,y=g.top+(view.y+view.h-p.y)*g.scale;
             const color=p.device===s.id?'#087cc3':p.device?'#00897b':'#788c9e';
-            svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.name)}, X ${p.x}, Y ${p.y}"><title>${escape(p.name)} · ${p.device?escape(deviceName(p.device)):'Sin asignar'}</title><circle cx="${x}" cy="${y}" r="12" fill="${color}" stroke="white" stroke-width="2"/><path d="M ${x} ${y-5} l 0 -16 m -4 5 l 4 -5 l 4 5" fill="none" stroke="${color}" stroke-width="2" transform="rotate(${-p.angle} ${x} ${y})"/><text x="${x}" y="${y+29}" text-anchor="middle">${escape(p.name)}</text></g>`;
+            svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.id)}, X ${p.x}, Y ${p.y}"><title>${escape(p.id)} · ${p.device?escape(deviceName(p.device)):'Sin asignar'}</title><circle cx="${x}" cy="${y}" r="12" fill="${color}" stroke="white" stroke-width="2"/><path d="M ${x} ${y-5} l 0 -16 m -4 5 l 4 -5 l 4 5" fill="none" stroke="${color}" stroke-width="2" transform="rotate(${-p.angle} ${x} ${y})"/><text x="${x}" y="${y+29}" text-anchor="middle">${escape(p.id)}</text></g>`;
         } svg+='</g>';
         $('jointPlan').innerHTML=svg;
         $('jointPlanHelp').textContent=s.adding?'Toca dentro del rectángulo para colocar un punto en la rejilla de 1 m.':s.role==='host'?'Arrastra una zona libre para desplazar X/Y; rueda o pellizca para ampliar. Los puntos creados y arrastrados se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
         const devices=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
-        const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${escape(d.name)}${d.id===s.id?' (este móvil)':''}</option>`).join('');
+        const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
         $('jointPointsTable').innerHTML=s.plan.points.map(p=>{
             const assigned=!!p.device;
-            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row ${p.id===s.selected?'selected':''}" data-select-point="${escape(p.id)}"><label class="joint-point-name ${assigned?'assigned':'unassigned'}"><span>Punto</span><input data-point-field="name" value="${escape(p.name)}" maxlength="40" aria-label="Nombre de ${escape(p.name)}" ${edit?'':'disabled'}></label><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.name)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.name)}" ${edit?'':'disabled'}></label><label><span>Móvil</span><select data-point-field="device" aria-label="Móvil de ${escape(p.name)}" ${edit?'':'disabled'}><option value="">Sin asignar</option>${deviceOptions}</select></label></div></div></td></tr>`;
+            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row ${p.id===s.selected?'selected':''}" data-select-point="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Quién lo mide</span><select data-point-field="device" aria-label="Móvil de ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div></div></td></tr>`;
         }).join('');
         for(const p of s.plan.points) {const select=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(p.id)}"] select[data-point-field="device"]`);if(select)select.value=p.device||'';}
         $('jointMyPoint').textContent=pointFor()?.name||'Sin asignar';
@@ -5211,7 +5216,7 @@ function formatTime(
             setTimeout(()=>deletePlanPoint(id,false),240);return;
         }
         s.plan.points=s.plan.points.filter(p=>p.id!==id); if(s.selected===id)s.selected=s.plan.points[0]?.id||null;
-        savePlan(); renderDevices(); tell(`${point.name} eliminado del plano.`);
+        savePlan(); renderDevices(); tell(`${point.id} eliminado del plano.`);
     }
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
     function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}
@@ -6642,7 +6647,7 @@ function formatTime(
     $('jointCreate').onclick=guard(()=>{
         open();s.id=uid();s.role='host';s.name='Maestro';s.session=uid();
         try{const stored=localStorage.getItem('upm-joint-plan-v1');if(stored)s.plan=checkPlan(JSON.parse(stored));}catch(e){tell('No se pudo recuperar el plano anterior.',true);}
-        if(!s.plan.points.length)s.plan.points=[{id:'P1',name:'Centro de vano',x:s.plan.length/2,y:s.plan.width/2,axis:'z',angle:0,device:s.id},{id:'P2',name:'L/4',x:s.plan.length/4,y:s.plan.width/2,axis:'z',angle:0,device:null}];
+        if(!s.plan.points.length)s.plan.points=[{id:'P1',name:'P1',x:s.plan.length/2,y:s.plan.width/2,axis:'z',angle:0,device:s.id},{id:'P2',name:'P2',x:s.plan.length/4,y:s.plan.width/2,axis:'z',angle:0,device:null}];
         else {s.plan.points.forEach(p=>p.device=null);s.plan.points[0].device=s.id;}
         s.selected=s.plan.points[0].id;workspace();tell('Define el plano y pulsa Invitar móvil para incorporar un participante.');
     });
@@ -6689,18 +6694,21 @@ function formatTime(
     });
     $('jointPointsTable').addEventListener('pointerdown',e=>{
         const row=e.target.closest('.joint-point-row');if(!row||e.target.closest('select,button')||s.role!=='host'||running()||s.transaction)return;
-        s.rowSwipe={row,startX:e.clientX,offset:row.classList.contains('swipe-open')?-124:0,moved:false};row.setPointerCapture?.(e.pointerId);
+        const time=performance.now();s.rowSwipe={row,startX:e.clientX,lastX:e.clientX,lastTime:time,velocity:0,offset:row.classList.contains('swipe-open')?-104:0,moved:false};row.setPointerCapture?.(e.pointerId);
     });
     $('jointPointsTable').addEventListener('pointermove',e=>{
-        const swipe=s.rowSwipe;if(!swipe)return;const dx=e.clientX-swipe.startX;
+        const swipe=s.rowSwipe;if(!swipe)return;const time=performance.now(),dx=e.clientX-swipe.startX,dt=Math.max(1,time-swipe.lastTime);
+        swipe.velocity=(e.clientX-swipe.lastX)/dt;swipe.lastX=e.clientX;swipe.lastTime=time;
         if(Math.abs(dx)>7)swipe.moved=true;
         const offset=Math.max(-swipe.row.clientWidth,Math.min(0,swipe.offset+dx));swipe.row.style.transition='none';swipe.row.style.transform=`translateX(${offset}px)`;swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth+offset/2)+'px');
         if(swipe.moved)e.preventDefault();
     });
     for(const event of ['pointerup','pointercancel'])$('jointPointsTable').addEventListener(event,guard(e=>{
         const swipe=s.rowSwipe;if(!swipe)return;s.rowSwipe=null;swipe.row.style.transition='';const x=Number((swipe.row.style.transform.match(/-?[\d.]+/)||['0'])[0]);swipe.row.style.transform='';
-        if(event==='pointerup'&&x<=-swipe.row.clientWidth*.62){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId);return;}
-        const open=x<=-42;swipe.row.classList.toggle('swipe-open',open);if(open)swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth-62)+'px');else swipe.row.parentElement.style.removeProperty('--trash-center');
+        // El borrado exige un gesto decidido: un flick rápido a la izquierda. La distancia por sí sola solo abre la acción.
+        const fastLeft=swipe.velocity<-.62&&x<-34;
+        if(event==='pointerup'&&fastLeft){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId);return;}
+        const open=x<=-28||swipe.velocity<-.12;swipe.row.classList.toggle('swipe-open',open);if(open)swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth-52)+'px');else swipe.row.parentElement.style.removeProperty('--trash-center');
     }));
     $('jointPlan').addEventListener('keydown',guard(e=>{
         const el=e.target.closest('[data-point]');if(!el)return;
