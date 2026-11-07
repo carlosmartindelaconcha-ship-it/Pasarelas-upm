@@ -14,7 +14,7 @@
     <title>Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261105-sync-results">
+    <link rel="stylesheet" href="style.css?v=20261107-plan-axis-ticks">
 
     <!-- MapLibre -->
     <link
@@ -743,7 +743,7 @@
                     </div><button id="jointApplyGeometry" type="button" class="joint-secondary">Aplicar dimensiones</button></fieldset>
                     <div class="joint-plan-wrap"><svg id="jointPlan" viewBox="0 0 800 440" role="group" aria-label="Plano editable: selecciona un punto o pulsa Añadir punto"></svg></div>
                     <p class="joint-help" id="jointPlanHelp">Selecciona y arrastra un punto para moverlo. Toca una zona libre para desplazar la vista; rueda o pellizca para ampliar. Los puntos creados o arrastrados se ajustan a la rejilla de 1 m.</p>
-                    <div class="joint-actions" id="jointPlanTools"><button id="jointAddPoint" type="button">Añadir punto</button><button id="jointRemovePoint" type="button" class="joint-secondary">Eliminar seleccionado</button><button id="jointResetView" type="button" class="joint-secondary">Restablecer vista</button><label class="joint-file">Importar plano JSON<input id="jointImportPlan" type="file" accept="application/json,.json"></label></div>
+                    <div class="joint-actions" id="jointPlanTools"><button id="jointAddPoint" type="button">Añadir punto</button><button id="jointRemovePoint" type="button" class="joint-secondary">Eliminar seleccionado</button><button id="jointResetView" type="button" class="joint-secondary">Restablecer vista</button></div>
                     <section class="joint-points-section" aria-labelledby="jointPointsTitle"><div class="joint-points-head"><div><h4 id="jointPointsTitle">Puntos de medida</h4><p>Edita las coordenadas o el sensor. Desliza una fila hacia la izquierda para eliminar.</p></div><button id="jointAddPointInline" type="button">+ Añadir punto</button></div><div class="joint-table-wrap"><table class="joint-points-table"><thead><tr><th>Punto</th><th>X (m)</th><th>Y (m)</th><th>Sensor</th></tr></thead><tbody id="jointPointsTable" aria-live="polite"></tbody></table></div></section>
                 </div>
                 <div id="jointPanelDevices" role="tabpanel" aria-labelledby="jointTabDevices" hidden>
@@ -827,7 +827,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261107-joint-auto-distribution"></script>
+    <script defer src="app.js?v=20261107-plan-remove-import"></script>
 
 
 </body>
