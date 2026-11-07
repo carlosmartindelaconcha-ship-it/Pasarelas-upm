@@ -1589,3 +1589,9 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
 .joint-table tr { transition: background .15s ease; }
 .joint-table .joint-delete-row { background: transparent; color: #bd3441; border: 0; padding: 7px; }
 .joint-table tr.joint-row-selected .joint-delete-row { color: #fff; }
+
+.joint-table tr.joint-row-hover { background: #245eaa; color: #fff; }
+.joint-table tr.joint-row-hover button { color: #fff; }
+.joint-table tr.joint-swipe-reveal { box-shadow: inset -5px 0 #bd3441; }
+.joint-table tr.joint-swipe-reveal .joint-delete-row { background: #bd3441; color: #fff; border-radius: 6px; }
+#jointPlan .joint-point-hover circle { stroke: #174ea6; stroke-width: 4px; }
