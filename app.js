@@ -5065,7 +5065,7 @@ function formatTime(
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
         scan:null, scanFrame:null, currentInvite:null, pairBusy:false, capturePermission:false,
         pendingOffer:null, qrPages:[], qrPageIndex:0, qrPageTimer:null, qrInbound:null,
-        lastPairDiagnostic:'', adding:false, drag:null, planView:null, planPan:null, planPointers:new Map(), planPinch:null, rowSwipe:null,
+        lastPairDiagnostic:'', drag:null, planView:null, planPan:null, planPointers:new Map(), planPinch:null, planTapStart:null, lastPlanTap:null, rowSwipe:null,
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
         storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null,
@@ -5184,7 +5184,7 @@ function formatTime(
         const edit=s.role==='host'&&!running()&&!s.transaction;
         $('jointGeometry').disabled=!edit;
         $('jointPlanTools').hidden=s.role!=='host';
-        for(const id of ['jointAddPoint','jointAddPointInline','jointRemovePoint','jointResetView']) $(id).disabled=!edit;
+        for(const id of ['jointAddPointInline','jointRemovePoint','jointResetView']) $(id).disabled=!edit;
         $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
         const view=planViewport(),g=geometry(view),selected=s.plan.points.find(p=>p.id===s.selected),gridStep=planGridStep(g),labelStep=planLabelStep(g);
         let svg=`<title>Planta de ${escape(s.plan.name)}</title><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
@@ -5216,7 +5216,7 @@ function formatTime(
             </g>`;
         }
         $('jointPlan').innerHTML=svg;
-        $('jointPlanHelp').textContent=s.adding?'Toca dentro del rectángulo para colocar un punto en la rejilla de 1 m.':s.role==='host'?'Arrastra una zona libre para desplazar X/Y; rueda o pellizca para ampliar. Los puntos creados y arrastrados se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
+        $('jointPlanHelp').textContent=s.role==='host'?'Doble toque o doble clic en una zona libre del tablero para añadir un punto. Arrastra para mover puntos o desplazar X/Y; pellizca o usa la rueda para ampliar. Las posiciones añadidas y arrastradas se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
         const devices=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
         $('jointPointsTable').innerHTML=s.plan.points.map(p=>{
@@ -5253,7 +5253,7 @@ function formatTime(
         let n=1; while(s.plan.points.some(p=>p.id==='P'+n)) n++;
         const position=x===undefined&&y===undefined?suggestedPointPosition(n):snapPlanPosition({x,y});
         const p={id:'P'+n,name:'P'+n,x:position.x,y:position.y,angle:0,axis:'z',device:null};
-        s.plan.points.push(p); s.selected=p.id; s.adding=false; savePlan();
+        s.plan.points.push(p); s.selected=p.id; savePlan();
     }
     function updatePlanPoint(id, field, value) {
         requireHostEdit(); const original=s.plan.points.find(p=>p.id===id); if(!original) throw Error('El punto ya no existe.');
@@ -6746,7 +6746,6 @@ function formatTime(
         s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();
         savePlan();tell('Dimensiones guardadas. Vista del plano reajustada.');
     });
-    $('jointAddPoint').onclick=guard(()=>{requireHostEdit();s.adding=!s.adding;renderPlan();});
     $('jointAddPointInline').onclick=guard(()=>{requireHostEdit();addPoint();});
     $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');s.plan.points=s.plan.points.filter(p=>p.id!==s.selected);s.selected=s.plan.points[0]?.id;savePlan();});
     $('jointResetView').onclick=guard(()=>{requireHostEdit();resetPlanView();});
@@ -6785,20 +6784,96 @@ function formatTime(
         const el=e.target.closest('[data-point]');if(!el)return;
         if(e.key==='Enter'||e.key===' '){e.preventDefault();s.selected=el.dataset.point;renderPlan();}
     }));
+    // Doble toque y doble clic utilizan la misma detección de Pointer Events.
+    // Nunca se crea un punto al tocar un móvil, al arrastrar o al pellizcar el plano.
+    const PLAN_TAP_MAX_MS=500, PLAN_DOUBLE_TAP_MAX_MS=420;
+    const PLAN_TAP_MAX_MOVE_PX=10, PLAN_DOUBLE_TAP_MAX_GAP_PX=28;
     $('jointPlan').addEventListener('pointerdown',guard(e=>{
-        const svg=$('jointPlan'),el=e.target.closest('[data-point]'),pos=svgPosition(e);s.planPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-        if(s.planPointers.size===2){const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y;s.planPinch={distance:Math.hypot(dx,dy),view:planViewport(),center:{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2}};s.drag=null;s.planPan=null;svg.setPointerCapture(e.pointerId);return;}
-        if(el){s.selected=el.dataset.point;if(s.role==='host'&&!running()&&!s.transaction){s.drag=s.selected;svg.setPointerCapture(e.pointerId);}renderPlan();}
-        else if(s.adding&&pos&&pos.x>=0&&pos.x<=s.plan.length&&pos.y>=0&&pos.y<=s.plan.width)addPoint(pos.x,pos.y);
-        else if(s.role==='host'&&!running()&&!s.transaction){s.planPan={x:e.clientX,y:e.clientY,view:planViewport()};svg.setPointerCapture(e.pointerId);}
+        const svg=$('jointPlan'),el=e.target.closest('[data-point]'),pos=svgPosition(e);
+        const canEdit=s.role==='host'&&!running()&&!s.transaction;
+        const inside=pos&&pos.x>=0&&pos.x<=s.plan.length&&pos.y>=0&&pos.y<=s.plan.width;
+        s.planPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+        s.planTapStart=canEdit&&!el&&inside&&s.planPointers.size===1?
+            {pointerId:e.pointerId,x:e.clientX,y:e.clientY,at:performance.now(),pointerType:e.pointerType}:null;
+        if(s.planPointers.size>=2){
+            s.lastPlanTap=null;s.planTapStart=null;
+        }
+        if(s.planPointers.size===2){
+            const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y;
+            s.planPinch={distance:Math.hypot(dx,dy),view:planViewport(),center:{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2}};
+            s.drag=null;s.planPan=null;svg.setPointerCapture(e.pointerId);return;
+        }
+        if(el){
+            s.lastPlanTap=null;
+            s.selected=el.dataset.point;
+            if(canEdit){s.drag=s.selected;svg.setPointerCapture(e.pointerId);}
+            renderPlan();
+        }else if(canEdit&&s.planPointers.size===1){
+            s.planPan={x:e.clientX,y:e.clientY,view:planViewport(),moved:false};
+            svg.setPointerCapture(e.pointerId);
+        }else{
+            s.lastPlanTap=null;
+        }
     }));
     $('jointPlan').addEventListener('pointermove',e=>{
         if(s.planPointers.has(e.pointerId))s.planPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-        if(s.planPinch&&s.planPointers.size>=2){const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y,distance=Math.max(20,Math.hypot(dx,dy)),factor=s.planPinch.distance/distance,base=s.planPinch.view,rect=$('jointPlan').getBoundingClientRect(),box=$('jointPlan').viewBox.baseVal,g=geometry(base),qx=(s.planPinch.center.x-rect.left)/rect.width*box.width,qy=(s.planPinch.center.y-rect.top)/rect.height*box.height,world={x:base.x+(qx-g.left)/g.scale,y:base.y+base.h-(qy-g.top)/g.scale};zoomPlanAt(world,factor,base);renderPlan();return;}
-        if(s.drag){const pos=svgPosition(e),p=s.plan.points.find(p=>p.id===s.drag);if(!p||!pos)return;const snapped=snapPlanPosition(pos);p.x=snapped.x;p.y=snapped.y;renderPlan();return;}
-        if(s.planPan){const base=s.planPan.view,g=geometry(base);s.planView=planViewport({x:base.x-(e.clientX-s.planPan.x)/g.scale,y:base.y+(e.clientY-s.planPan.y)/g.scale,w:base.w,h:base.h});renderPlan();}
+        if(s.planTapStart?.pointerId===e.pointerId&&
+           Math.hypot(e.clientX-s.planTapStart.x,e.clientY-s.planTapStart.y)>PLAN_TAP_MAX_MOVE_PX){
+            s.planTapStart=null;s.lastPlanTap=null;
+        }
+        if(s.planPinch&&s.planPointers.size>=2){
+            s.planTapStart=null;s.lastPlanTap=null;
+            const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y,distance=Math.max(20,Math.hypot(dx,dy)),factor=s.planPinch.distance/distance,base=s.planPinch.view,rect=$('jointPlan').getBoundingClientRect(),box=$('jointPlan').viewBox.baseVal,g=geometry(base),qx=(s.planPinch.center.x-rect.left)/rect.width*box.width,qy=(s.planPinch.center.y-rect.top)/rect.height*box.height,world={x:base.x+(qx-g.left)/g.scale,y:base.y+base.h-(qy-g.top)/g.scale};
+            zoomPlanAt(world,factor,base);renderPlan();return;
+        }
+        if(s.drag){
+            const pos=svgPosition(e),p=s.plan.points.find(p=>p.id===s.drag);
+            if(!p||!pos)return;
+            const snapped=snapPlanPosition(pos);p.x=snapped.x;p.y=snapped.y;
+            renderPlan();return;
+        }
+        if(s.planPan){
+            const dx=e.clientX-s.planPan.x,dy=e.clientY-s.planPan.y;
+            // Un pequeño movimiento involuntario del dedo no debe desplazar el plano.
+            if(!s.planPan.moved&&Math.hypot(dx,dy)<=PLAN_TAP_MAX_MOVE_PX)return;
+            s.planPan.moved=true;s.planTapStart=null;s.lastPlanTap=null;
+            const base=s.planPan.view,g=geometry(base);
+            s.planView=planViewport({x:base.x-dx/g.scale,y:base.y+dy/g.scale,w:base.w,h:base.h});
+            renderPlan();
+        }
     });
-    for(const event of ['pointerup','pointercancel'])$('jointPlan').addEventListener(event,guard(e=>{s.planPointers.delete(e.pointerId);if(s.planPointers.size<2)s.planPinch=null;if(s.drag){s.drag=null;savePlan();}s.planPan=null;}));
+    for(const event of ['pointerup','pointercancel'])$('jointPlan').addEventListener(event,guard(e=>{
+        const tap=s.planTapStart?.pointerId===e.pointerId?s.planTapStart:null;
+        const multiplePointers=s.planPointers.size>1||!!s.planPinch;
+        const panned=!!s.planPan?.moved;
+        s.planPointers.delete(e.pointerId);
+        if(s.planPointers.size<2)s.planPinch=null;
+        if(s.drag){s.drag=null;savePlan();}
+        s.planPan=null;s.planTapStart=null;
+        if(event!=='pointerup'||!tap||multiplePointers||panned){
+            if(event==='pointercancel'||multiplePointers||panned)s.lastPlanTap=null;
+            return;
+        }
+        const time=performance.now(),dx=e.clientX-tap.x,dy=e.clientY-tap.y;
+        if(time-tap.at>PLAN_TAP_MAX_MS||Math.hypot(dx,dy)>PLAN_TAP_MAX_MOVE_PX){
+            s.lastPlanTap=null;return;
+        }
+        const pos=svgPosition(e);
+        if(!pos||pos.x<0||pos.x>s.plan.length||pos.y<0||pos.y>s.plan.width){
+            s.lastPlanTap=null;return;
+        }
+        const prev=s.lastPlanTap;
+        s.lastPlanTap={x:e.clientX,y:e.clientY,at:time,pointerType:tap.pointerType};
+        if(prev&&prev.pointerType===tap.pointerType&&
+           time-prev.at<=PLAN_DOUBLE_TAP_MAX_MS&&
+           Math.hypot(e.clientX-prev.x,e.clientY-prev.y)<=PLAN_DOUBLE_TAP_MAX_GAP_PX){
+            s.lastPlanTap=null;
+            e.preventDefault();
+            addPoint(pos.x,pos.y);
+        }
+    }));
+    // Impide el comportamiento nativo de doble clic; la creación se realiza en pointerup.
+    $('jointPlan').addEventListener('dblclick',e=>e.preventDefault());
     $('jointPlan').addEventListener('wheel',e=>{if(s.role!=='host'||running()||s.transaction)return;e.preventDefault();const before=svgPosition(e);if(!before)return;zoomPlanAt(before,e.deltaY<0?.8:1.25);renderPlan();},{passive:false});
     $('jointDeviceName').onchange=()=>{s.name=$('jointDeviceName').value.trim().slice(0,40)||'Mi móvil';broadcast({type:'HELLO',id:s.id,name:s.name,status:localStatus()});renderDevices();renderPlan();};
     $('jointEnableSensor').onclick=guard(enableSensor);
