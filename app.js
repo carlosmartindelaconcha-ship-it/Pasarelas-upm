@@ -5207,13 +5207,16 @@ function formatTime(
         const candidate={...original,[field]:next};
         s.plan=checkPlan({...s.plan,points:s.plan.points.map(p=>p.id===id?candidate:p)}); savePlan(); renderDevices();
     }
-    function deletePlanPoint(id, animate=true) {
+    function deletePlanPoint(id, animate=true, exitLeft=true) {
         requireHostEdit(); const point=s.plan.points.find(p=>p.id===id); if(!point) return;
-        const record=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(id)}"]`),swipe=record?.querySelector('.joint-point-swipe');
+        const record=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(id)}"]`),swipe=record?.querySelector('.joint-point-swipe'),row=record?.querySelector('.joint-point-row');
         if(animate&&swipe&&!record.dataset.deleting) {
             record.dataset.deleting='true';swipe.style.height=swipe.offsetHeight+'px';
-            requestAnimationFrame(()=>{swipe.style.height='0px';swipe.style.opacity='0';swipe.style.marginTop='0';swipe.style.marginBottom='0';});
-            setTimeout(()=>deletePlanPoint(id,false),240);return;
+            requestAnimationFrame(()=>{
+                if(exitLeft&&row){row.style.transition='transform 170ms cubic-bezier(.2,.8,.2,1)';row.style.transform=`translateX(-${row.clientWidth}px)`;}
+                setTimeout(()=>{swipe.style.height='0px';swipe.style.opacity='0';swipe.style.marginTop='0';swipe.style.marginBottom='0';},exitLeft?145:0);
+            });
+            setTimeout(()=>deletePlanPoint(id,false),exitLeft?410:240);return;
         }
         s.plan.points=s.plan.points.filter(p=>p.id!==id); if(s.selected===id)s.selected=s.plan.points[0]?.id||null;
         savePlan(); renderDevices(); tell(`${point.id} eliminado del plano.`);
@@ -6681,7 +6684,7 @@ function formatTime(
     $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
     $('jointImportPlan').onchange=guard(async e=>{requireHostEdit();const file=e.target.files[0];if(!file)return;if(file.size>100000)throw Error('El archivo de plano es demasiado grande.');const plan=checkPlan(JSON.parse(await file.text()));plan.points.forEach(p=>p.device=null);s.plan=plan;s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();s.selected=plan.points[0]?.id;savePlan();e.target.value='';tell('Plano importado. Asigna los móviles a los puntos.');});
     $('jointPointsTable').onclick=guard(e=>{
-        const remove=e.target.closest('[data-delete-point]');if(remove){deletePlanPoint(remove.dataset.deletePoint);return;}
+        const remove=e.target.closest('[data-delete-point]');if(remove){deletePlanPoint(remove.dataset.deletePoint,true,true);return;}
     });
     $('jointPointsTable').addEventListener('change',guard(e=>{
         const field=e.target.dataset.pointField,row=e.target.closest('[data-point-id]');if(!field||!row)return;
@@ -6699,10 +6702,11 @@ function formatTime(
         if(swipe.moved)e.preventDefault();
     });
     for(const event of ['pointerup','pointercancel'])$('jointPointsTable').addEventListener(event,guard(e=>{
-        const swipe=s.rowSwipe;if(!swipe)return;s.rowSwipe=null;swipe.row.style.transition='';const x=Number((swipe.row.style.transform.match(/-?[\d.]+/)||['0'])[0]);swipe.row.style.transform='';
+        const swipe=s.rowSwipe;if(!swipe)return;s.rowSwipe=null;swipe.row.style.transition='';const x=Number((swipe.row.style.transform.match(/-?[\d.]+/)||['0'])[0]);
         // El borrado exige un gesto decidido: un flick rápido a la izquierda. La distancia por sí sola solo abre la acción.
         const fastLeft=swipe.velocity<-.62&&x<-34;
-        if(event==='pointerup'&&fastLeft){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId);return;}
+        if(event==='pointerup'&&fastLeft){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId,true,true);return;}
+        swipe.row.style.transform='';
         const open=x<=-28||swipe.velocity<-.12;swipe.row.classList.toggle('swipe-open',open);if(open)swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth-52)+'px');else swipe.row.parentElement.style.removeProperty('--trash-center');
     }));
     $('jointPlan').addEventListener('keydown',guard(e=>{
