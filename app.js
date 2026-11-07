@@ -5176,7 +5176,7 @@ function formatTime(
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
         $('jointPointsTable').innerHTML=s.plan.points.map(p=>{
             const assigned=!!p.device;
-            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row ${p.id===s.selected?'selected':''}" data-select-point="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Quién lo mide</span><select data-point-field="device" aria-label="Móvil de ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div></div></td></tr>`;
+            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row" data-point-id="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="1" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Sensor</span><select data-point-field="device" aria-label="Sensor asignado a ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div></div></td></tr>`;
         }).join('');
         for(const p of s.plan.points) {const select=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(p.id)}"] select[data-point-field="device"]`);if(select)select.value=p.device||'';}
         $('jointMyPoint').textContent=pointFor()?.name||'Sin asignar';
@@ -6682,16 +6682,11 @@ function formatTime(
     $('jointImportPlan').onchange=guard(async e=>{requireHostEdit();const file=e.target.files[0];if(!file)return;if(file.size>100000)throw Error('El archivo de plano es demasiado grande.');const plan=checkPlan(JSON.parse(await file.text()));plan.points.forEach(p=>p.device=null);s.plan=plan;s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();s.selected=plan.points[0]?.id;savePlan();e.target.value='';tell('Plano importado. Asigna los móviles a los puntos.');});
     $('jointPointsTable').onclick=guard(e=>{
         const remove=e.target.closest('[data-delete-point]');if(remove){deletePlanPoint(remove.dataset.deletePoint);return;}
-        if(e.target.closest('input,select'))return;
-        const row=e.target.closest('[data-select-point]');if(row&&s.selected!==row.dataset.selectPoint){s.selected=row.dataset.selectPoint;renderPlan();}
     });
     $('jointPointsTable').addEventListener('change',guard(e=>{
         const field=e.target.dataset.pointField,row=e.target.closest('[data-point-id]');if(!field||!row)return;
         updatePlanPoint(row.dataset.pointId,field,e.target.value);
     }));
-    $('jointPointsTable').addEventListener('focusin',e=>{
-        const row=e.target.closest('[data-select-point]');if(row&&s.selected!==row.dataset.selectPoint){s.selected=row.dataset.selectPoint;for(const item of $('jointPointsTable').querySelectorAll('.joint-point-row'))item.classList.toggle('selected',item===row);for(const mark of $('jointPlan').querySelectorAll('.joint-point'))mark.classList.toggle('selected',mark.dataset.point===s.selected);}
-    });
     $('jointPointsTable').addEventListener('pointerdown',e=>{
         const row=e.target.closest('.joint-point-row');if(!row||e.target.closest('select,button')||s.role!=='host'||running()||s.transaction)return;
         const time=performance.now();s.rowSwipe={row,startX:e.clientX,lastX:e.clientX,lastTime:time,velocity:0,offset:row.classList.contains('swipe-open')?-104:0,moved:false};row.setPointerCapture?.(e.pointerId);
