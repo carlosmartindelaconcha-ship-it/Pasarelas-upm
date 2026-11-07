@@ -5167,7 +5167,7 @@ function formatTime(
     // Los números de los ejes pertenecen al visor y mantienen su tamaño.
     function planPointScale(view=planViewport()) {
         const zoom=Math.max(1,s.plan.length/view.w);
-        return Math.min(1.5,1+.2*Math.log2(zoom));
+        return zoom<=4?1+.2*Math.log2(zoom):Math.min(1.5,1.4+.1*Math.log2(zoom/4));
     }
     // Conserva el anclaje compacto de la etiqueta en la esquina superior derecha
     // del móvil. La separación y el espacio anticolisión crecen con el icono.
