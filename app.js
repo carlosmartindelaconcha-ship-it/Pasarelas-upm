@@ -5144,7 +5144,7 @@ function formatTime(
         // Márgenes reservados para ejes y etiquetas; escala idéntica en X/Y.
         // Reservamos espacio a la derecha del tablero para mostrar siempre las etiquetas.
         const scale=Math.min(660/view.w,320/view.h),w=view.w*scale,h=view.h*scale;
-        return {view,scale,left:54+(660-w)/2,top:28+(320-h)/2,w,h};
+        return {view,scale,left:54+(660-w)/2,top:46+(320-h)/2,w,h};
     }
     function niceMetricStep(minimum) {
         const power=10**Math.floor(Math.log10(Math.max(1,minimum))),scaled=minimum/power;
@@ -5154,11 +5154,12 @@ function formatTime(
     function planLabelStep(g) {return niceMetricStep(42/g.scale);}
     function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
-    // Etiquetas siempre a la derecha del móvil, a la altura de su centro.
-    // Se desplazan verticalmente SOLO cuando coinciden con otra etiqueta.
+    // La esquina inferior izquierda de la etiqueta queda junto a la esquina
+    // superior derecha del móvil, con una separación visual mínima.
+    // Solo se desplaza para resolver conflictos entre etiquetas cercanas.
     function pointLabelPlacement(x,y,pointId,placedLabels) {
-        const labelX=x+27, labelWidth=Math.max(28,String(pointId).length*10);
-        const preferredY=y+6;
+        const labelX=x+13, labelWidth=Math.max(28,String(pointId).length*10);
+        const preferredY=y-18;
         const offsets=[0,23,-23,46,-46,69,-69,92,-92,115,-115,138,-138,161,-161,184,-184,207,-207];
         let best=null,bestOverlap=Infinity;
         for(const offset of offsets) {
