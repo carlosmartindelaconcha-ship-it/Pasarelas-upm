@@ -5157,7 +5157,7 @@ function formatTime(
     // Etiquetas siempre a la derecha del móvil, a la altura de su centro.
     // Se desplazan verticalmente SOLO cuando coinciden con otra etiqueta.
     function pointLabelPlacement(x,y,pointId,placedLabels) {
-        const labelX=x+33, labelWidth=Math.max(28,String(pointId).length*10);
+        const labelX=x+27, labelWidth=Math.max(28,String(pointId).length*10);
         const preferredY=y+6;
         const offsets=[0,23,-23,46,-46,69,-69,92,-92,115,-115,138,-138,161,-161,184,-184,207,-207];
         let best=null,bestOverlap=Infinity;
