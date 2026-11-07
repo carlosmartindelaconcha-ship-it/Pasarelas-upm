@@ -752,7 +752,7 @@
                         <label>Giro desde +Y (°)<input id="jointPointAngle" type="number" min="-360" max="360" step="1" value="0"></label>
                         <label>Móvil asignado<select id="jointPointDevice"></select></label>
                     </div><button id="jointApplyPoint" type="button" class="joint-secondary">Guardar punto</button></fieldset>
-                    <div class="joint-table-wrap"><table class="joint-table"><caption>Posiciones y asignaciones</caption><thead><tr><th>Punto</th><th>X</th><th>Y</th><th>Eje</th><th>Móvil</th></tr></thead><tbody id="jointPointsTable"></tbody></table></div>
+                    <div class="joint-actions"><button id="jointAddPointTable" type="button" class="joint-secondary">+ Añadir punto en tabla</button></div><div class="joint-table-wrap"><table class="joint-table"><caption>Posiciones y asignaciones</caption><thead><tr><th>Punto</th><th>X</th><th>Y</th><th>Eje</th><th>Móvil</th><th>Acción</th></tr></thead><tbody id="jointPointsTable"></tbody></table></div>
                     <p class="joint-help">El giro desde +Y es positivo en sentido antihorario y describe la orientación del teléfono; no transforma automáticamente sus ejes. Apoya todos los móviles con una orientación coherente.</p>
                 </div>
                 <div id="jointPanelDevices" role="tabpanel" aria-labelledby="jointTabDevices" hidden>
