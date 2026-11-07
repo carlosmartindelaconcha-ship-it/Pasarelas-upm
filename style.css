@@ -1441,22 +1441,45 @@ body.recording-lock main {
 .joint-android-notice strong { display: block; color: #765000; }
 .joint-android-notice p { margin: 6px 0 10px; font-size: .88rem; line-height: 1.45; }
 .joint-warning { font-size: .85rem; background: #fff7df; color: #735315; padding: 12px; border-radius: 6px; }
-.joint-plan-wrap { border: 1px solid #ccdae5; border-radius: 10px; background: #f7fafc; overflow: hidden; }
-#jointPlan { width: 100%; height: auto; display: block; min-height: 220px; touch-action: none; user-select: none; }
-#jointPlan text { font-family: Arial, sans-serif; fill: #254762; font-size: 14px; }
-#jointPlan .joint-plan-tick { fill: #425d73; font-size: 14px; font-weight: 500; }
-#jointPlan .joint-plan-axis { fill: #254762; font-size: 18px; font-weight: 700; }
+.joint-plan-wrap { border: 1px solid #ccdae5; border-radius: 12px; background: #f7fafc; overflow: hidden; box-shadow: inset 0 1px 0 #fff; }
+#jointPlan { width: 100%; height: auto; display: block; min-height: 235px; touch-action: none; user-select: none; }
+#jointPlan text { font-family: Arial, sans-serif; fill: #254762; font-size: 17px; }
+#jointPlan .joint-plan-tick { fill: #55738b; font-size: 13px; }
+#jointPlan .joint-plan-axis { fill: #254762; font-size: 17px; font-weight: 700; }
 #jointPlan .joint-point { cursor: grab; }
 #jointPlan .joint-point.selected circle { stroke: #f3a832; stroke-width: 4px; }
 .joint-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; align-items: center; }
 .joint-file { padding: 8px; border: 1px dashed #b4c9dc; border-radius: 6px; }
 .joint-file input { font-size: .78rem; border: 0; padding: 4px; max-width: 210px; }
-.joint-table-wrap { overflow-x: auto; }
-.joint-table { width: 100%; border-collapse: collapse; font-size: .87rem; }
-.joint-table caption { text-align: left; font-weight: 600; padding: 12px 0; }
-.joint-table th, .joint-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #e1e9ef; }
-.joint-table th { background: #f0f5f9; }
-.joint-table td button { padding: 4px 8px; font-size: .85rem; }
+.joint-points-section { margin-top: 18px; border: 1px solid #d8e4ed; border-radius: 12px; overflow: hidden; background: #fff; }
+.joint-points-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:#f5f9fc; border-bottom:1px solid #d8e4ed; }
+.joint-points-head h4 { margin:0; color:#203d59; }
+.joint-points-head p { margin:4px 0 0; color:#60788c; font-size:.81rem; }
+.joint-points-head button { white-space:nowrap; padding:9px 12px; }
+.joint-points-list { display:grid; gap:1px; background:#e3ebf1; }
+.joint-point-swipe { position:relative; overflow:hidden; background:#d83535; }
+.joint-point-delete { position:absolute; inset:0 0 0 auto; width:104px; border:0; border-radius:0; background:#d83535; color:#fff; font:inherit; font-weight:700; display:flex; align-items:center; justify-content:center; gap:7px; }
+.joint-point-delete::before { content:'🗑'; font-size:1.05rem; }
+.joint-point-row { position:relative; display:grid; grid-template-columns:minmax(110px,1.35fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(76px,.8fr) minmax(130px,1.35fr); gap:8px; align-items:end; padding:11px 14px; background:#fff; transform:translateX(0); transition:transform .18s ease, background .18s ease, box-shadow .18s ease; touch-action:pan-y; }
+.joint-point-row.selected { background:#edf7ff; box-shadow:inset 4px 0 0 #087cc3; }
+.joint-point-row.swipe-open { transform:translateX(-104px); }
+.joint-point-row label { margin:0; min-width:0; font-size:.7rem; color:#597287; }
+.joint-point-row label > span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.joint-point-row input, .joint-point-row select { margin-top:3px; min-width:0; padding:8px 7px; font-size:.88rem; }
+.joint-point-status { display:inline-flex; align-items:center; gap:5px; font-size:.72rem; color:#687f92; }
+.joint-point-status::before { content:''; width:7px; height:7px; border-radius:50%; background:#9aaab6; }
+.joint-point-status.assigned { color:#18735e; }
+.joint-point-status.assigned::before { background:#1c9a79; }
+.joint-point-advanced { margin-top:12px; padding:0 14px 14px; border:1px solid #d8e4ed; border-radius:9px; }
+.joint-point-advanced summary { cursor:pointer; padding:12px 0; color:#355874; font-weight:600; }
+.joint-point-advanced .joint-fields { margin:0 0 10px; }
+@media (max-width: 680px) {
+    .joint-points-head { align-items:flex-start; flex-direction:column; }
+    .joint-points-head button { width:100%; }
+    .joint-point-row { grid-template-columns:1fr 1fr; gap:9px 10px; padding:12px 14px; }
+    .joint-point-row label:first-child { grid-column:span 2; }
+    .joint-point-row label:last-child { grid-column:span 2; }
+}
 .joint-device-list { display: grid; gap: 10px; margin: 16px 0; }
 .joint-device-card { border: 1px solid #d5e2ed; border-radius: 8px; padding: 14px; }
 .joint-device-card strong { display: block; margin-bottom: 6px; }
@@ -1580,44 +1603,3 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
     .joint-actions button { flex: 1; }
     #jointPlan { min-height: 170px; }
 }
-
-/* Plano: seleccion sincronizada y edicion directa */
-.joint-table tr.joint-row-selected { background: #174ea6; color: #fff; }
-.joint-table tr.joint-row-selected button { color: #fff; border-color: #a9c8fa; }
-.joint-table td input, .joint-table td select { width: 100%; min-width: 58px; max-width: 145px; padding: 7px 5px; border: 1px solid #b7c9da; border-radius: 6px; background: #fff; color: #17324d; font: inherit; box-sizing: border-box; }
-.joint-table td input:focus, .joint-table td select:focus { outline: 2px solid #6da8f8; outline-offset: 1px; }
-.joint-table tr { transition: background .15s ease; }
-.joint-table .joint-delete-row { background: transparent; color: #bd3441; border: 0; padding: 7px; }
-.joint-table tr.joint-row-selected .joint-delete-row { color: #fff; }
-
-.joint-table tr.joint-row-hover { background: #245eaa; color: #fff; }
-.joint-table tr.joint-row-hover button { color: #fff; }
-.joint-table tr.joint-swipe-reveal { box-shadow: inset -5px 0 #bd3441; }
-.joint-table tr.joint-swipe-reveal .joint-delete-row { background: #bd3441; color: #fff; border-radius: 6px; }
-#jointPlan .joint-point-hover circle { stroke: #174ea6; stroke-width: 4px; }
-
-/* Swipe on touch devices: the row itself follows the finger. */
-#jointPointsTable tr[data-row-point] { touch-action: pan-y; transition: transform .16s ease-out; }
-#jointPointsTable tr[data-row-point] input, #jointPointsTable tr[data-row-point] select { touch-action: auto; }
-#jointPointsTable tr.joint-swipe-reveal .joint-delete-row { background: #b42332; color: #fff; border: 2px solid #b42332; font-weight: 700; }
-#jointPointsTable .joint-delete-row { min-width: 44px; min-height: 40px; }
-
-/* Keep the original table layout: no cards, no reflow of rows. */
-.joint-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.joint-table { width: 100%; min-width: 670px; border-collapse: collapse; }
-.joint-table tr.joint-row-selected { background: #e8f1fb; color: #203b58; }
-.joint-table tr.joint-row-selected td { border-bottom-color: #b7cee8; }
-.joint-table tr.joint-row-selected button, .joint-table tr.joint-row-hover button { color: #234b78; }
-.joint-table tr.joint-row-hover:not(.joint-row-selected) { background: #f4f8fc; color: #203b58; }
-.joint-table tr[data-row-point] { --swipe-x: 0px; transform: translateX(var(--swipe-x)); transition: transform .16s ease, opacity .16s ease; }
-.joint-table tr.joint-row-removing { opacity: 0; transform: translateX(-100%); }
-.joint-table td input,.joint-table td select { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; font-size: 16px; padding: 6px 5px; color: #203b58; background: white; }
-.joint-table td:nth-child(1) { min-width: 65px; }
-.joint-table td:nth-child(2),.joint-table td:nth-child(3) { min-width: 76px; }
-.joint-table td:nth-child(4) { min-width: 70px; }
-.joint-table td:nth-child(5) { min-width: 78px; }
-.joint-table td:nth-child(6) { min-width: 140px; }
-.joint-table td:last-child { min-width: 54px; }
-.joint-table .joint-delete-row { min-width: 44px; min-height: 40px; color: #b42332; background: #fff; }
-.joint-table tr.joint-swipe-reveal .joint-delete-row { background: #b42332; color: #fff; }
-@media(prefers-reduced-motion:reduce){.joint-table tr[data-row-point]{transition:none;}}
