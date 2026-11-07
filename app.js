@@ -5198,7 +5198,7 @@ function formatTime(
     function addPoint(x=s.plan.length/2,y=s.plan.width/2) {
         requireHostEdit(); if(s.plan.points.length>=MAX_POINTS) throw Error('Máximo 64 puntos por plano.');
         let n=1; while(s.plan.points.some(p=>p.id==='P'+n)) n++;
-        const snapped=snapPlanPosition({x,y}),p={id:'P'+n,name:'P'+n,x:snapped.x,y:snapped.y,angle:0,axis:'z',device:null};
+        const snapped=snapPlanPosition({x,y}),p={id:'P'+n,name:'P'+(s.plan.points.length+1),x:snapped.x,y:snapped.y,angle:0,axis:'z',device:null};
         s.plan.points.push(p); s.selected=p.id; s.adding=false; savePlan();
     }
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
