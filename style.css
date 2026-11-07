@@ -1461,7 +1461,6 @@ body.recording-lock main {
 .joint-points-head h4 { margin:0; color:#203d59; }
 .joint-points-head p { margin:4px 0 0; color:#60788c; font-size:.81rem; }
 .joint-points-head button { white-space:nowrap; padding:9px 12px; transform:translateZ(0); backface-visibility:hidden; contain:paint; }
-#jointAddPoint { transform:translateZ(0); backface-visibility:hidden; contain:paint; }
 .joint-table-wrap { overflow:hidden; }
 .joint-points-table { width:100%; min-width:0; border-collapse:collapse; table-layout:fixed; }
 .joint-points-table th { padding:10px 13px; background:#edf4f9; color:#47657d; font-size:.75rem; font-weight:700; letter-spacing:.01em; text-align:left; border-bottom:1px solid #d8e4ed; }
