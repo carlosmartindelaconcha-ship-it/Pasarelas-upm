@@ -5212,7 +5212,7 @@ function formatTime(
         const record=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(id)}"]`),swipe=record?.querySelector('.joint-point-swipe'),row=record?.querySelector('.joint-point-row');
         if(animate&&swipe&&!record.dataset.deleting) {
             record.dataset.deleting='true';swipe.style.height=swipe.offsetHeight+'px';
-            const currentX=Number((row?.style.transform.match(/-?[\d.]+/)||['0'])[0]);
+            const currentX=Number((row?.style.transform.match(/translate(?:3d|X)\((-?[\d.]+)/)||['','0'])[1]);
             // Conservamos el punto exacto al soltar el dedo: la papelera recorre
             // el resto del trayecto hasta el centro mientras la fila sale entera.
             if(exitLeft&&row){
@@ -6704,21 +6704,26 @@ function formatTime(
     }));
     $('jointPointsTable').addEventListener('pointerdown',e=>{
         const row=e.target.closest('.joint-point-row');if(!row||s.role!=='host'||running()||s.transaction)return;
-        const time=performance.now(),initialOffset=row.classList.contains('swipe-open')?-row.clientWidth:0;
-        s.rowSwipe={row,pointerId:e.pointerId,startX:e.clientX,lastX:e.clientX,lastTime:time,velocity:0,offset:initialOffset,moved:false};row.setPointerCapture?.(e.pointerId);
+        const time=performance.now(),initialOffset=0;
+        row.classList.add('is-swiping');row.parentElement.classList.add('is-swiping');
+        s.rowSwipe={row,pointerId:e.pointerId,startX:e.clientX,lastX:e.clientX,lastTime:time,velocity:0,offset:initialOffset,targetOffset:initialOffset,frame:0,moved:false};row.setPointerCapture?.(e.pointerId);
     });
     $('jointPointsTable').addEventListener('pointermove',e=>{
         const swipe=s.rowSwipe;if(!swipe||e.pointerId!==swipe.pointerId)return;const time=performance.now(),dx=e.clientX-swipe.startX,dt=Math.max(1,time-swipe.lastTime);
         swipe.velocity=(e.clientX-swipe.lastX)/dt;swipe.lastX=e.clientX;swipe.lastTime=time;
         if(Math.abs(dx)>7)swipe.moved=true;
-        const offset=Math.max(-swipe.row.clientWidth,Math.min(0,swipe.offset+dx));swipe.row.style.transition='none';swipe.row.style.transform=`translateX(${offset}px)`;swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth+offset/2)+'px');
+        const offset=Math.max(-swipe.row.clientWidth,Math.min(0,swipe.offset+dx));swipe.targetOffset=offset;
+        if(!swipe.frame)swipe.frame=requestAnimationFrame(()=>{swipe.frame=0;swipe.row.style.transform=`translate3d(${swipe.targetOffset}px,0,0)`;swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth+swipe.targetOffset/2)+'px');});
         if(swipe.moved)e.preventDefault();
     });
     for(const event of ['pointerup','pointercancel'])$('jointPointsTable').addEventListener(event,guard(e=>{
-        const swipe=s.rowSwipe;if(!swipe||e.pointerId!==swipe.pointerId)return;s.rowSwipe=null;const x=Number((swipe.row.style.transform.match(/-?[\d.]+/)||['0'])[0]);
+        const swipe=s.rowSwipe;if(!swipe||e.pointerId!==swipe.pointerId)return;s.rowSwipe=null;
+        if(swipe.frame){cancelAnimationFrame(swipe.frame);swipe.frame=0;}
+        const x=swipe.targetOffset;swipe.row.style.transform=`translate3d(${x}px,0,0)`;swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth+x/2)+'px');
         // Un flick borra de inmediato. Un arrastre lento solo borra al cruzar dos tercios.
         const fastLeft=swipe.velocity<-.75&&x<-22;
         const crossedDeleteThreshold=x<=-(swipe.row.clientWidth*2/3);
+        swipe.row.classList.remove('is-swiping');swipe.row.parentElement.classList.remove('is-swiping');
         if(event==='pointerup'&&(fastLeft||crossedDeleteThreshold)){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId,true,true);return;}
         swipe.row.style.transition='';
         swipe.row.style.transform='';
