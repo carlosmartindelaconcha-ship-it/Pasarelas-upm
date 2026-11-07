@@ -5153,7 +5153,9 @@ function formatTime(
         $('jointGeometry').disabled=!edit; $('jointPointEditor').disabled=!edit;
         $('jointPlanTools').hidden=s.role!=='host';
         for(const id of ['jointAddPoint','jointAddPointTable','jointRemovePoint','jointImportPlan','jointResetView']) $(id).disabled=!edit;
-        $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
+        if(document.activeElement!==$('jointName'))$('jointName').value=s.plan.name;
+        if(document.activeElement!==$('jointLength'))$('jointLength').value=s.plan.length;
+        if(document.activeElement!==$('jointWidth'))$('jointWidth').value=s.plan.width;
         const view=planViewport(),g=geometry(view),selected=s.plan.points.find(p=>p.id===s.selected),gridStep=planGridStep(g),labelStep=planLabelStep(g);
         let svg=`<title>Planta de ${escape(s.plan.name)}</title><defs><clipPath id="jointPlanClip"><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4"/></clipPath></defs><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
         const firstX=Math.ceil(view.x/gridStep)*gridStep,lastX=Math.floor((view.x+view.w)/gridStep)*gridStep,firstY=Math.ceil(view.y/gridStep)*gridStep,lastY=Math.floor((view.y+view.h)/gridStep)*gridStep;
