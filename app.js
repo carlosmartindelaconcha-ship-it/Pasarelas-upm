@@ -6085,7 +6085,7 @@ function formatTime(
         override.hidden=done;
         manual.hidden=done||!c.manualChoosing;
         skip.disabled=!!active||!s.sensorEnabled||!!c.manualChoosing;
-        $('jointCalibrationHelp').textContent=done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':active?'Prepárate: empieza el gesto cuando termine la cuenta atrás.':'Pulsa cada eje y sigue el gesto indicado. Cada prueba solo corrige el signo de su propio registro; no se intercambian ejes.';
+        $('jointCalibrationHelp').textContent=active?'Prepárate: empieza el gesto cuando termine la cuenta atrás.':c.feedback||(done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':'Pulsa cada eje y sigue el gesto indicado. Cada prueba solo corrige el signo de su propio registro; no se intercambian ejes.');
         renderCalibrationCountdown();
     }
     function renderCalibrationCountdown() {
@@ -6093,13 +6093,15 @@ function formatTime(
         if(!active){box.hidden=true;box.classList.remove('go');return;}
         const t=now();box.hidden=false;
         if(t<active.start){box.classList.remove('go');box.textContent='Quieto · '+Math.max(1,Math.ceil((active.start-t)/1000));}
-        else {box.classList.add('go');box.textContent='¡AHORA! Haz el movimiento de ida y vuelta';}
+        else {box.classList.add('go');box.textContent='¡AHORA! · '+Math.max(0,Math.ceil((active.end-t)/1000))+' s para ida y vuelta';}
     }
     function startCalibration(axis) {
         if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
         if(s.calibration.active||s.calibration.map[axis])return;
         // Durante la cuenta atrás se mide la componente continua; en Z incluye la gravedad.
-        s.calibration.active={axis,start:now()+3000,end:now()+6500,baseline:[],samples:[]};renderCalibration();
+        const start=now()+3000;
+        s.calibration.feedback=null;
+        s.calibration.active={axis,start,end:start+6000,baseline:[],samples:[]};renderCalibration();
         tell('Calibración '+axis.toUpperCase()+': mantén el móvil quieto y empieza al aparecer ¡AHORA!.');
     }
     function chooseManualCalibration() {
@@ -6131,37 +6133,73 @@ function formatTime(
         for(let order=0;order<2;order++)output=pass(pass(output).reverse()).reverse();
         return output;
     }
-    function calibrationLobes(values) {
-        const peak=Math.max(...values.map(value=>Math.abs(value))),threshold=Math.max(.35,peak*.22),lobes=[];
+    function calibrationLobes(values,threshold,rateHz=60) {
+        // Extraer fases de aceleración que superan el ruido, manteniendo el orden temporal.
+        const lobes=[],maxGap=Math.max(3,Math.round(.09*rateHz));
         let current=null;
         values.forEach((value,index)=>{
             const sign=Math.abs(value)>=threshold?Math.sign(value):0;
             if(!sign){if(current){lobes.push(current);current=null;}return;}
-            if(!current||current.sign!==sign){if(current)lobes.push(current);current={sign,start:index,end:index,peak:Math.abs(value)};}
-            else {current.end=index;current.peak=Math.max(current.peak,Math.abs(value));}
+            if(!current||current.sign!==sign){
+                if(current)lobes.push(current);
+                current={sign,start:index,end:index,peak:Math.abs(value)};
+            }else{current.end=index;current.peak=Math.max(current.peak,Math.abs(value));}
         });
         if(current)lobes.push(current);
-        return {peak,lobes};
+        const merged=[];
+        for(const lobe of lobes){
+            const prev=merged[merged.length-1];
+            if(prev&&prev.sign===lobe.sign&&lobe.start-prev.end-1<=maxGap){
+                prev.end=lobe.end;prev.peak=Math.max(prev.peak,lobe.peak);
+            }else merged.push({...lobe});
+        }
+        return merged;
     }
     function finishCalibration() {
         const active=s.calibration.active;if(!active)return;
         s.calibration.active=null;
-        const rows=active.samples;if(rows.length<12){tell('No hubo suficientes muestras. Repite el gesto.',true);renderCalibration();return;}
-        // Cada botón se aplica exclusivamente a su canal X/Y/Z. El gesto no intenta
-        // identificar ni reordenar ejes: solo decide si ese canal debe invertirse.
-        const raw={x:0,y:1,z:2}[active.axis];
+        const axis=active.axis,raw={x:0,y:1,z:2}[axis],rows=active.samples;
+        const fail=message=>{
+            s.calibration.feedback=message;tell(message,true);renderCalibration();
+        };
+        if(rows.length<20){
+            fail('Eje '+axis.toUpperCase()+': solo llegaron '+rows.length+' muestras en 6 s. Mantén Safari visible y revisa el permiso del acelerómetro.');return;
+        }
         const quiet=active.baseline.map(row=>row[raw]).filter(finite);
-        if(quiet.length<12){tell('No se pudo estimar la continua. Repite sin mover el móvil durante la cuenta atrás.',true);renderCalibration();return;}
-        // Primero eliminamos la continua (incluida g en Z), hacemos detrend y filtramos a 10 Hz.
-        const base=median(quiet),filtered=lowPassCalibration(linearDetrend(rows.map(row=>row[raw]-base)),10),pattern=calibrationLobes(filtered),{peak,lobes}=pattern;
-        const best=lobes.length>=3?lobes.slice().sort((a,b)=>b.peak-a.peak).slice(0,3).sort((a,b)=>a.start-b.start):[];
-        // La señal esperada es +, -, +. Si es -, +, -, el registro debe multiplicarse por -1.
-        if(peak<.7||best.length<3||best[0].sign!==best[2].sign||best[1].sign===best[0].sign){tell('No se reconoció + − + ni − + −. Repite el gesto completo de ida y vuelta.',true);renderCalibration();return;}
-        const sign=best[0].sign;
-        s.calibration.map[active.axis]={raw,sign,peak,baseline:base,cutoffHz:10,pattern:'ida-vuelta'};
-        s.calibration.complete=['x','y','z'].every(axis=>s.calibration.map[axis]);
+        if(quiet.length<12){
+            fail('Eje '+axis.toUpperCase()+': faltan muestras de reposo. Mantén el teléfono quieto durante los 3 s de cuenta atrás.');return;
+        }
+        // Eliminar gravedad/continua, tendencia y ruido sin intercambiar los canales.
+        const base=median(quiet),noise=1.4826*median(quiet.map(value=>Math.abs(value-base)));
+        const filtered=lowPassCalibration(linearDetrend(rows.map(row=>row[raw]-base)),10);
+        const peak=Math.max(...filtered.map(value=>Math.abs(value)));
+        const minimum=Math.max(.14,noise*5),threshold=Math.max(.08,noise*3.5,peak*.16);
+        if(peak<minimum){
+            fail('Eje '+axis.toUpperCase()+': movimiento insuficiente (pico '+peak.toFixed(2)+' m/s²; mínimo '+minimum.toFixed(2)+'). Desplázalo algo más rápido sin girarlo.');return;
+        }
+        const rate=Math.max(20,Math.min(150,sampleRate()||60));
+        const lobes=calibrationLobes(filtered,threshold,rate)
+            .filter(lobe=>lobe.peak>=minimum*.65&&lobe.end-lobe.start+1>=Math.max(2,Math.round(.045*rate)));
+        // Se comprueba la secuencia temporal + - + / - + -, no solo los tres
+        // lóbulos de mayor amplitud (que pueden pertenecer a otros ciclos).
+        let sequence=null;
+        for(let i=0;i+2<lobes.length;i++){
+            const [first,second,third]=lobes.slice(i,i+3);
+            if(first.sign===third.sign&&first.sign!==second.sign&&
+                first.peak>=minimum&&second.peak>=minimum*.65&&third.peak>=minimum*.65){
+                sequence=[first,second,third];break;
+            }
+        }
+        if(!sequence){
+            const observed=lobes.map(lobe=>lobe.sign>0?'+':'−').join(' ');
+            fail('Eje '+axis.toUpperCase()+': '+rows.length+' muestras, pico '+peak.toFixed(2)+' m/s², pero faltó el patrón de ida y vuelta ('+(observed||'sin fases claras')+'). Repite sin rotar el teléfono.');return;
+        }
+        const sign=sequence[0].sign;
+        s.calibration.map[axis]={raw,sign,peak,noise,threshold,samples:rows.length,baseline:base,cutoffHz:10,pattern:'ida-vuelta'};
+        s.calibration.complete=['x','y','z'].every(key=>s.calibration.map[key]);
         const factor='× '+(sign>0?'+1':'−1');
-        tell(s.calibration.complete?'Calibración completa: se han guardado los tres factores de signo.':'Eje '+active.axis.toUpperCase()+': aplicar '+factor+'. Continúa con el siguiente.');renderCalibration();renderDevices();
+        s.calibration.feedback='Eje '+axis.toUpperCase()+' reconocido ('+rows.length+' muestras, pico '+peak.toFixed(2)+' m/s²). Factor '+factor+'.'+(s.calibration.complete?' Calibración completa.':' Continúa con el siguiente eje.');
+        tell(s.calibration.feedback);renderCalibration();renderDevices();
     }
     function correctedVector(values,calibration=s.calibration) {
         const map=calibration?.map||{};
