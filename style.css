@@ -1456,35 +1456,25 @@ body.recording-lock main {
 .joint-points-head h4 { margin:0; color:#203d59; }
 .joint-points-head p { margin:4px 0 0; color:#60788c; font-size:.81rem; }
 .joint-points-head button { white-space:nowrap; padding:9px 12px; }
-.joint-table-wrap { overflow:hidden; }
-.joint-points-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+.joint-table-wrap { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
+.joint-points-table { width:100%; min-width:590px; border-collapse:collapse; table-layout:fixed; }
 .joint-points-table th { padding:10px 13px; background:#edf4f9; color:#47657d; font-size:.75rem; font-weight:700; letter-spacing:.01em; text-align:left; border-bottom:1px solid #d8e4ed; }
-.joint-points-table th:nth-child(1) { width:30%; }.joint-points-table th:nth-child(2),.joint-points-table th:nth-child(3) { width:13%; }.joint-points-table th:nth-child(4) { width:12%; }.joint-points-table th:nth-child(5) { width:32%; }
+.joint-points-table th:nth-child(1) { width:36%; }.joint-points-table th:nth-child(2),.joint-points-table th:nth-child(3) { width:16%; }.joint-points-table th:nth-child(4) { width:32%; }
 .joint-point-table-cell { padding:0; border-bottom:1px solid #e3ebf1; }
-.joint-point-swipe { position:relative; overflow:hidden; background:#d83535; }
-.joint-point-delete { position:absolute; inset:0; width:100%; border:0; border-radius:0; background:#d83535; color:#fff; font:inherit; font-weight:700; display:flex; align-items:center; justify-content:flex-end; padding-right:24px; gap:8px; }
-.joint-point-delete svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-.joint-point-row { position:relative; display:grid; grid-template-columns:30% 13% 13% 12% 32%; gap:0; align-items:end; background:#fff; transform:translateX(0); transition:transform .2s cubic-bezier(.2,.8,.2,1), background .18s ease, box-shadow .18s ease; touch-action:pan-y; }
+.joint-point-swipe { position:relative; overflow:hidden; height:auto; background:#d83535; transition:height .24s ease, opacity .18s ease; }
+.joint-point-delete { position:absolute; inset:0; width:100%; border:0; border-radius:0; background:#d83535; color:#fff; }
+.joint-point-delete svg { position:absolute; top:50%; left:var(--trash-center,calc(100% - 62px)); width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transform:translate(-50%,-50%); }
+.joint-point-row { position:relative; display:grid; grid-template-columns:36% 16% 16% 32%; gap:0; align-items:center; min-height:62px; background:#fff; transform:translateX(0); transition:transform .2s cubic-bezier(.2,.8,.2,1), background .18s ease, box-shadow .18s ease; touch-action:pan-y; }
 .joint-point-row.selected { background:#edf7ff; box-shadow:inset 4px 0 0 #087cc3; }
 .joint-point-row.swipe-open { transform:translateX(-124px); }
-.joint-point-row label { box-sizing:border-box; margin:0; min-width:0; padding:11px 8px 11px 13px; font-size:.7rem; color:#597287; }
-.joint-point-row label > span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.joint-point-row input, .joint-point-row select { margin-top:3px; min-width:0; padding:8px 7px; font-size:.88rem; }
-.joint-point-status { display:inline-flex; align-items:center; gap:5px; font-size:.72rem; color:#687f92; }
-.joint-point-status::before { content:''; width:7px; height:7px; border-radius:50%; background:#9aaab6; }
-.joint-point-status.assigned { color:#18735e; }
-.joint-point-status.assigned::before { background:#1c9a79; }
-.joint-point-advanced { margin-top:12px; padding:0 14px 14px; border:1px solid #d8e4ed; border-radius:9px; }
-.joint-point-advanced summary { cursor:pointer; padding:12px 0; color:#355874; font-weight:600; }
-.joint-point-advanced .joint-fields { margin:0 0 10px; }
+.joint-point-row label { box-sizing:border-box; margin:0; min-width:0; padding:8px 7px 8px 12px; font-size:.7rem; color:#597287; }
+.joint-point-row label > span { display:none; }
+.joint-point-row input, .joint-point-row select { margin:0; min-width:0; padding:7px 7px; font-size:.88rem; }
+.joint-point-name.unassigned input { border-color:#d75a5a; background:#fff8f8; }
+.joint-point-name.assigned input { border-color:#32a574; background:#f4fff9; }
 @media (max-width: 680px) {
     .joint-points-head { align-items:flex-start; flex-direction:column; }
     .joint-points-head button { width:100%; }
-    .joint-points-table thead { display:none; }
-    .joint-point-row { grid-template-columns:1fr 1fr; gap:0; }
-    .joint-point-row label { padding:10px 12px; }
-    .joint-point-row label:first-child { grid-column:span 2; }
-    .joint-point-row label:last-child { grid-column:span 2; }
 }
 .joint-device-list { display: grid; gap: 10px; margin: 16px 0; }
 .joint-device-card { border: 1px solid #d5e2ed; border-radius: 8px; padding: 14px; }
