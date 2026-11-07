@@ -1444,8 +1444,8 @@ body.recording-lock main {
 .joint-plan-wrap { border: 1px solid #ccdae5; border-radius: 10px; background: #f7fafc; overflow: hidden; }
 #jointPlan { width: 100%; height: auto; display: block; min-height: 220px; touch-action: none; user-select: none; }
 #jointPlan text { font-family: Arial, sans-serif; fill: #254762; font-size: 14px; }
-#jointPlan .joint-plan-tick { fill: #55738b; font-size: 11px; }
-#jointPlan .joint-plan-axis { fill: #254762; font-size: 15px; font-weight: 700; }
+#jointPlan .joint-plan-tick { fill: #425d73; font-size: 14px; font-weight: 500; }
+#jointPlan .joint-plan-axis { fill: #254762; font-size: 18px; font-weight: 700; }
 #jointPlan .joint-point { cursor: grab; }
 #jointPlan .joint-point.selected circle { stroke: #f3a832; stroke-width: 4px; }
 .joint-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; align-items: center; }
@@ -1580,3 +1580,12 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
     .joint-actions button { flex: 1; }
     #jointPlan { min-height: 170px; }
 }
+
+/* Plano: seleccion sincronizada y edicion directa */
+.joint-table tr.joint-row-selected { background: #174ea6; color: #fff; }
+.joint-table tr.joint-row-selected button { color: #fff; border-color: #a9c8fa; }
+.joint-table td input, .joint-table td select { width: 100%; min-width: 58px; max-width: 145px; padding: 7px 5px; border: 1px solid #b7c9da; border-radius: 6px; background: #fff; color: #17324d; font: inherit; box-sizing: border-box; }
+.joint-table td input:focus, .joint-table td select:focus { outline: 2px solid #6da8f8; outline-offset: 1px; }
+.joint-table tr { transition: background .15s ease; }
+.joint-table .joint-delete-row { background: transparent; color: #bd3441; border: 0; padding: 7px; }
+.joint-table tr.joint-row-selected .joint-delete-row { color: #fff; }
