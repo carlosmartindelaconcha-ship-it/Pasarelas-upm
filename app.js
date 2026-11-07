@@ -5781,6 +5781,7 @@ function formatTime(
         if(m.type==='PREPARE'&&s.role==='guest') {
             let reason='';
             if(running())reason='Ya hay un ensayo activo.';
+            else if(s.run?.finishing)reason='El ensayo anterior todavía se está cerrando.';
             else if(!localStatus().sensor||document.hidden)reason='Sensor sin datos o página oculta.';
             else if(!pointFor())reason='Falta asignación a un punto.';
             // La ráfaga y el gesto ya han fijado la corrección del ensayo. El reloj
@@ -5855,6 +5856,21 @@ function formatTime(
             if(!s.storageFailed){s.storageFailed=true;incident('storage','Guardado local fallido: '+e.message);tell('No se pudo guardar en el navegador. Conserva la página abierta y descarga el registro.',true);}
         });return s.writeChain;
     }
+    async function persistBeforeClosing(run) {
+        // IndexedDB puede quedar pendiente en móviles cuando el navegador cambia de
+        // estado. Nunca debe impedir cerrar bien un ensayo ni arrancar el siguiente.
+        let timer;
+        try {
+            await Promise.race([
+                persist(run),
+                new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('El guardado local tardó demasiado.')),8000);})
+            ]);
+        } catch(error) {
+            s.storageFailed=true;incident('storage',error.message);
+            s.writeChain=Promise.resolve();
+            tell('El guardado local sigue pendiente. El registro permanece en memoria: descárgalo antes de cerrar.',true);
+        } finally {clearTimeout(timer);}
+    }
     async function recover() {
         const database=await db();
         const entries=await new Promise((resolve,reject)=>{const req=database.transaction('runs').objectStore('runs').getAll();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
@@ -5885,7 +5901,7 @@ function formatTime(
         if(!button)return;
         const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
         const axesReady=s.calibration.complete&&peers.every(p=>p.status?.calibrated);
-        button.hidden=s.role!=='host';button.disabled=s.role!=='host'||!axesReady||state.phase==='network'||state.phase==='gesture'||state.phase==='processing';
+        button.hidden=s.role!=='host';button.disabled=s.role!=='host'||!axesReady||state.phase==='network'||state.phase==='gesture'||state.phase==='processing'||state.phase==='gesture-ready'||state.phase==='accepted';
         const badge=$('jointSyncState');
         const labels={idle:'Pendiente',network:'Ráfaga de reloj','gesture-ready':'Elige un gesto',gesture:'Gesto en curso',processing:'Procesando',accepted:'Validada',failed:'Repetir prueba'};
         badge.textContent=labels[state.phase]||'Pendiente';badge.classList.toggle('done',state.phase==='accepted');
@@ -5916,7 +5932,11 @@ function formatTime(
         for(const p of peers){const result=state.results?.[p.id],model=state.models?.[p.id]||p.startModel,clock=finite(model?.offset)?`Offset inicial: ${model.offset.toFixed(2)} ms · RTT mín.: ${finite(model.rtt)?model.rtt.toFixed(2):'—'} ms`:'Modelo de reloj pendiente';localRows.push(`<article class="joint-sync-card"><strong>${escape(p.name)}</strong><p>${result?.axes?axisResultMarkup(result.axes):state.phase==='network'?'Midiendo RTT y offset…':state.phase==='gesture'?'Esperando gesto común…':'Pendiente'}</p><small>${clock}<br>${result?.accepted?'Corrección aplicada: '+result.correctionMs.toFixed(2)+' ms':result?.error?escape(result.error):'Se correlacionarán X–X, Y–Y y Z–Z.'}</small></article>`);}
         $('jointSyncSummary').innerHTML=localRows.length?localRows.join(''):`<p class="joint-help">Activa y calibra todos los acelerómetros antes de validar la sincronización.</p>`;
         if(state.phase==='accepted')$('jointSyncHelp').textContent='Sincronización validada. La corrección física se conservará para el próximo ensayo; los mensajes de 10 Hz durante la medida solo se guardarán como diagnóstico.';
-        else if(state.phase==='gesture-ready')$('jointSyncHelp').textContent='Relojes calibrados. Pulsa X, Y y Z por separado: cada gesto tiene 3 s de cuenta atrás y 6 s para mover la tablilla.';
+        else if(state.phase==='gesture-ready'){
+            const retry=['x','y','z'].find(axis=>!state.results?.[s.id]?.axes?.[axis]);
+            $('jointSyncHelp').textContent=retry?'Pulsa '+retry.toUpperCase()+'. Si el gesto no se reconoce, repite solo ese eje; no hace falta repetir la ráfaga de reloj.':'Comprobando los tres ejes…';
+        }
+        else if(state.phase==='failed')$('jointSyncHelp').textContent='La calibración completa no se ha validado. Pulsa «Calibrar relojes» para reiniciarla de forma limpia.';
         else if(!axesReady)$('jointSyncHelp').textContent='Completa los factores +1/−1 de X, Y y Z en todos los móviles antes de iniciar la prueba conjunta.';
     }
     function axisResultMarkup(axes) {return ['x','y','z'].map(axis=>{const a=axes[axis];return a&&finite(a.lag)?`${axis.toUpperCase()}: ${a.lag.toFixed(2)} ms · r ${a.correlation.toFixed(3)}`:`${axis.toUpperCase()}: —`;}).join('<br>');}
@@ -6086,7 +6106,8 @@ function formatTime(
         const start=now()+3000,end=start+6000,payload={type:'SYNC_GESTURE_ARM',id:state.id,axis,start,end};
         armSyncGesture(payload,{offset:0,drift:0,reference:0,count:0,rtt:0});broadcast(payload);
         tell('Gesto '+axis.toUpperCase()+' preparado: quietos durante la cuenta atrás.');
-        setTimeout(()=>finalizeSyncGesture(state.id,axis),11000);
+        // 3 s de cuenta atrás + 6 s de gesto + 4 s para que todos envíen su ventana.
+        setTimeout(()=>finalizeSyncGesture(state.id,axis),13000);
     }
     function finalizeSyncGesture(id,axis) {
         const state=s.syncCalibration,g=state.gesture;if(s.role!=='host'||state.id!==id||!g||g.id!==id||state.phase==='accepted'||state.phase==='failed')return;
@@ -6098,13 +6119,20 @@ function formatTime(
         for(const p of peers){const result=state.results[p.id];if(!result?.windows?.[axis]){missing.push(p.name);continue;}
             result.axes??={};result.axes[axis]=estimateGestureAxis(masterSamples,result.windows[axis],axis,masterCalibration,result.calibration,g.start,g.end);
         }
-        if(missing.length){state.phase='failed';tell('No llegaron las ventanas de gesto de '+missing.join(', ')+'. Repite la prueba.',true);renderSyncCalibration();return;}
+        if(missing.length){state.phase='gesture-ready';state.gesture=null;tell('No llegó la ventana de '+axis.toUpperCase()+' de '+missing.join(', ')+'. Repite solo ese gesto.',true);renderSyncCalibration();return;}
         if(peers.every(p=>!state.results[p.id]?.axes?.[axis]?.error))state.results[s.id].axes[axis]={axis,lag:0,correlation:1};
         const allAxes=['x','y','z'].every(key=>peers.every(p=>state.results[p.id]?.axes?.[key]&&!state.results[p.id].axes[key].error));
         if(!allAxes){state.phase='gesture-ready';state.gesture=null;tell('Gesto '+axis.toUpperCase()+' procesado. Continúa con el siguiente eje.');renderSyncCalibration();return;}
         for(const p of peers){const result=state.results[p.id],lags=['x','y','z'].map(key=>result.axes[key].lag),spread=Math.max(...lags)-Math.min(...lags);result.correctionMs=median(lags);result.accepted=spread<=8;if(!result.accepted)result.error='Los retardos X, Y y Z no son coherentes.';}
         const rejected=peers.filter(p=>!state.results[p.id]?.accepted);
-        if(rejected.length){state.phase='failed';tell('Los tres ejes no son coherentes para '+rejected.map(p=>p.name).join(', ')+'. Repite la calibración.',true);renderSyncCalibration();return;}
+        if(rejected.length){
+            const disagreement={x:0,y:0,z:0};
+            for(const p of rejected){const axes=state.results[p.id].axes,centre=median(['x','y','z'].map(key=>axes[key].lag));for(const key of ['x','y','z'])disagreement[key]+=Math.abs(axes[key].lag-centre);}
+            const retry=['x','y','z'].sort((a,b)=>disagreement[b]-disagreement[a])[0];
+            for(const p of peers){delete state.results[p.id].axes[retry];delete state.results[p.id].windows?.[retry];state.results[p.id].accepted=false;delete state.results[p.id].error;}
+            delete state.results[s.id].axes[retry];state.phase='gesture-ready';state.gesture=null;
+            tell('El gesto '+retry.toUpperCase()+' es el menos coherente entre móviles. Repite solo ese eje.',true);renderSyncCalibration();return;
+        }
         state.phase='accepted';state.accepted=true;
         for(const p of peers){const result=state.results[p.id];p.syncCalibration=structuredClone(result);send(p,{type:'SYNC_GESTURE_APPLY',id,correctionMs:result.correctionMs,axes:result.axes});}
         tell('Sincronización física validada. Ya puedes pasar a Medir.');renderSyncCalibration();renderDevices();
@@ -6227,7 +6255,9 @@ function formatTime(
     async function finishRun(cancelled=false) {
         const run=s.run;if(!run||run.finishing||run.finished)return;run.finishing=true;
         run.state=cancelled?'cancelled':'finished';run.finalClock=s.role==='host'?run.initialClock:structuredClone(s.syncModel);
-        stopDuringSync();document.body.classList.remove('recording-lock');releaseWake();await persist(run);run.finished=true;run.finishing=false;
+        stopDuringSync();document.body.classList.remove('recording-lock');releaseWake();
+        $('jointMeasureState').textContent='Cerrando registro…';
+        await persistBeforeClosing(run);run.finished=true;run.finishing=false;
         if(s.run!==run)return;
         const record=localRecord();s.results.set(s.id,record);tab('Results');renderPlan();renderDevices();renderResults();
         tell(cancelled?'Ensayo cancelado. Los datos disponibles se conservan.':'Registro local terminado. Ya puedes descargar los datos.');
@@ -6276,7 +6306,7 @@ function formatTime(
     function renderResults() {
         const r=s.run;
         $('jointDownload').disabled=!r?.finished;$('jointCsv').disabled=!r?.finished;$('jointDownloadProcessed').disabled=!r?.finished;$('jointCsvProcessed').disabled=!r?.finished;
-        $('jointNewRun').disabled=!!running()||!!s.transfer;
+        $('jointNewRun').disabled=!!running()||!!s.transfer||!!r?.finishing;
         $('jointSendData').hidden=s.role!=='guest';$('jointSendData').disabled=!r?.finished||!!s.transfer;
         if(!r){$('jointResultsList').textContent='Todavía no hay un ensayo registrado.';$('jointSyncResults').hidden=true;return;}
         let html=`<p><strong>${r.state==='cancelled'?'Ensayo cancelado':r.finished?'Registro terminado':'Ensayo en curso'}</strong> · ${escape(r.plan.name)}</p>`;
@@ -6649,7 +6679,7 @@ function formatTime(
         s.compareExport=validComparisonExport(JSON.parse(await file.text()));e.target.value='';renderComparison();tell('Ensayo conjunto cargado para comparación.');
     });
     $('jointNewRun').onclick=guard(()=>{
-        if(running()||s.transfer)throw Error('Espera a que termine la medida y la transferencia.');
+        if(running()||s.transfer||s.run?.finishing)throw Error('El registro todavía se está cerrando. Espera unos segundos.');
         if(s.run&&!confirm('Descarga antes los resultados. ¿Preparar un nuevo ensayo? El registro local seguirá guardado en este navegador.'))return;
         s.run=null;s.results.clear();$('jointProgress').value=0;$('jointMeasureState').textContent='Preparando dispositivos';$('jointRunTime').textContent='00:00.0';renderPlan();renderDevices();tab('Devices');
     });
