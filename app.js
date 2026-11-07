@@ -5159,7 +5159,7 @@ function formatTime(
         return (scaled<=1?1:scaled<=2?2:scaled<=5?5:10)*power;
     }
     function planGridStep(g) {return niceMetricStep(20/g.scale);}
-    function planLabelStep(g) {return niceMetricStep(42/g.scale);}
+    function planLabelStep(g) {return niceMetricStep(60/g.scale);}
     function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
     // Los móviles y sus nombres crecen suavemente con el zoom, sin superar el 150 %.
@@ -5172,16 +5172,16 @@ function formatTime(
     // Conserva el anclaje compacto de la etiqueta en la esquina superior derecha
     // del móvil. La separación y el espacio anticolisión crecen con el icono.
     function pointLabelPlacement(x,y,pointId,placedLabels,markerScale=1) {
-        const labelX=x+13*markerScale,labelWidth=Math.max(28,String(pointId).length*10)*markerScale;
+        const labelX=x+13*markerScale,labelWidth=Math.max(36,String(pointId).length*15)*markerScale;
         const preferredY=y-8*markerScale;
-        const spacing=23*markerScale;
+        const spacing=34*markerScale;
         const offsets=[0,1,-1,2,-2,3,-3,4,-4,5,-5,6,-6,7,-7,8,-8,9,-9];
-        const minBaseline=16*markerScale+4,maxBaseline=422-4*markerScale;
+        const minBaseline=26*markerScale+3,maxBaseline=422-5*markerScale;
         let best=null,bestOverlap=Infinity;
         for(const step of offsets) {
             const baseline=preferredY+step*spacing;
             if(baseline<minBaseline||baseline>maxBaseline)continue;
-            const box={left:labelX,top:baseline-17*markerScale,right:labelX+labelWidth,bottom:baseline+4*markerScale};
+            const box={left:labelX,top:baseline-26*markerScale,right:labelX+labelWidth,bottom:baseline+5*markerScale};
             if(box.right>792)continue;
             const overlaps=placedLabels.reduce((sum,other)=>sum+
                 (box.left<other.right+4&&box.right+4>other.left&&box.top<other.bottom+4&&box.bottom+4>other.top?1:0),0);
@@ -5192,7 +5192,7 @@ function formatTime(
             if(overlaps<bestOverlap) {bestOverlap=overlaps;best={box,baseline};}
         }
         const baseline=best?best.baseline:Math.max(minBaseline,Math.min(maxBaseline,preferredY));
-        placedLabels.push(best?.box||{left:labelX,top:baseline-17*markerScale,right:labelX+labelWidth,bottom:baseline+4*markerScale});
+        placedLabels.push(best?.box||{left:labelX,top:baseline-26*markerScale,right:labelX+labelWidth,bottom:baseline+5*markerScale});
         return {x:labelX,y:baseline,anchor:'start'};
     }
     function renderPlan() {
@@ -5226,9 +5226,9 @@ function formatTime(
         }
         svg+='</g>';
         // Las marcas de los ejes se anclan al marco, no al tablero.
-        for(const tick of xTicks)svg+=`<line x1="${tick.pixel}" y1="${g.top+g.h}" x2="${tick.pixel}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${tick.pixel}" y="${g.top+g.h+21}" text-anchor="middle">${tick.value}</text>`;
-        for(const tick of yTicks)svg+=`<line x1="${g.left-6}" y1="${tick.pixel}" x2="${g.left}" y2="${tick.pixel}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${tick.pixel+4}" text-anchor="end">${tick.value}</text>`;
-        svg+=`<text class="joint-plan-axis" x="${g.left+g.w/2}" y="${g.top+g.h+48}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
+        for(const tick of xTicks)svg+=`<line x1="${tick.pixel}" y1="${g.top+g.h}" x2="${tick.pixel}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${tick.pixel}" y="${g.top+g.h+25}" text-anchor="middle">${tick.value}</text>`;
+        for(const tick of yTicks)svg+=`<line x1="${g.left-6}" y1="${tick.pixel}" x2="${g.left}" y2="${tick.pixel}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${tick.pixel+7}" text-anchor="end">${tick.value}</text>`;
+        svg+=`<text class="joint-plan-axis" x="${g.left+g.w/2}" y="${g.top+g.h+62}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
         const markerScale=planPointScale(view),placedLabels=[];
         for(const p of s.plan.points) {
             const x=g.originX+p.x*g.scale,y=g.originY-p.y*g.scale;
@@ -5250,7 +5250,7 @@ function formatTime(
                     <circle cx="0" cy="-1" r="4.2" fill="#20a567" stroke="#fff" stroke-width="1.2"/>
                     <circle cx="0" cy="-1" r="1.25" fill="#effff6"/>
                 </g>
-                <text class="joint-point-label" x="${label.x}" y="${label.y}" text-anchor="${label.anchor}" style="font-size:${16*markerScale}px">${escape(p.id)}</text>
+                <text class="joint-point-label" x="${label.x}" y="${label.y}" text-anchor="${label.anchor}" style="font-size:${24*markerScale}px">${escape(p.id)}</text>
             </g>`;
         }
         $('jointPlan').innerHTML=svg;
