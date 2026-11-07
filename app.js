@@ -5153,14 +5153,32 @@ function formatTime(
     function planLabelStep(g) {return niceMetricStep(42/g.scale);}
     function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
-    // Mantiene las etiquetas visibles también en Y=0, Y=anchura y los extremos de X.
-    function pointLabelPlacement(x,y,g) {
-        const bottomDistance=g.top+g.h-y,topDistance=y-g.top;
-        const above=bottomDistance<38&&bottomDistance<=topDistance;
-        const leftDistance=x-g.left,rightDistance=g.left+g.w-x;
-        if(leftDistance<30&&leftDistance<=rightDistance)return {x:x+18,y:y+(above?-32:35),anchor:'start'};
-        if(rightDistance<30)return {x:x-18,y:y+(above?-32:35),anchor:'end'};
-        return {x,y:y+(above?-32:35),anchor:'middle'};
+    // Las etiquetas van a la derecha y ligeramente por encima de los teléfonos,
+    // con desplazamiento alternativo si varias quedan demasiado próximas.
+    function pointLabelPlacement(x,y,pointId,placedLabels) {
+        const labelWidth=Math.max(28,String(pointId).length*10);
+        const sides=x+34+labelWidth<=790?
+            [{x:x+34,anchor:'start'},{x:x-34,anchor:'end'}]:
+            [{x:x-34,anchor:'end'},{x:x+34,anchor:'start'}];
+        const offsets=[-14,-37,17,-60,40,63,-83,86,-106];
+        for(const side of sides) {
+            const left=side.anchor==='start'?side.x:side.x-labelWidth;
+            const right=left+labelWidth;
+            if(left<8||right>792)continue;
+            for(const offset of offsets) {
+                const baseline=y+offset;
+                if(baseline<19||baseline>420)continue;
+                const rect={left,top:baseline-17,right,bottom:baseline+3};
+                const overlaps=placedLabels.some(other=>rect.left<other.right+4&&rect.right+4>other.left&&rect.top<other.bottom+4&&rect.bottom+4>other.top);
+                if(!overlaps) {
+                    placedLabels.push(rect);
+                    return {x:side.x,y:baseline,anchor:side.anchor};
+                }
+            }
+        }
+        // Caso extremo de alta densidad: priorizar un texto visible dentro del SVG.
+        const side=sides[0],baseline=Math.max(19,Math.min(420,y-14));
+        return {x:side.x,y:baseline,anchor:side.anchor};
     }
     function renderPlan() {
         const edit=s.role==='host'&&!running()&&!s.transaction;
@@ -5174,12 +5192,13 @@ function formatTime(
         for(let x=firstX;x<=lastX;x+=gridStep){const sx=g.left+(x-view.x)*g.scale,label=x%labelStep===0;svg+=`<line x1="${sx}" y1="${g.top}" x2="${sx}" y2="${g.top+g.h}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${sx}" y1="${g.top+g.h}" x2="${sx}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${sx}" y="${g.top+g.h+21}" text-anchor="middle">${x}</text>`;}
         for(let y=firstY;y<=lastY;y+=gridStep){const sy=g.top+(view.y+view.h-y)*g.scale,label=y%labelStep===0;svg+=`<line x1="${g.left}" y1="${sy}" x2="${g.left+g.w}" y2="${sy}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${g.left-6}" y1="${sy}" x2="${g.left}" y2="${sy}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${sy+4}" text-anchor="end">${y}</text>`;}
         svg+=`<text class="joint-plan-axis" x="400" y="${g.top+g.h+48}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
+        const placedLabels=[];
         for(const p of s.plan.points) {
             // Los puntos fuera de la ventana de zoom no se dibujan, pero los del borde sí.
             if(p.x<view.x-1e-7||p.x>view.x+view.w+1e-7||p.y<view.y-1e-7||p.y>view.y+view.h+1e-7)continue;
             const x=g.left+(p.x-view.x)*g.scale,y=g.top+(view.y+view.h-p.y)*g.scale;
             const phoneColor=p.device===s.id?'#467c9f':p.device?'#548d85':'#7f8fa1';
-            const label=pointLabelPlacement(x,y,g);
+            const label=pointLabelPlacement(x,y,p.id,placedLabels);
             svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.id)}, X ${p.x}, Y ${p.y}">
                 <title>${escape(p.id)} · ${p.device?escape(deviceName(p.device)):'Sin asignar'}</title>
                 <circle class="joint-point-hitbox" cx="${x}" cy="${y}" r="27"/>
