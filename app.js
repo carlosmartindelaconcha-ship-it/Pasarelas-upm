@@ -5065,7 +5065,7 @@ function formatTime(
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
         scan:null, scanFrame:null, currentInvite:null, pairBusy:false, capturePermission:false,
         pendingOffer:null, qrPages:[], qrPageIndex:0, qrPageTimer:null, qrInbound:null,
-        lastPairDiagnostic:'', adding:false, drag:null,
+        lastPairDiagnostic:'', adding:false, drag:null, planView:null, planPan:null, planPointers:new Map(), planPinch:null,
         syncModel:{offset:0, drift:0, reference:0, rtt:null, count:0, updated:0},
         syncLog:[], incidents:[], db:null, writeChain:Promise.resolve(), persistedCount:0,
         storageFailed:false, uiTick:0, wake:null, returnTo:null, transaction:null,
@@ -5130,28 +5130,38 @@ function formatTime(
     }
     function pointFor(device=s.id, plan=s.plan) {return plan.points.find(p=>p.device===device);}
     function deviceName(id) {return id===s.id?s.name:(s.peers.get(id)?.name||'Sin conectar');}
-    function geometry() {
-        // Equal metric scale in X/Y; a minimum visual height is not substituted.
-        const scale=Math.min(660/s.plan.length,245/s.plan.width);
-        return {scale,left:(800-s.plan.length*scale)/2,top:(325-s.plan.width*scale)/2,w:s.plan.length*scale,h:s.plan.width*scale};
+    function planViewport(candidate=s.planView) {
+        const base=candidate||{x:0,y:0,w:s.plan.length,h:s.plan.width};
+        const minW=Math.min(1,s.plan.length),minH=Math.min(1,s.plan.width),w=Math.max(minW,Math.min(s.plan.length,base.w)),h=Math.max(minH,Math.min(s.plan.width,base.h));
+        return {x:Math.max(0,Math.min(s.plan.length-w,base.x)),y:Math.max(0,Math.min(s.plan.width-h,base.y)),w,h};
     }
+    function geometry(view=planViewport()) {
+        // Escala idéntica en X/Y: un metro ocupa lo mismo en ambas direcciones.
+        const scale=Math.min(690/view.w,285/view.h),w=view.w*scale,h=view.h*scale;
+        return {view,scale,left:(800-w)/2,top:(335-h)/2,w,h};
+    }
+    function planGridStep(view) {return view.w>80||view.h>40?5:1;}
+    function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
+    function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
     function renderPlan() {
         const edit=s.role==='host'&&!running()&&!s.transaction;
         $('jointGeometry').disabled=!edit; $('jointPointEditor').disabled=!edit;
         $('jointPlanTools').hidden=s.role!=='host';
-        for(const id of ['jointAddPoint','jointRemovePoint','jointImportPlan']) $(id).disabled=!edit;
+        for(const id of ['jointAddPoint','jointRemovePoint','jointImportPlan','jointResetView']) $(id).disabled=!edit;
         $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
-        const g=geometry(), selected=s.plan.points.find(p=>p.id===s.selected);
-        let svg=`<title>Planta de ${escape(s.plan.name)}</title><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
-        for(let i=1;i<4;i++) svg+=`<line x1="${g.left+g.w*i/4}" y1="${g.top}" x2="${g.left+g.w*i/4}" y2="${g.top+g.h}" stroke="#c5d6e3" stroke-dasharray="4 5"/>`;
-        svg+=`<text x="400" y="${g.top+g.h+39}" text-anchor="middle">X · ${s.plan.length} m</text><text x="${Math.max(8,g.left-12)}" y="${g.top-13}">Y · ${s.plan.width} m</text><text x="${g.left}" y="${g.top+g.h+20}">O (0, 0)</text>`;
+        const view=planViewport(),g=geometry(view), selected=s.plan.points.find(p=>p.id===s.selected),gridStep=planGridStep(view);
+        let svg=`<title>Planta de ${escape(s.plan.name)}</title><defs><clipPath id="jointPlanClip"><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}"/></clipPath></defs><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
+        const firstX=Math.ceil(view.x),lastX=Math.floor(view.x+view.w),firstY=Math.ceil(view.y),lastY=Math.floor(view.y+view.h);
+        for(let x=firstX;x<=lastX;x++){const sx=g.left+(x-view.x)*g.scale,major=x%gridStep===0;svg+=`<line x1="${sx}" y1="${g.top}" x2="${sx}" y2="${g.top+g.h}" stroke="${major?'#aec6d8':'#dce8f0'}" stroke-width="${major?1.1:.6}"/>`;if(major)svg+=`<text x="${sx}" y="${g.top+g.h+18}" text-anchor="middle">${x}</text>`;}
+        for(let y=firstY;y<=lastY;y++){const sy=g.top+(view.y+view.h-y)*g.scale,major=y%gridStep===0;svg+=`<line x1="${g.left}" y1="${sy}" x2="${g.left+g.w}" y2="${sy}" stroke="${major?'#aec6d8':'#dce8f0'}" stroke-width="${major?1.1:.6}"/>`;if(major)svg+=`<text x="${g.left-9}" y="${sy+4}" text-anchor="end">${y}</text>`;}
+        svg+=`<text x="400" y="${g.top+g.h+42}" text-anchor="middle">X (m)</text><text x="${g.left}" y="${g.top-10}">Y (m)</text><g clip-path="url(#jointPlanClip)">`;
         for(const p of s.plan.points) {
-            const x=g.left+p.x*g.scale,y=g.top+(s.plan.width-p.y)*g.scale;
+            const x=g.left+(p.x-view.x)*g.scale,y=g.top+(view.y+view.h-p.y)*g.scale;
             const color=p.device===s.id?'#087cc3':p.device?'#00897b':'#788c9e';
             svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.name)}, X ${p.x}, Y ${p.y}"><title>${escape(p.name)} · ${p.device?escape(deviceName(p.device)):'Sin asignar'}</title><circle cx="${x}" cy="${y}" r="12" fill="${color}" stroke="white" stroke-width="2"/><path d="M ${x} ${y-5} l 0 -16 m -4 5 l 4 -5 l 4 5" fill="none" stroke="${color}" stroke-width="2" transform="rotate(${-p.angle} ${x} ${y})"/><text x="${x}" y="${y+29}" text-anchor="middle">${escape(p.name)}</text></g>`;
-        }
+        } svg+='</g>';
         $('jointPlan').innerHTML=svg;
-        $('jointPlanHelp').textContent=s.adding?'Toca dentro del rectángulo para colocar el nuevo punto.':s.role==='host'?'Selecciona y arrastra un punto, o edita sus coordenadas. Azul: este móvil · verde: asignado · gris: sin asignar.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
+        $('jointPlanHelp').textContent=s.adding?'Toca dentro del rectángulo para colocar un punto en la rejilla de 1 m.':s.role==='host'?'Arrastra una zona libre para desplazar X/Y; rueda o pellizca para ampliar. Los puntos creados y arrastrados se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
         $('jointPointEditor').hidden=!selected;
         if(selected) {
             $('jointPointLegend').textContent='Editar '+selected.id;
@@ -5169,12 +5179,16 @@ function formatTime(
     function svgPosition(e) {
         const svg=$('jointPlan'), matrix=svg.getScreenCTM(); if(!matrix) return null;
         const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(matrix.inverse()),g=geometry();
-        return {x:(q.x-g.left)/g.scale,y:s.plan.width-(q.y-g.top)/g.scale};
+        const view=planViewport();return {x:view.x+(q.x-g.left)/g.scale,y:view.y+view.h-(q.y-g.top)/g.scale};
+    }
+    function zoomPlanAt(position,factor,base=planViewport()) {
+        const w=base.w*factor,h=base.h*factor;
+        s.planView=planViewport({x:position.x-(position.x-base.x)*(w/base.w),y:position.y-(position.y-base.y)*(h/base.h),w,h});
     }
     function addPoint(x=s.plan.length/2,y=s.plan.width/2) {
         requireHostEdit(); if(s.plan.points.length>=MAX_POINTS) throw Error('Máximo 64 puntos por plano.');
         let n=1; while(s.plan.points.some(p=>p.id==='P'+n)) n++;
-        const p={id:'P'+n,name:'P'+n,x:Number(x.toFixed(2)),y:Number(y.toFixed(2)),angle:0,axis:'z',device:null};
+        const snapped=snapPlanPosition({x,y}),p={id:'P'+n,name:'P'+n,x:snapped.x,y:snapped.y,angle:0,axis:'z',device:null};
         s.plan.points.push(p); s.selected=p.id; s.adding=false; savePlan();
     }
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
@@ -6586,7 +6600,7 @@ function formatTime(
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
         stopJointSensor();stopDuringSync();document.body.classList.remove('recording-lock');releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
-        s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];
+        s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();
         s.calibration={map:{},active:null,complete:false};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
@@ -6632,6 +6646,7 @@ function formatTime(
     });
     $('jointAddPoint').onclick=guard(()=>{requireHostEdit();s.adding=!s.adding;renderPlan();});
     $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');s.plan.points=s.plan.points.filter(p=>p.id!==s.selected);s.selected=s.plan.points[0]?.id;savePlan();});
+    $('jointResetView').onclick=guard(()=>{requireHostEdit();resetPlanView();});
     $('jointApplyPoint').onclick=guard(()=>{
         requireHostEdit();const original=s.plan.points.find(p=>p.id===s.selected);if(!original)return;
         const device=$('jointPointDevice').value||null;
@@ -6647,15 +6662,20 @@ function formatTime(
         if(e.key==='Enter'||e.key===' '){e.preventDefault();s.selected=el.dataset.point;renderPlan();}
     }));
     $('jointPlan').addEventListener('pointerdown',guard(e=>{
-        const el=e.target.closest('[data-point]'),pos=svgPosition(e);
-        if(el){s.selected=el.dataset.point;if(s.role==='host'&&!running()&&!s.transaction){s.drag=s.selected;$('jointPlan').setPointerCapture(e.pointerId);}renderPlan();}
+        const svg=$('jointPlan'),el=e.target.closest('[data-point]'),pos=svgPosition(e);s.planPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+        if(s.planPointers.size===2){const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y;s.planPinch={distance:Math.hypot(dx,dy),view:planViewport(),center:{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2}};s.drag=null;s.planPan=null;svg.setPointerCapture(e.pointerId);return;}
+        if(el){s.selected=el.dataset.point;if(s.role==='host'&&!running()&&!s.transaction){s.drag=s.selected;svg.setPointerCapture(e.pointerId);}renderPlan();}
         else if(s.adding&&pos&&pos.x>=0&&pos.x<=s.plan.length&&pos.y>=0&&pos.y<=s.plan.width)addPoint(pos.x,pos.y);
+        else if(s.role==='host'&&!running()&&!s.transaction){s.planPan={x:e.clientX,y:e.clientY,view:planViewport()};svg.setPointerCapture(e.pointerId);}
     }));
     $('jointPlan').addEventListener('pointermove',e=>{
-        if(!s.drag)return;const pos=svgPosition(e),p=s.plan.points.find(p=>p.id===s.drag);if(!p||!pos)return;
-        p.x=Number(Math.min(s.plan.length,Math.max(0,pos.x)).toFixed(2));p.y=Number(Math.min(s.plan.width,Math.max(0,pos.y)).toFixed(2));renderPlan();
+        if(s.planPointers.has(e.pointerId))s.planPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+        if(s.planPinch&&s.planPointers.size>=2){const a=[...s.planPointers.values()],dx=a[1].x-a[0].x,dy=a[1].y-a[0].y,distance=Math.max(20,Math.hypot(dx,dy)),factor=s.planPinch.distance/distance,base=s.planPinch.view,rect=$('jointPlan').getBoundingClientRect(),g=geometry(base),qx=(s.planPinch.center.x-rect.left)/rect.width*800,qy=(s.planPinch.center.y-rect.top)/rect.height*360,world={x:base.x+(qx-g.left)/g.scale,y:base.y+base.h-(qy-g.top)/g.scale};zoomPlanAt(world,factor,base);renderPlan();return;}
+        if(s.drag){const pos=svgPosition(e),p=s.plan.points.find(p=>p.id===s.drag);if(!p||!pos)return;const snapped=snapPlanPosition(pos);p.x=snapped.x;p.y=snapped.y;renderPlan();return;}
+        if(s.planPan){const base=s.planPan.view,g=geometry(base);s.planView=planViewport({x:base.x-(e.clientX-s.planPan.x)/g.scale,y:base.y+(e.clientY-s.planPan.y)/g.scale,w:base.w,h:base.h});renderPlan();}
     });
-    for(const event of ['pointerup','pointercancel'])$('jointPlan').addEventListener(event,guard(()=>{if(s.drag){s.drag=null;savePlan();}}));
+    for(const event of ['pointerup','pointercancel'])$('jointPlan').addEventListener(event,guard(e=>{s.planPointers.delete(e.pointerId);if(s.planPointers.size<2)s.planPinch=null;if(s.drag){s.drag=null;savePlan();}s.planPan=null;}));
+    $('jointPlan').addEventListener('wheel',e=>{if(s.role!=='host'||running()||s.transaction)return;e.preventDefault();const before=svgPosition(e);if(!before)return;zoomPlanAt(before,e.deltaY<0?.8:1.25);renderPlan();},{passive:false});
     $('jointDeviceName').onchange=()=>{s.name=$('jointDeviceName').value.trim().slice(0,40)||'Mi móvil';broadcast({type:'HELLO',id:s.id,name:s.name,status:localStatus()});renderDevices();renderPlan();};
     $('jointEnableSensor').onclick=guard(enableSensor);
     $('jointCalibrateX').onclick=guard(()=>startCalibration('x'));
