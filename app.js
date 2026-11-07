@@ -5879,7 +5879,8 @@ function formatTime(
         if(m.type==='SYNC_GESTURE_READY'&&s.role==='host')return;
         if(m.type==='SYNC_GESTURE_REJECT'&&s.role==='host'){if(s.syncCalibration.id===m.id){s.syncCalibration.phase='failed';tell(p.name+': '+String(m.reason||'no pudo preparar la prueba.'),true);renderSyncCalibration();}return;}
         if(m.type==='SYNC_GESTURE_RESULT'&&s.role==='host') {
-            if(s.syncCalibration.id!==m.id||!Array.isArray(m.samples)||m.samples.length<20||m.samples.length>1800)return;
+            // Conserva incluso las ventanas cortas para diagnosticar por qué falló el iPhone.
+            if(s.syncCalibration.id!==m.id||!Array.isArray(m.samples)||m.samples.length>1800)return;
             if(!m.calibration?.map)return;
             if(!['x','y','z'].includes(m.axis))return;
             const result=s.syncCalibration.results[p.id]||{windows:{},axes:{},calibration:m.calibration,accepted:false};
@@ -6026,9 +6027,11 @@ function formatTime(
         }
         const gesture=state.gesture;
         const box=$('jointSyncCountdown');
-        if(!gesture||!finite(gesture.start)||!finite(gesture.end)||now()>gesture.end+1200){box.hidden=true;box.classList.remove('go');}
+        // start/end pertenecen al reloj del maestro; no se comparan con el reloj local del invitado.
+        const gestureMasterNow=gesture?(s.role==='host'?now():toMaster(now(),gesture.model||s.syncModel)):null;
+        if(!gesture||!finite(gesture.start)||!finite(gesture.end)||!finite(gestureMasterNow)||gestureMasterNow>gesture.end+1200){box.hidden=true;box.classList.remove('go');}
         else {
-            const masterNow=s.role==='host'?now():toMaster(now(),gesture.model||s.syncModel),d=masterNow-gesture.start;
+            const d=gestureMasterNow-gesture.start;
             box.hidden=false;
             if(d<0){box.classList.remove('go');box.textContent=Math.max(1,Math.ceil(-d/1000));}
             else {box.classList.add('go');box.textContent='¡AHORA!';}
@@ -6039,7 +6042,7 @@ function formatTime(
         // No reasignar src en cada refresco: reinicia la animación SVG en Safari.
         if(syncImage.getAttribute('src')!==syncSrc)syncImage.setAttribute('src',syncSrc);
         syncImage.alt='Gesto de sincronización en el eje '+axis.toUpperCase();
-        syncInstruction.textContent=gesture?(now()<(s.role==='host'?gesture.start:fromMaster(gesture.start,gesture.model||s.syncModel))?'Quieto hasta la cuenta atrás.':'Mueve el conjunto en '+axis.toUpperCase()+' · ida · vuelta · ida durante 6 s.'):state.phase==='gesture-ready'?'El maestro elige el siguiente eje.':'Primero calibra los relojes.';
+        syncInstruction.textContent=gesture?(gesture.phase==='finished'?'Gesto '+axis.toUpperCase()+' capturado. Esperando resultados…':gestureMasterNow<gesture.start?'Quieto hasta la cuenta atrás.':'Mueve el conjunto en '+axis.toUpperCase()+' · ida · vuelta · ida durante 6 s.'):state.phase==='gesture-ready'?'El maestro elige el siguiente eje.':'Primero calibra los relojes.';
         gestureActions.hidden=state.phase!=='gesture-ready';
         for(const key of ['x','y','z']){const control=$('jointSyncGesture'+key.toUpperCase()),done=!!state.results?.[s.id]?.axes?.[key];control.hidden=s.role!=='host';control.disabled=s.role!=='host'||done||state.phase!=='gesture-ready';control.classList.toggle('done',done);}
         const localRows=[];
@@ -6055,7 +6058,7 @@ function formatTime(
         else if(state.phase==='failed')$('jointSyncHelp').textContent='La calibración completa no se ha validado. Pulsa «Calibrar relojes» para reiniciarla de forma limpia.';
         else if(!axesReady)$('jointSyncHelp').textContent='Completa los factores +1/−1 de X, Y y Z en todos los móviles antes de iniciar la prueba conjunta.';
     }
-    function axisResultMarkup(axes) {return ['x','y','z'].map(axis=>{const a=axes[axis];return a&&finite(a.lag)?`${axis.toUpperCase()}: ${a.lag.toFixed(2)} ms · r ${a.correlation.toFixed(3)}`:`${axis.toUpperCase()}: —`;}).join('<br>');}
+    function axisResultMarkup(axes) {return ['x','y','z'].map(axis=>{const a=axes[axis];return a?.error?`${axis.toUpperCase()}: ${escape(a.error)}`:a&&finite(a.lag)?`${axis.toUpperCase()}: ${a.lag.toFixed(2)} ms · r ${a.correlation.toFixed(3)}`:`${axis.toUpperCase()}: —`;}).join('<br>');}
     function showCalibration() {
         $('jointCalibration').hidden=false;$('jointCalibrationOverride').hidden=false;renderCalibration();
     }
@@ -6237,7 +6240,17 @@ function formatTime(
             result.axes??={};result.axes[axis]=estimateGestureAxis(masterSamples,result.windows[axis],axis,masterCalibration,result.calibration,g.start,g.end);
         }
         if(missing.length){state.phase='gesture-ready';state.gesture=null;tell('No llegó la ventana de '+axis.toUpperCase()+' de '+missing.join(', ')+'. Repite solo ese gesto.',true);renderSyncCalibration();return;}
-        if(peers.every(p=>!state.results[p.id]?.axes?.[axis]?.error))state.results[s.id].axes[axis]={axis,lag:0,correlation:1};
+        const failedAxis=peers.filter(p=>state.results[p.id]?.axes?.[axis]?.error);
+        if(failedAxis.length){
+            const details=failedAxis.map(p=>{
+                const result=state.results[p.id],error=result.axes[axis].error;
+                return p.name+': '+error+' (maestro '+masterSamples.length+' muestras, participante '+(result.windows[axis]?.length||0)+')';
+            }).join('; ');
+            state.phase='gesture-ready';state.gesture=null;
+            tell('No se validó el gesto '+axis.toUpperCase()+': '+details+'. Repite solo este eje.',true);
+            renderSyncCalibration();return;
+        }
+        state.results[s.id].axes[axis]={axis,lag:0,correlation:1};
         const allAxes=['x','y','z'].every(key=>peers.every(p=>state.results[p.id]?.axes?.[key]&&!state.results[p.id].axes[key].error));
         if(!allAxes){state.phase='gesture-ready';state.gesture=null;tell('Gesto '+axis.toUpperCase()+' procesado. Continúa con el siguiente eje.');renderSyncCalibration();return;}
         for(const p of peers){const result=state.results[p.id],lags=['x','y','z'].map(key=>result.axes[key].lag),spread=Math.max(...lags)-Math.min(...lags);result.correctionMs=median(lags);result.accepted=spread<=8;if(!result.accepted)result.error='Los retardos X, Y y Z no son coherentes.';}
@@ -6270,9 +6283,12 @@ function formatTime(
         // Seguimos intercambiando mensajes de reloj para diagnóstico, pero sus ajustes
         // no desplazan retrospectiva ni progresivamente las muestras ya adquiridas.
         const captureModel=run&&activeStates.has(run.state)?run.initialClock:s.syncModel;
-        const masterAtCapture=s.role==='host'?used:toMaster(used,captureModel);
-        const sample=[0,timestamp,received,x,y,z,interval,used,masterAtCapture];
         const gesture=s.syncCalibration.gesture;
+        // Durante el gesto físico se congela el modelo de reloj con el que se
+        // programó la ventana, para evitar pequeños saltos entre eventos.
+        const gestureModel=gesture&&gesture.phase!=='finished'?gesture.model:captureModel;
+        const masterAtCapture=s.role==='host'?used:toMaster(used,gestureModel);
+        const sample=[0,timestamp,received,x,y,z,interval,used,masterAtCapture];
         if(gesture&&gesture.phase!=='finished'&&masterAtCapture>=gesture.start-700&&masterAtCapture<=gesture.end+700)gesture.samples.push([masterAtCapture,x,y,z]);
         const calibration=s.calibration.active;
         if(calibration&&received<calibration.start)calibration.baseline.push([x,y,z]);
@@ -6663,7 +6679,10 @@ function formatTime(
             renderCalibrationCountdown();
         }
         const gesture=s.syncCalibration.gesture;
-        if(gesture&&now()>=gesture.end&&gesture.phase!=='finished') {
+        // El cierre del gesto también debe usar el reloj del maestro en el participante.
+        // Comparar now() local con gesture.end provocaba capturas vacías o retrasadas.
+        const gestureMasterNow=gesture?(s.role==='host'?now():toMaster(now(),gesture.model||s.syncModel)):null;
+        if(gesture&&finite(gestureMasterNow)&&gestureMasterNow>=gesture.end&&gesture.phase!=='finished') {
             gesture.phase='finished';
             if(s.role==='guest'&&!gesture.sent){
                 gesture.sent=true;const host=[...s.peers.values()][0];
