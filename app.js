@@ -5157,7 +5157,7 @@ function formatTime(
         const edit=s.role==='host'&&!running()&&!s.transaction;
         $('jointGeometry').disabled=!edit;
         $('jointPlanTools').hidden=s.role!=='host';
-        for(const id of ['jointAddPoint','jointAddPointInline','jointRemovePoint','jointImportPlan','jointResetView']) $(id).disabled=!edit;
+        for(const id of ['jointAddPoint','jointAddPointInline','jointRemovePoint','jointResetView']) $(id).disabled=!edit;
         $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
         const view=planViewport(),g=geometry(view),selected=s.plan.points.find(p=>p.id===s.selected),gridStep=planGridStep(g),labelStep=planLabelStep(g);
         let svg=`<title>Planta de ${escape(s.plan.name)}</title><defs><clipPath id="jointPlanClip"><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4"/></clipPath></defs><rect x="${g.left}" y="${g.top}" width="${g.w}" height="${g.h}" rx="4" fill="#edf4f9" stroke="#698ba6" stroke-width="2"/>`;
@@ -6706,7 +6706,6 @@ function formatTime(
     $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');s.plan.points=s.plan.points.filter(p=>p.id!==s.selected);s.selected=s.plan.points[0]?.id;savePlan();});
     $('jointResetView').onclick=guard(()=>{requireHostEdit();resetPlanView();});
     $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
-    $('jointImportPlan').onchange=guard(async e=>{requireHostEdit();const file=e.target.files[0];if(!file)return;if(file.size>100000)throw Error('El archivo de plano es demasiado grande.');const plan=checkPlan(JSON.parse(await file.text()));plan.points.forEach(p=>p.device=null);s.plan=plan;s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();s.selected=plan.points[0]?.id;savePlan();e.target.value='';tell('Plano importado. Asigna los móviles a los puntos.');});
     let ignorePointSwipeClickUntil=0;
     $('jointPointsTable').addEventListener('click',e=>{
         if(performance.now()<ignorePointSwipeClickUntil){e.preventDefault();e.stopPropagation();}
