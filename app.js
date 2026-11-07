@@ -6676,10 +6676,20 @@ function formatTime(
     });
     $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
     $('jointImportPlan').onchange=guard(async e=>{requireHostEdit();const file=e.target.files[0];if(!file)return;if(file.size>100000)throw Error('El archivo de plano es demasiado grande.');const plan=checkPlan(JSON.parse(await file.text()));plan.points.forEach(p=>p.device=null);s.plan=plan;s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();s.selected=plan.points[0]?.id;savePlan();e.target.value='';tell('Plano importado. Asigna los móviles a los puntos.');});
-    $('jointPointsTable').addEventListener('pointerover',e=>{const row=e.target.closest('[data-row-point]');if(!row)return;const id=row.dataset.rowPoint;for(const tr of $('jointPointsTable').rows)tr.classList.toggle('joint-row-hover',tr===row);for(const node of $('jointPlan').querySelectorAll('[data-point]'))node.classList.toggle('joint-point-hover',node.dataset.point===id);});
-    $('jointPointsTable').addEventListener('pointerleave',()=>{for(const tr of $('jointPointsTable').rows)tr.classList.remove('joint-row-hover');for(const node of $('jointPlan').querySelectorAll('[data-point]'))node.classList.remove('joint-point-hover');});
-    $('jointPlan').addEventListener('pointerover',e=>{const el=e.target.closest('[data-point]');if(!el)return;for(const tr of $('jointPointsTable').rows)tr.classList.toggle('joint-row-hover',tr.dataset.rowPoint===el.dataset.point);});
-    $('jointPlan').addEventListener('pointerleave',()=>{for(const tr of $('jointPointsTable').rows)tr.classList.remove('joint-row-hover');});
+
+    function selectTablePoint(id) {
+        if(!s.plan.points.some(p=>p.id===id))return;
+        s.selected=id;
+        for(const tr of $('jointPointsTable').querySelectorAll('[data-row-point]'))tr.classList.toggle('joint-row-selected',tr.dataset.rowPoint===id);
+        for(const node of $('jointPlan').querySelectorAll('[data-point]'))node.classList.toggle('selected',node.dataset.point===id);
+    }
+    $('jointPointsTable').addEventListener('pointerdown',e=>{
+        const row=e.target.closest('[data-row-point]');
+        if(!row||row.dataset.rowPoint===s.selected)return;
+        // First touch/click only selects the row; subsequent interaction edits it.
+        if(e.target.closest('input,select,button')){e.preventDefault();e.stopPropagation();}
+        selectTablePoint(row.dataset.rowPoint);
+    },true);
     let swipeStart=null;
     $('jointPointsTable').addEventListener('touchstart',e=>{
         const row=e.target.closest('[data-row-point]');
@@ -6691,23 +6701,39 @@ function formatTime(
         if(!swipeStart.axis&&Math.hypot(dx,dy)>9)swipeStart.axis=Math.abs(dx)>Math.abs(dy)*1.4?'x':'y';
         if(swipeStart.axis!=='x'||s.role!=='host'||running()||s.transaction)return;
         e.preventDefault();
-        swipeStart.row.style.transform=`translateX(${Math.max(-76,Math.min(0,dx))}px)`;
+        swipeStart.row.style.setProperty('--swipe-x',Math.max(-76,Math.min(0,dx))+'px');
     },{passive:false});
     $('jointPointsTable').addEventListener('touchend',e=>{
         if(!swipeStart)return;
         const {row,x,axis}=swipeStart;swipeStart=null;
         const dx=e.changedTouches.length?e.changedTouches[0].clientX-x:0;
-        const reveal=axis==='x'&&dx< -55&&s.role==='host'&&!running()&&!s.transaction;
-        for(const other of $('jointPointsTable').querySelectorAll('[data-row-point]')){if(other!==row){other.classList.remove('joint-swipe-reveal');other.style.transform='';}}
-        row.classList.toggle('joint-swipe-reveal',reveal);row.style.transform=reveal?'translateX(-76px)':'';
+        const reveal=axis==='x'&&dx< -45&&s.role==='host'&&!running()&&!s.transaction;
+        for(const other of $('jointPointsTable').querySelectorAll('[data-row-point]')){
+            other.classList.toggle('joint-swipe-reveal',other===row&&reveal);
+            other.style.setProperty('--swipe-x',other===row&&reveal?'-76px':'0px');
+        }
+        if(reveal)selectTablePoint(row.dataset.rowPoint);
     },{passive:true});
-    $('jointPointsTable').addEventListener('touchcancel',()=>{if(swipeStart){swipeStart.row.style.transform='';swipeStart=null;}},{passive:true});
+    $('jointPointsTable').addEventListener('touchcancel',()=>{if(swipeStart){swipeStart.row.style.setProperty('--swipe-x','0px');swipeStart=null;}},{passive:true});
     $('jointPointsTable').onclick=guard(e=>{
         const d=e.target.closest('[data-delete-point]');
-        if(d){requireHostEdit();const id=d.dataset.deletePoint;s.plan.points=s.plan.points.filter(p=>p.id!==id);s.plan.points.forEach((p,i)=>p.name='P'+(i+1));s.selected=s.plan.points[0]?.id||null;savePlan();return;}
-        const b=e.target.closest('[data-select-point]');if(b){s.selected=b.dataset.selectPoint;renderPlan();}
+        if(d){
+            requireHostEdit();
+            const id=d.dataset.deletePoint,row=d.closest('[data-row-point]');
+            if(row&&row.dataset.rowPoint!==s.selected){selectTablePoint(id);return;}
+            const remove=()=>{
+                s.plan.points=s.plan.points.filter(p=>p.id!==id);
+                s.plan.points.forEach((p,i)=>{if(/^P\d+$/.test(p.name))p.name='P'+(i+1);});
+                s.selected=s.plan.points[0]?.id||null;savePlan();
+            };
+            if(window.matchMedia('(prefers-reduced-motion: reduce)').matches||!row){remove();return;}
+            row.classList.add('joint-row-removing');
+            setTimeout(remove,170);
+            return;
+        }
+        const row=e.target.closest('[data-row-point]');
+        if(row)selectTablePoint(row.dataset.rowPoint);
     });
-    $('jointPointsTable').addEventListener('focusin',e=>{const row=e.target.closest('[data-row-point]');if(!row)return;s.selected=row.dataset.rowPoint;for(const tr of $('jointPointsTable').rows)tr.classList.toggle('joint-row-selected',tr===row);for(const node of $('jointPlan').querySelectorAll('[data-point]'))node.classList.toggle('selected',node.dataset.point===s.selected);});
     $('jointPointsTable').onchange=guard(e=>{
         const field=e.target.dataset.pointField,id=e.target.dataset.pointId;if(!field||!id)return;
         requireHostEdit();const p=s.plan.points.find(q=>q.id===id);if(!p)return;
