@@ -5144,7 +5144,7 @@ function formatTime(
         const power=10**Math.floor(Math.log10(Math.max(1,minimum))),scaled=minimum/power;
         return (scaled<=1?1:scaled<=2?2:scaled<=5?5:10)*power;
     }
-    function planGridStep(g) {return niceMetricStep(5/g.scale);}
+    function planGridStep(g) {return Math.max(1,niceMetricStep(5/g.scale));}
     function planLabelStep(g) {return niceMetricStep(76/g.scale);}
     function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
@@ -6650,7 +6650,7 @@ function formatTime(
     $('jointReadCode').onclick=guard(()=>pairingAction(()=>readCode()));$('jointScanCode').onclick=guard(scanCode);$('jointStopScan').onclick=stopScan;
     $('jointGenerateAnswer').onclick=guard(()=>pairingAction(createGuestAnswer));
     $('jointCopyCode').onclick=guard(async()=>{const text=$('jointPairOutput').value;try{await navigator.clipboard.writeText(text);$('jointPairStatus').textContent='Código copiado.';}catch(e){$('jointPairOutput').focus();$('jointPairOutput').select();$('jointPairStatus').textContent='Selecciona y copia el código completo.';}});
-    for(const id of ['jointLength','jointWidth'])$(''+id).addEventListener('change',()=>{if(s.role!=='host'||running()||s.transaction)return;$('jointApplyGeometry').click();});
+    for(const id of ['jointLength','jointWidth'])$(id).addEventListener('change',()=>{if(s.role!=='host'||running()||s.transaction)return;$('jointApplyGeometry').click();});
     $('jointApplyGeometry').onclick=guard(()=>{
         requireHostEdit();const candidate={...s.plan,name:$('jointName').value,length:Number($('jointLength').value),width:Number($('jointWidth').value)};
         s.plan=checkPlan(candidate);
@@ -6676,8 +6676,27 @@ function formatTime(
     $('jointPlan').addEventListener('pointerover',e=>{const el=e.target.closest('[data-point]');if(!el)return;for(const tr of $('jointPointsTable').rows)tr.classList.toggle('joint-row-hover',tr.dataset.rowPoint===el.dataset.point);});
     $('jointPlan').addEventListener('pointerleave',()=>{for(const tr of $('jointPointsTable').rows)tr.classList.remove('joint-row-hover');});
     let swipeStart=null;
-    $('jointPointsTable').addEventListener('touchstart',e=>{const row=e.target.closest('[data-row-point]');swipeStart=row&&e.touches.length===1?{id:row.dataset.rowPoint,x:e.touches[0].clientX,y:e.touches[0].clientY}:null;},{passive:true});
-    $('jointPointsTable').addEventListener('touchend',e=>{if(!swipeStart||!e.changedTouches.length)return;const start=swipeStart;swipeStart=null;const dx=e.changedTouches[0].clientX-start.x,dy=e.changedTouches[0].clientY-start.y;if(dx< -95&&Math.abs(dy)<35&&s.role==='host'&&!running()&&!s.transaction){const row=$('jointPointsTable').querySelectorAll('[data-row-point]');const match=[...row].find(r=>r.dataset.rowPoint===start.id);if(match){match.classList.add('joint-swipe-reveal');match.querySelector('[data-delete-point]')?.focus();tell('Pulsa ✕ para eliminar el punto.');}}},{passive:true});
+    $('jointPointsTable').addEventListener('touchstart',e=>{
+        const row=e.target.closest('[data-row-point]');
+        swipeStart=row&&e.touches.length===1&&!e.target.closest('input,select,button')?{row,x:e.touches[0].clientX,y:e.touches[0].clientY,axis:null}:null;
+    },{passive:true});
+    $('jointPointsTable').addEventListener('touchmove',e=>{
+        if(!swipeStart||e.touches.length!==1)return;
+        const dx=e.touches[0].clientX-swipeStart.x,dy=e.touches[0].clientY-swipeStart.y;
+        if(!swipeStart.axis&&Math.hypot(dx,dy)>9)swipeStart.axis=Math.abs(dx)>Math.abs(dy)*1.4?'x':'y';
+        if(swipeStart.axis!=='x'||s.role!=='host'||running()||s.transaction)return;
+        e.preventDefault();
+        swipeStart.row.style.transform=`translateX(${Math.max(-76,Math.min(0,dx))}px)`;
+    },{passive:false});
+    $('jointPointsTable').addEventListener('touchend',e=>{
+        if(!swipeStart)return;
+        const {row,x,axis}=swipeStart;swipeStart=null;
+        const dx=e.changedTouches.length?e.changedTouches[0].clientX-x:0;
+        const reveal=axis==='x'&&dx< -55&&s.role==='host'&&!running()&&!s.transaction;
+        for(const other of $('jointPointsTable').querySelectorAll('[data-row-point]')){if(other!==row){other.classList.remove('joint-swipe-reveal');other.style.transform='';}}
+        row.classList.toggle('joint-swipe-reveal',reveal);row.style.transform=reveal?'translateX(-76px)':'';
+    },{passive:true});
+    $('jointPointsTable').addEventListener('touchcancel',()=>{if(swipeStart){swipeStart.row.style.transform='';swipeStart=null;}},{passive:true});
     $('jointPointsTable').onclick=guard(e=>{
         const d=e.target.closest('[data-delete-point]');
         if(d){requireHostEdit();const id=d.dataset.deletePoint;s.plan.points=s.plan.points.filter(p=>p.id!==id);s.plan.points.forEach((p,i)=>p.name='P'+(i+1));s.selected=s.plan.points[0]?.id||null;savePlan();return;}
