@@ -5162,20 +5162,27 @@ function formatTime(
     function planLabelStep(g) {return niceMetricStep(42/g.scale);}
     function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
-    // La esquina inferior izquierda de la etiqueta queda junto a la esquina
-    // superior derecha del móvil, con una separación visual mínima.
-    // Solo se desplaza para resolver conflictos entre etiquetas cercanas.
-    function pointLabelPlacement(x,y,pointId,placedLabels) {
-        const labelX=x+13, labelWidth=Math.max(28,String(pointId).length*10);
-        // Como la referencia dibujada: el texto comienza a la derecha del borde del teléfono
-        // y su línea inferior queda apenas por debajo de la esquina superior del móvil.
-        const preferredY=y-8;
-        const offsets=[0,23,-23,46,-46,69,-69,92,-92,115,-115,138,-138,161,-161,184,-184,207,-207];
+    // Los móviles y sus nombres crecen suavemente con el zoom, sin superar el 150 %.
+    // 1x: 100 %, 2x: 120 %, 4x: 140 %, 8x o superior: 150 %.
+    // Los números de los ejes pertenecen al visor y mantienen su tamaño.
+    function planPointScale(view=planViewport()) {
+        const zoom=Math.max(1,s.plan.length/view.w);
+        return Math.min(1.5,1+.2*Math.log2(zoom));
+    }
+    // Conserva el anclaje compacto de la etiqueta en la esquina superior derecha
+    // del móvil. La separación y el espacio anticolisión crecen con el icono.
+    function pointLabelPlacement(x,y,pointId,placedLabels,markerScale=1) {
+        const labelX=x+13*markerScale,labelWidth=Math.max(28,String(pointId).length*10)*markerScale;
+        const preferredY=y-8*markerScale;
+        const spacing=23*markerScale;
+        const offsets=[0,1,-1,2,-2,3,-3,4,-4,5,-5,6,-6,7,-7,8,-8,9,-9];
+        const minBaseline=16*markerScale+4,maxBaseline=422-4*markerScale;
         let best=null,bestOverlap=Infinity;
-        for(const offset of offsets) {
-            const baseline=preferredY+offset;
-            if(baseline<20||baseline>422)continue;
-            const box={left:labelX,top:baseline-17,right:labelX+labelWidth,bottom:baseline+4};
+        for(const step of offsets) {
+            const baseline=preferredY+step*spacing;
+            if(baseline<minBaseline||baseline>maxBaseline)continue;
+            const box={left:labelX,top:baseline-17*markerScale,right:labelX+labelWidth,bottom:baseline+4*markerScale};
+            if(box.right>792)continue;
             const overlaps=placedLabels.reduce((sum,other)=>sum+
                 (box.left<other.right+4&&box.right+4>other.left&&box.top<other.bottom+4&&box.bottom+4>other.top?1:0),0);
             if(!overlaps) {
@@ -5184,8 +5191,8 @@ function formatTime(
             }
             if(overlaps<bestOverlap) {bestOverlap=overlaps;best={box,baseline};}
         }
-        const baseline=best?best.baseline:Math.max(20,Math.min(422,preferredY));
-        placedLabels.push(best?.box||{left:labelX,top:baseline-17,right:labelX+labelWidth,bottom:baseline+4});
+        const baseline=best?best.baseline:Math.max(minBaseline,Math.min(maxBaseline,preferredY));
+        placedLabels.push(best?.box||{left:labelX,top:baseline-17*markerScale,right:labelX+labelWidth,bottom:baseline+4*markerScale});
         return {x:labelX,y:baseline,anchor:'start'};
     }
     function renderPlan() {
@@ -5222,18 +5229,18 @@ function formatTime(
         for(const tick of xTicks)svg+=`<line x1="${tick.pixel}" y1="${g.top+g.h}" x2="${tick.pixel}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${tick.pixel}" y="${g.top+g.h+21}" text-anchor="middle">${tick.value}</text>`;
         for(const tick of yTicks)svg+=`<line x1="${g.left-6}" y1="${tick.pixel}" x2="${g.left}" y2="${tick.pixel}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${tick.pixel+4}" text-anchor="end">${tick.value}</text>`;
         svg+=`<text class="joint-plan-axis" x="${g.left+g.w/2}" y="${g.top+g.h+48}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
-        const placedLabels=[];
+        const markerScale=planPointScale(view),placedLabels=[];
         for(const p of s.plan.points) {
             const x=g.originX+p.x*g.scale,y=g.originY-p.y*g.scale;
             // Los marcadores que quedan fuera del visor no se dibujan. Los que
             // están sobre los bordes permanecen completos y seleccionables.
             if(x<g.left-1e-7||x>g.left+g.w+1e-7||y<g.top-1e-7||y>g.top+g.h+1e-7)continue;
             const phoneColor=p.device===s.id?'#467c9f':p.device?'#548d85':'#7f8fa1';
-            const label=pointLabelPlacement(x,y,p.id,placedLabels);
+            const label=pointLabelPlacement(x,y,p.id,placedLabels,markerScale);
             svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.id)}, X ${p.x}, Y ${p.y}">
                 <title>${escape(p.id)} · ${p.device?escape(deviceName(p.device)):'Sin asignar'}</title>
-                <circle class="joint-point-hitbox" cx="${x}" cy="${y}" r="27"/>
-                <g class="joint-phone-marker" transform="translate(${x} ${y}) rotate(${-p.angle})">
+                <circle class="joint-point-hitbox" cx="${x}" cy="${y}" r="${27*markerScale}"/>
+                <g class="joint-phone-marker" transform="translate(${x} ${y}) scale(${markerScale}) rotate(${-p.angle})">
                     <rect class="joint-phone-body" x="-9.5" y="-14" width="19" height="28" rx="3.6" fill="${phoneColor}"/>
                     <rect x="-6.1" y="-10.2" width="12.2" height="18.3" rx="1.7" fill="#edf4f9"/>
                     <path d="M -2.5 -11.8 H 2.5" fill="none" stroke="#e7edf3" stroke-width="1" stroke-linecap="round"/>
@@ -5243,7 +5250,7 @@ function formatTime(
                     <circle cx="0" cy="-1" r="4.2" fill="#20a567" stroke="#fff" stroke-width="1.2"/>
                     <circle cx="0" cy="-1" r="1.25" fill="#effff6"/>
                 </g>
-                <text class="joint-point-label" x="${label.x}" y="${label.y}" text-anchor="${label.anchor}">${escape(p.id)}</text>
+                <text class="joint-point-label" x="${label.x}" y="${label.y}" text-anchor="${label.anchor}" style="font-size:${16*markerScale}px">${escape(p.id)}</text>
             </g>`;
         }
         $('jointPlan').innerHTML=svg;
