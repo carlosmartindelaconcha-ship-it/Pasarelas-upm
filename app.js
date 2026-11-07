@@ -5212,11 +5212,19 @@ function formatTime(
         const record=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(id)}"]`),swipe=record?.querySelector('.joint-point-swipe'),row=record?.querySelector('.joint-point-row');
         if(animate&&swipe&&!record.dataset.deleting) {
             record.dataset.deleting='true';swipe.style.height=swipe.offsetHeight+'px';
+            const currentX=Number((row?.style.transform.match(/-?[\d.]+/)||['0'])[0]);
+            // Conservamos el punto exacto al soltar el dedo: la papelera recorre
+            // el resto del trayecto hasta el centro mientras la fila sale entera.
+            if(exitLeft&&row){
+                row.style.transition='none';
+                swipe.style.setProperty('--trash-center',(row.clientWidth+currentX/2)+'px');
+                void row.offsetWidth;
+            }
             requestAnimationFrame(()=>{
-                if(exitLeft&&row){swipe.style.setProperty('--trash-center',(row.clientWidth/2)+'px');row.style.transition='transform 280ms cubic-bezier(.2,.8,.2,1)';row.style.transform=`translateX(-${row.clientWidth}px)`;}
-                setTimeout(()=>{swipe.style.height='0px';swipe.style.opacity='0';swipe.style.marginTop='0';swipe.style.marginBottom='0';},exitLeft?245:0);
+                if(exitLeft&&row){swipe.style.setProperty('--trash-center',(row.clientWidth/2)+'px');row.style.transition='transform 360ms cubic-bezier(.2,.8,.2,1)';row.style.transform=`translateX(-${row.clientWidth}px)`;}
+                setTimeout(()=>{swipe.style.height='0px';swipe.style.opacity='0';swipe.style.marginTop='0';swipe.style.marginBottom='0';},exitLeft?390:0);
             });
-            setTimeout(()=>deletePlanPoint(id,false),exitLeft?560:240);return;
+            setTimeout(()=>deletePlanPoint(id,false),exitLeft?750:240);return;
         }
         s.plan.points=s.plan.points.filter(p=>p.id!==id); if(s.selected===id)s.selected=s.plan.points[0]?.id||null;
         savePlan(); renderDevices(); tell(`${point.id} eliminado del plano.`);
@@ -6692,20 +6700,22 @@ function formatTime(
     }));
     $('jointPointsTable').addEventListener('pointerdown',e=>{
         const row=e.target.closest('.joint-point-row');if(!row||s.role!=='host'||running()||s.transaction)return;
-        const time=performance.now();s.rowSwipe={row,startX:e.clientX,lastX:e.clientX,lastTime:time,velocity:0,offset:row.classList.contains('swipe-open')?-104:0,moved:false};row.setPointerCapture?.(e.pointerId);
+        const time=performance.now(),initialOffset=row.classList.contains('swipe-open')?-row.clientWidth:0;
+        s.rowSwipe={row,pointerId:e.pointerId,startX:e.clientX,lastX:e.clientX,lastTime:time,velocity:0,offset:initialOffset,moved:false};row.setPointerCapture?.(e.pointerId);
     });
     $('jointPointsTable').addEventListener('pointermove',e=>{
-        const swipe=s.rowSwipe;if(!swipe)return;const time=performance.now(),dx=e.clientX-swipe.startX,dt=Math.max(1,time-swipe.lastTime);
+        const swipe=s.rowSwipe;if(!swipe||e.pointerId!==swipe.pointerId)return;const time=performance.now(),dx=e.clientX-swipe.startX,dt=Math.max(1,time-swipe.lastTime);
         swipe.velocity=(e.clientX-swipe.lastX)/dt;swipe.lastX=e.clientX;swipe.lastTime=time;
         if(Math.abs(dx)>7)swipe.moved=true;
         const offset=Math.max(-swipe.row.clientWidth,Math.min(0,swipe.offset+dx));swipe.row.style.transition='none';swipe.row.style.transform=`translateX(${offset}px)`;swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth+offset/2)+'px');
         if(swipe.moved)e.preventDefault();
     });
     for(const event of ['pointerup','pointercancel'])$('jointPointsTable').addEventListener(event,guard(e=>{
-        const swipe=s.rowSwipe;if(!swipe)return;s.rowSwipe=null;swipe.row.style.transition='';const x=Number((swipe.row.style.transform.match(/-?[\d.]+/)||['0'])[0]);
+        const swipe=s.rowSwipe;if(!swipe||e.pointerId!==swipe.pointerId)return;s.rowSwipe=null;const x=Number((swipe.row.style.transform.match(/-?[\d.]+/)||['0'])[0]);
         // Un flick inequívoco borra; el arrastre lento revela la acción completa para confirmarla con un toque.
-        const fastLeft=swipe.velocity<-.65&&x<-28;
+        const fastLeft=swipe.velocity<-.75&&x<-22;
         if(event==='pointerup'&&fastLeft){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId,true,true);return;}
+        swipe.row.style.transition='';
         swipe.row.style.transform='';
         const open=x<=-24||swipe.velocity<-.1;swipe.row.classList.toggle('swipe-open',open);if(open)swipe.row.parentElement.style.setProperty('--trash-center',(swipe.row.clientWidth/2)+'px');else swipe.row.parentElement.style.removeProperty('--trash-center');
     }));
