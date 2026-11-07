@@ -5213,7 +5213,7 @@ function formatTime(
         if(animate&&swipe&&!record.dataset.deleting) {
             record.dataset.deleting='true';swipe.style.height=swipe.offsetHeight+'px';
             requestAnimationFrame(()=>{
-                if(exitLeft&&row){row.style.transition='transform 280ms cubic-bezier(.2,.8,.2,1)';row.style.transform=`translateX(-${row.clientWidth}px)`;}
+                if(exitLeft&&row){swipe.style.setProperty('--trash-center',(row.clientWidth/2)+'px');row.style.transition='transform 280ms cubic-bezier(.2,.8,.2,1)';row.style.transform=`translateX(-${row.clientWidth}px)`;}
                 setTimeout(()=>{swipe.style.height='0px';swipe.style.opacity='0';swipe.style.marginTop='0';swipe.style.marginBottom='0';},exitLeft?245:0);
             });
             setTimeout(()=>deletePlanPoint(id,false),exitLeft?560:240);return;
