@@ -6035,7 +6035,10 @@ function formatTime(
         }
         const syncImage=$('jointSyncImage'),syncInstruction=$('jointSyncInstruction'),gestureActions=$('jointSyncGestureActions');
         const axis=gesture?.axis||['x','y','z'].find(key=>!state.results?.[s.id]?.axes?.[key])||'x';
-        syncImage.src='assets/calibration/telefono-eje-'+axis+'.svg';syncImage.alt='Gesto de sincronización en el eje '+axis.toUpperCase();
+        const syncSrc='assets/calibration/telefono-eje-'+axis+'.svg';
+        // No reasignar src en cada refresco: reinicia la animación SVG en Safari.
+        if(syncImage.getAttribute('src')!==syncSrc)syncImage.setAttribute('src',syncSrc);
+        syncImage.alt='Gesto de sincronización en el eje '+axis.toUpperCase();
         syncInstruction.textContent=gesture?(now()<(s.role==='host'?gesture.start:fromMaster(gesture.start,gesture.model||s.syncModel))?'Quieto hasta la cuenta atrás.':'Mueve el conjunto en '+axis.toUpperCase()+' · ida · vuelta · ida durante 6 s.'):state.phase==='gesture-ready'?'El maestro elige el siguiente eje.':'Primero calibra los relojes.';
         gestureActions.hidden=state.phase!=='gesture-ready';
         for(const key of ['x','y','z']){const control=$('jointSyncGesture'+key.toUpperCase()),done=!!state.results?.[s.id]?.axes?.[key];control.hidden=s.role!=='host';control.disabled=s.role!=='host'||done||state.phase!=='gesture-ready';control.classList.toggle('done',done);}
@@ -6064,7 +6067,8 @@ function formatTime(
         const axis=active?.axis||['x','y','z'].find(key=>!c.map[key])||'x';
         const words={x:'mueve el móvil sobre el eje X y vuelve al origen.',y:'mueve el móvil sobre el eje Y y vuelve al origen.',z:'mueve el móvil sobre el eje Z y vuelve al origen.'};
         const image=$('jointCalibrationImage');
-        image.src=done?'assets/calibration/telefono-ejes-reposo.svg':'assets/calibration/telefono-eje-'+axis+'.svg';
+        const calibrationSrc=done?'assets/calibration/telefono-ejes-reposo.svg':'assets/calibration/telefono-eje-'+axis+'.svg';
+        if(image.getAttribute('src')!==calibrationSrc)image.setAttribute('src',calibrationSrc);
         image.alt=done?'Móvil centrado en el origen tras calibrar los ejes':'Móvil moviéndose sobre el eje '+axis.toUpperCase();
         $('jointCalibrationAnimation').classList.toggle('complete',done);
         $('jointCalibrationInstruction').textContent=done?'Móvil centrado en el origen.':'Calibrar '+calibrationAxisName(axis)+' · '+words[axis];
