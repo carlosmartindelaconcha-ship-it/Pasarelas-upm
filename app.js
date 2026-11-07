@@ -5169,7 +5169,7 @@ function formatTime(
         } svg+='</g>';
         $('jointPlan').innerHTML=svg;
         $('jointPlanHelp').textContent=s.adding?'Toca dentro del rectángulo para colocar un punto en la rejilla de 1 m.':s.role==='host'?'Arrastra una zona libre para desplazar X/Y; rueda o pellizca para ampliar. Los puntos creados y arrastrados se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
-        $('jointPointEditor').hidden=!selected;
+        $('jointPointEditor').hidden=true;
         if(selected) {
             $('jointPointLegend').textContent='Editar '+selected.id;
             $('jointPointName').value=selected.name; $('jointPointX').value=selected.x; $('jointPointY').value=selected.y;
@@ -5180,11 +5180,14 @@ function formatTime(
             $('jointPointDevice').innerHTML='<option value="">Sin asignar</option>'+ds.map(d=>`<option value="${escape(d.id)}">${escape(d.name)}${d.id===s.id?' (este móvil)':''}</option>`).join('');
             $('jointPointDevice').value=selected.device||'';
         }
+        const assignedDevices=[{id:s.id,name:s.name},...s.peers.values()].filter(d=>d.name);
         $('jointPointsTable').innerHTML=s.plan.points.map((p,i)=>{
             const disabled=edit?'':'disabled';
-            const input=(field,value,max)=>`<input data-point-id="${escape(p.id)}" data-point-field="${field}" aria-label="${field.toUpperCase()} de P${i+1}" type="number" step="1" min="0" max="${max}" value="${value}" ${disabled}>`;
-            const axes=['x','y','z'].map(a=>`<option value="${a}" ${p.axis===a?'selected':''}>${a.toUpperCase()}</option>`).join('');
-            return `<tr data-row-point="${escape(p.id)}" class="${p.id===s.selected?'joint-row-selected':''}"><td><button type="button" data-select-point="${escape(p.id)}" class="joint-secondary">P${i+1}</button></td><td>${input('x',p.x,s.plan.length)}</td><td>${input('y',p.y,s.plan.width)}</td><td><select data-point-id="${escape(p.id)}" data-point-field="axis" ${disabled}>${axes}</select></td><td>${p.device?escape(deviceName(p.device)):'Sin asignar'}</td><td><button type="button" data-delete-point="${escape(p.id)}" class="joint-delete-row" ${disabled} aria-label="Eliminar P${i+1}">✕</button></td></tr>`;
+            const input=(field,value,max)=>`<input data-point-id="${escape(p.id)}" data-point-field="${field}" aria-label="${field} de P${i+1}" type="number" inputmode="numeric" step="1" min="0" max="${max}" value="${value}" ${disabled}>`;
+            const options=(items,current)=>items.map(item=>`<option value="${escape(item.value)}" ${item.value===current?'selected':''}>${escape(item.label)}</option>`).join('');
+            const axes=options(['x','y','z'].map(v=>({value:v,label:v.toUpperCase()})),p.axis);
+            const devices=options([{value:'',label:'Sin asignar'},...assignedDevices.map(d=>({value:d.id,label:d.name}))],p.device||'');
+            return `<tr data-row-point="${escape(p.id)}" class="${p.id===s.selected?'joint-row-selected':''}"><td data-label="Punto"><button type="button" data-select-point="${escape(p.id)}" class="joint-secondary">${escape(p.name)}</button></td><td data-label="X (m)">${input('x',p.x,s.plan.length)}</td><td data-label="Y (m)">${input('y',p.y,s.plan.width)}</td><td data-label="Eje"><select data-point-id="${escape(p.id)}" data-point-field="axis" ${disabled}>${axes}</select></td><td data-label="Giro (°)"><input data-point-id="${escape(p.id)}" data-point-field="angle" aria-label="Giro de ${escape(p.name)}" type="number" inputmode="numeric" step="1" min="-360" max="360" value="${p.angle}" ${disabled}></td><td data-label="Móvil"><select data-point-id="${escape(p.id)}" data-point-field="device" ${disabled}>${devices}</select></td><td data-label="Eliminar"><button type="button" data-delete-point="${escape(p.id)}" class="joint-delete-row" ${disabled} aria-label="Eliminar ${escape(p.name)}"><span aria-hidden="true">🗑</span></button></td></tr>`;
         }).join('');
         $('jointMyPoint').textContent=pointFor()?.name||'Sin asignar';
     }
@@ -6709,8 +6712,9 @@ function formatTime(
         const field=e.target.dataset.pointField,id=e.target.dataset.pointId;if(!field||!id)return;
         requireHostEdit();const p=s.plan.points.find(q=>q.id===id);if(!p)return;
         let value=e.target.value;
-        if(field==='x'||field==='y'){if(value.trim()==='')throw Error('Introduce una coordenada.');value=Math.round(Number(value));if(!Number.isFinite(value))throw Error('Coordenada no válida.');}
-        const candidate={...p,[field]:value};s.plan=checkPlan({...s.plan,points:s.plan.points.map(q=>q.id===id?candidate:q)});s.selected=id;savePlan();
+        if(['x','y','angle'].includes(field)){if(value.trim()==='')throw Error('Introduce un valor.');value=Number(value);if(!Number.isFinite(value))throw Error('Valor no válido.');if(field!=='angle')value=Math.round(value);}
+        if(field==='device'){value=value||null;if(value&&s.plan.points.some(q=>q.id!==id&&q.device===value))throw Error('Ese móvil ya está asignado a otro punto.');}
+        const candidate={...p,[field]:value};s.plan=checkPlan({...s.plan,points:s.plan.points.map(q=>q.id===id?candidate:q)});s.selected=id;savePlan();if(field==='device')renderDevices();
     });
     $('jointPlan').addEventListener('keydown',guard(e=>{
         const el=e.target.closest('[data-point]');if(!el)return;
