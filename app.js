@@ -6693,8 +6693,9 @@ function formatTime(
     $('jointResetView').onclick=guard(()=>{requireHostEdit();resetPlanView();});
     $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
     $('jointImportPlan').onchange=guard(async e=>{requireHostEdit();const file=e.target.files[0];if(!file)return;if(file.size>100000)throw Error('El archivo de plano es demasiado grande.');const plan=checkPlan(JSON.parse(await file.text()));plan.points.forEach(p=>p.device=null);s.plan=plan;s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();s.selected=plan.points[0]?.id;savePlan();e.target.value='';tell('Plano importado. Asigna los móviles a los puntos.');});
-    $('jointPointsTable').onclick=guard(e=>{
-        const remove=e.target.closest('[data-delete-point]');if(remove){deletePlanPoint(remove.dataset.deletePoint,true,true);return;}
+    let ignorePointSwipeClickUntil=0;
+    $('jointPointsTable').addEventListener('click',e=>{
+        if(performance.now()<ignorePointSwipeClickUntil){e.preventDefault();e.stopPropagation();}
     });
     $('jointPointsTable').addEventListener('change',guard(e=>{
         const field=e.target.dataset.pointField,row=e.target.closest('[data-point-id]');if(!field||!row)return;
@@ -6702,26 +6703,25 @@ function formatTime(
     }));
     $('jointPointsTable').addEventListener('pointerdown',e=>{
         const row=e.target.closest('.joint-point-row');if(!row||s.role!=='host'||running()||s.transaction)return;
-        const time=performance.now(),initialOffset=0;
-        s.rowSwipe={row,pointerId:e.pointerId,startX:e.clientX,lastX:e.clientX,lastTime:time,velocity:0,offset:initialOffset,moved:false};row.setPointerCapture?.(e.pointerId);
+        const time=performance.now();
+        s.rowSwipe={row,pointerId:e.pointerId,startX:e.clientX,lastX:e.clientX,lastTime:time,velocity:0,offset:0,moved:false};row.setPointerCapture?.(e.pointerId);
     });
     $('jointPointsTable').addEventListener('pointermove',e=>{
         const swipe=s.rowSwipe;if(!swipe||e.pointerId!==swipe.pointerId)return;const time=performance.now(),dx=e.clientX-swipe.startX,dt=Math.max(1,time-swipe.lastTime);
         swipe.velocity=(e.clientX-swipe.lastX)/dt;swipe.lastX=e.clientX;swipe.lastTime=time;
         if(Math.abs(dx)>7)swipe.moved=true;
-        const offset=Math.max(-swipe.row.clientWidth,Math.min(0,swipe.offset+dx));swipe.row.style.transition='none';swipe.row.style.transform=`translate3d(${offset}px,0,0)`;
+        const offset=Math.max(-swipe.row.clientWidth,Math.min(0,dx));swipe.row.style.transition='none';swipe.row.style.transform=`translate3d(${offset}px,0,0)`;
         if(swipe.moved)e.preventDefault();
     });
     for(const event of ['pointerup','pointercancel'])$('jointPointsTable').addEventListener(event,guard(e=>{
         const swipe=s.rowSwipe;if(!swipe||e.pointerId!==swipe.pointerId)return;s.rowSwipe=null;
         const x=Number((swipe.row.style.transform.match(/translate(?:3d|X)\((-?[\d.]+)/)||['','0'])[1]);
-        // Un flick borra de inmediato. Un arrastre lento solo borra al cruzar dos tercios.
+        if(swipe.moved)ignorePointSwipeClickUntil=performance.now()+700;
         const fastLeft=swipe.velocity<-.75&&x<-22;
         const crossedDeleteThreshold=x<=-(swipe.row.clientWidth*2/3);
-        if(event==='pointerup'&&(fastLeft||crossedDeleteThreshold)){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId,true,true);return;
+        if(event==='pointerup'&&(fastLeft||crossedDeleteThreshold)){deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId,true,true);return;}
         swipe.row.style.transition='';
         swipe.row.style.transform='';
-        swipe.row.classList.remove('swipe-open');
     }));
     $('jointPlan').addEventListener('keydown',guard(e=>{
         const el=e.target.closest('[data-point]');if(!el)return;
