@@ -14,7 +14,7 @@
     <title>Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261105-sync-results">
+    <link rel="stylesheet" href="style.css?v=20261107-tabla-v5">
 
     <!-- MapLibre -->
     <link
@@ -744,7 +744,7 @@
                     <div class="joint-plan-wrap"><svg id="jointPlan" viewBox="0 0 800 430" role="group" aria-label="Plano editable: selecciona un punto o pulsa Añadir punto"></svg></div>
                     <p class="joint-help" id="jointPlanHelp">Selecciona y arrastra un punto para moverlo. Toca una zona libre para desplazar la vista; rueda o pellizca para ampliar. Los puntos creados o arrastrados se ajustan a la rejilla de 1 m.</p>
                     <div class="joint-actions" id="jointPlanTools"><button id="jointAddPoint" type="button">Añadir punto</button><button id="jointRemovePoint" type="button" class="joint-secondary">Eliminar seleccionado</button><button id="jointResetView" type="button" class="joint-secondary">Restablecer vista</button><label class="joint-file">Importar plano JSON<input id="jointImportPlan" type="file" accept="application/json,.json"></label></div>
-                    <fieldset id="jointPointEditor"><legend id="jointPointLegend">Punto seleccionado</legend><div class="joint-fields">
+                    <fieldset id="jointPointEditor" hidden><legend id="jointPointLegend">Punto seleccionado</legend><div class="joint-fields">
                         <label>Nombre<input id="jointPointName" maxlength="40"></label>
                         <label>X (m)<input id="jointPointX" type="number" step="0.01" min="0"></label>
                         <label>Y (m)<input id="jointPointY" type="number" step="0.01" min="0"></label>
@@ -836,7 +836,7 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="app.js?v=20261102-joint-common-grid"></script>
+    <script defer src="app.js?v=20261107-tabla-v5"></script>
 
 
 </body>
