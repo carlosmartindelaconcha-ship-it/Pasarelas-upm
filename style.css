@@ -1443,16 +1443,16 @@ body.recording-lock main {
 .joint-warning { font-size: .85rem; background: #fff7df; color: #735315; padding: 12px; border-radius: 6px; }
 .joint-plan-wrap { border: 1px solid #ccdae5; border-radius: 12px; background: #f7fafc; overflow: hidden; box-shadow: inset 0 1px 0 #fff; }
 #jointPlan { width: 100%; height: auto; display: block; min-height: 235px; touch-action: none; user-select: none; }
-#jointPlan text { font-family: Arial, sans-serif; fill: #254762; font-size: 17px; }
-#jointPlan .joint-plan-tick { fill: #55738b; font-size: 17px; }
-#jointPlan .joint-plan-axis { fill: #254762; font-size: 17px; font-weight: 700; }
+#jointPlan text { font-family: Arial, sans-serif; fill: #254762; font-size: 24px; }
+#jointPlan .joint-plan-tick { fill: #4b6981; font-size: 26px; font-weight: 600; }
+#jointPlan .joint-plan-axis { fill: #254762; font-size: 28px; font-weight: 700; }
 #jointPlan .joint-point { cursor: grab; }
 #jointPlan .joint-point:active { cursor: grabbing; }
 #jointPlan .joint-point-hitbox { fill: transparent; stroke: none; pointer-events: all; }
 #jointPlan .joint-phone-body { stroke: #fff; stroke-width: 2px; }
 #jointPlan .joint-point.selected .joint-phone-body,
 #jointPlan .joint-point:focus-visible .joint-phone-body { stroke: #f3a832; stroke-width: 3px; }
-#jointPlan .joint-point-label { fill: #294761; font-size: 16px; font-weight: 600; paint-order: stroke fill; stroke: #f7fafc; stroke-width: 3px; stroke-linejoin: round; }
+#jointPlan .joint-point-label { fill: #294761; font-size: 24px; font-weight: 700; paint-order: stroke fill; stroke: #f7fafc; stroke-width: 3.4px; stroke-linejoin: round; }
 .joint-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; align-items: center; }
 .joint-file { padding: 8px; border: 1px dashed #b4c9dc; border-radius: 6px; }
 .joint-file input { font-size: .78rem; border: 0; padding: 4px; max-width: 210px; }
