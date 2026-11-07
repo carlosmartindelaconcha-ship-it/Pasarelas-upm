@@ -5142,8 +5142,9 @@ function formatTime(
     }
     function geometry(view=planViewport()) {
         // Márgenes reservados para ejes y etiquetas; escala idéntica en X/Y.
-        const scale=Math.min(710/view.w,320/view.h),w=view.w*scale,h=view.h*scale;
-        return {view,scale,left:54+(710-w)/2,top:28+(320-h)/2,w,h};
+        // Reservamos espacio a la derecha del tablero para mostrar siempre las etiquetas.
+        const scale=Math.min(660/view.w,320/view.h),w=view.w*scale,h=view.h*scale;
+        return {view,scale,left:54+(660-w)/2,top:28+(320-h)/2,w,h};
     }
     function niceMetricStep(minimum) {
         const power=10**Math.floor(Math.log10(Math.max(1,minimum))),scaled=minimum/power;
@@ -5153,32 +5154,28 @@ function formatTime(
     function planLabelStep(g) {return niceMetricStep(42/g.scale);}
     function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
-    // Las etiquetas van a la derecha y ligeramente por encima de los teléfonos,
-    // con desplazamiento alternativo si varias quedan demasiado próximas.
+    // Etiquetas siempre a la derecha del móvil, a la altura de su centro.
+    // Se desplazan verticalmente SOLO cuando coinciden con otra etiqueta.
     function pointLabelPlacement(x,y,pointId,placedLabels) {
-        const labelWidth=Math.max(28,String(pointId).length*10);
-        const sides=x+34+labelWidth<=790?
-            [{x:x+34,anchor:'start'},{x:x-34,anchor:'end'}]:
-            [{x:x-34,anchor:'end'},{x:x+34,anchor:'start'}];
-        const offsets=[-14,-37,17,-60,40,63,-83,86,-106];
-        for(const side of sides) {
-            const left=side.anchor==='start'?side.x:side.x-labelWidth;
-            const right=left+labelWidth;
-            if(left<8||right>792)continue;
-            for(const offset of offsets) {
-                const baseline=y+offset;
-                if(baseline<19||baseline>420)continue;
-                const rect={left,top:baseline-17,right,bottom:baseline+3};
-                const overlaps=placedLabels.some(other=>rect.left<other.right+4&&rect.right+4>other.left&&rect.top<other.bottom+4&&rect.bottom+4>other.top);
-                if(!overlaps) {
-                    placedLabels.push(rect);
-                    return {x:side.x,y:baseline,anchor:side.anchor};
-                }
+        const labelX=x+33, labelWidth=Math.max(28,String(pointId).length*10);
+        const preferredY=y+6;
+        const offsets=[0,23,-23,46,-46,69,-69,92,-92,115,-115,138,-138,161,-161,184,-184,207,-207];
+        let best=null,bestOverlap=Infinity;
+        for(const offset of offsets) {
+            const baseline=preferredY+offset;
+            if(baseline<20||baseline>422)continue;
+            const box={left:labelX,top:baseline-17,right:labelX+labelWidth,bottom:baseline+4};
+            const overlaps=placedLabels.reduce((sum,other)=>sum+
+                (box.left<other.right+4&&box.right+4>other.left&&box.top<other.bottom+4&&box.bottom+4>other.top?1:0),0);
+            if(!overlaps) {
+                placedLabels.push(box);
+                return {x:labelX,y:baseline,anchor:'start'};
             }
+            if(overlaps<bestOverlap) {bestOverlap=overlaps;best={box,baseline};}
         }
-        // Caso extremo de alta densidad: priorizar un texto visible dentro del SVG.
-        const side=sides[0],baseline=Math.max(19,Math.min(420,y-14));
-        return {x:side.x,y:baseline,anchor:side.anchor};
+        const baseline=best?best.baseline:Math.max(20,Math.min(422,preferredY));
+        placedLabels.push(best?.box||{left:labelX,top:baseline-17,right:labelX+labelWidth,bottom:baseline+4});
+        return {x:labelX,y:baseline,anchor:'start'};
     }
     function renderPlan() {
         const edit=s.role==='host'&&!running()&&!s.transaction;
@@ -5191,7 +5188,7 @@ function formatTime(
         const firstX=Math.ceil(view.x/gridStep)*gridStep,lastX=Math.floor((view.x+view.w)/gridStep)*gridStep,firstY=Math.ceil(view.y/gridStep)*gridStep,lastY=Math.floor((view.y+view.h)/gridStep)*gridStep;
         for(let x=firstX;x<=lastX;x+=gridStep){const sx=g.left+(x-view.x)*g.scale,label=x%labelStep===0;svg+=`<line x1="${sx}" y1="${g.top}" x2="${sx}" y2="${g.top+g.h}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${sx}" y1="${g.top+g.h}" x2="${sx}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${sx}" y="${g.top+g.h+21}" text-anchor="middle">${x}</text>`;}
         for(let y=firstY;y<=lastY;y+=gridStep){const sy=g.top+(view.y+view.h-y)*g.scale,label=y%labelStep===0;svg+=`<line x1="${g.left}" y1="${sy}" x2="${g.left+g.w}" y2="${sy}" stroke="#aec6d8" stroke-width="1.1"/>`;if(label)svg+=`<line x1="${g.left-6}" y1="${sy}" x2="${g.left}" y2="${sy}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${sy+4}" text-anchor="end">${y}</text>`;}
-        svg+=`<text class="joint-plan-axis" x="400" y="${g.top+g.h+48}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
+        svg+=`<text class="joint-plan-axis" x="${g.left+g.w/2}" y="${g.top+g.h+48}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
         const placedLabels=[];
         for(const p of s.plan.points) {
             // Los puntos fuera de la ventana de zoom no se dibujan, pero los del borde sí.
