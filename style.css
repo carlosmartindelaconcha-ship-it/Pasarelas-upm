@@ -5,6 +5,8 @@
     --vwoma-blue-hover: #1b5d91;
     --vwoma-action: #153963;
     --vwoma-action-hover: #0c2a4e;
+    --vwoma-action-gradient: linear-gradient(105deg, #113460, #205384);
+    --vwoma-action-gradient-hover: linear-gradient(105deg, #0d2d56, #174775);
     --vwoma-ice: #f4f8fc;
     --vwoma-border: #d5e3ef;
     --vwoma-text: #253750;
@@ -40,7 +42,8 @@ body {
 
 header {
 
-    background-color: var(--vwoma-navy);
+    background-color: var(--vwoma-action);
+    background-image: var(--vwoma-action-gradient);
 
     color: white;
 
@@ -1754,11 +1757,65 @@ textarea:focus-visible { outline-color: var(--vwoma-blue); }
    apenas perceptible de la onda VWOMA. Sin alterar tamaño ni disposición. */
 #mainMenu > button {
     background-color: var(--vwoma-action);
-    background-image: linear-gradient(105deg, #113460, #205384);
+    background-image: var(--vwoma-action-gradient);
     color: #ffffff;
 }
 #mainMenu > button:hover,
 #mainMenu > button:focus-visible {
     background-color: var(--vwoma-action-hover);
-    background-image: linear-gradient(105deg, #0d2d56, #174775);
+    background-image: var(--vwoma-action-gradient-hover);
+}
+
+/* =========================================================
+   UNIFICACIÓN DE BOTONES Y CABECERA VWOMA
+   Solo los antiguos botones de acción azules adoptan el mismo
+   degradado que el menú. Excluidos gestos, alertas, sensores y
+   controles con colores semánticos.
+   ========================================================= */
+main button:not(:where(
+    .recording,
+    .secondary-button,
+    .location-button-active,
+    .chart-control,
+    .joint-secondary,
+    .joint-danger,
+    .joint-axis-x,
+    .joint-axis-y,
+    .joint-axis-z,
+    .joint-point-delete,
+    .maplibregl-ctrl-icon,
+    [role="tab"]
+)) {
+    background-color: var(--vwoma-action);
+    background-image: var(--vwoma-action-gradient);
+    color: #fff;
+}
+main button:not(:where(
+    .recording,
+    .secondary-button,
+    .location-button-active,
+    .chart-control,
+    .joint-secondary,
+    .joint-danger,
+    .joint-axis-x,
+    .joint-axis-y,
+    .joint-axis-z,
+    .joint-point-delete,
+    .maplibregl-ctrl-icon,
+    [role="tab"]
+)):hover {
+    background-color: var(--vwoma-action-hover);
+    background-image: var(--vwoma-action-gradient-hover);
+}
+.photo-button {
+    background-color: var(--vwoma-action);
+    background-image: var(--vwoma-action-gradient);
+}
+.photo-button:hover {
+    background-color: var(--vwoma-action-hover);
+    background-image: var(--vwoma-action-gradient-hover);
+}
+.joint-tabs button[aria-selected="true"] {
+    background: var(--vwoma-action-gradient);
+    color: #fff;
 }
