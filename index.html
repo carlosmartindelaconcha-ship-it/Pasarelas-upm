@@ -33,7 +33,7 @@
     </script>
 
     <link rel="stylesheet" href="vwoma-identity.css?v=20261108-identity-v1">
-    <link rel="stylesheet" href="vwoma-i18n.css?v=20261108-flag-fit-v8">
+    <link rel="stylesheet" href="vwoma-i18n.css?v=20261108-mobile-header-v9">
     <meta name="theme-color" content="#ffffff">
 </head>
 
@@ -45,7 +45,7 @@
          CABECERA
          ===================================================== -->
 
-    <header><div class="vwoma-brand-stack"><h1 class="vwoma-brand-title"><button id="vwomaBrandRefresh" class="vwoma-brand-refresh" type="button" aria-label="Doble toque para recargar VWOMA" title="Doble toque para recargar"><img class="vwoma-logo" src="assets/brand/vwoma-logo.webp" width="1446" height="374" alt="VWOMA" decoding="async"></button></h1></div><p class="vwoma-brand-context">PASARELAS UPM<span>Aprendizaje y Servicio</span></p><p class="vwoma-brand-description" data-no-i18n="true"><strong class="vwoma-acronym-initial">V</strong>ibration <strong class="vwoma-acronym-initial">W</strong>eb for <strong class="vwoma-acronym-initial">O</strong>perational <strong class="vwoma-acronym-initial">M</strong>odal <strong class="vwoma-acronym-initial">A</strong>nalysis<span class="vwoma-brand-tagline">Learning Experience</span></p></header>
+    <header><div class="vwoma-brand-stack"><h1 class="vwoma-brand-title"><button id="vwomaBrandRefresh" class="vwoma-brand-refresh" type="button" aria-label="Doble toque para recargar VWOMA" title="Doble toque para recargar"><img class="vwoma-logo" src="assets/brand/vwoma-logo.webp" width="1446" height="374" alt="VWOMA" decoding="async"></button></h1></div><p class="vwoma-brand-context">PASARELAS UPM<span>Aprendizaje y Servicio</span></p><p class="vwoma-brand-description" data-no-i18n="true"><span class="vwoma-brand-name"><strong class="vwoma-acronym-initial">V</strong>ibration <strong class="vwoma-acronym-initial">W</strong>eb for <strong class="vwoma-acronym-initial">O</strong>perational <strong class="vwoma-acronym-initial">M</strong>odal <strong class="vwoma-acronym-initial">A</strong>nalysis</span><span class="vwoma-brand-tagline">Learning Experience</span></p></header>
 
 
     <!-- =====================================================
@@ -807,7 +807,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <script defer src="app.js?v=20261108-native-scroll-snap-delete-v5"></script>
-    <script defer src="vwoma-i18n.js?v=20261108-flag-fit-v8"></script>
+    <script defer src="vwoma-i18n.js?v=20261108-mobile-header-v9"></script>
 
 
 
@@ -827,26 +827,24 @@
           }
         });
 
-        // Fit the complete first line to the actual portrait viewport width
-        // without wrapping, changing only header typography (not app state).
+        // Measure the actual text line so it fills the available width.
+        // No font-size ceiling at 19px and no parent scrollWidth side effects.
         const heading = document.querySelector('.vwoma-brand-description');
-        if (heading) {
+        const fullName = heading?.querySelector('.vwoma-brand-name');
+        if (heading && fullName) {
           let frame = 0;
+          let lastWidth = 0;
           const fit = () => {
-            const width = heading.clientWidth;
-            if (!width) return;
-            const max = window.innerWidth <= 720 ? 19 : 24;
-            const min = 9.5;
-            heading.style.fontSize = max + 'px';
-            if (heading.scrollWidth <= width - 2) return;
-            let low = min, high = max;
-            for (let i = 0; i < 13; i++) {
-              const mid = (low + high) / 2;
-              heading.style.fontSize = mid + 'px';
-              if (heading.scrollWidth <= width - 2) low = mid;
-              else high = mid;
-            }
-            heading.style.fontSize = Math.max(min, low - 0.12).toFixed(2) + 'px';
+            const width = heading.getBoundingClientRect().width;
+            if (width < 100) return;
+            lastWidth = width;
+            const maxSize = 40;
+            const available = width - 4;
+            fullName.style.fontSize = maxSize + 'px';
+            const natural = fullName.getBoundingClientRect().width;
+            if (!(natural > 0)) return;
+            const fitted = Math.min(maxSize, maxSize * available / natural);
+            fullName.style.fontSize = Math.max(9, fitted - 0.14).toFixed(2) + 'px';
           };
           const queueFit = () => {
             if (frame) cancelAnimationFrame(frame);
@@ -855,8 +853,12 @@
           queueFit();
           window.addEventListener('resize', queueFit, {passive:true});
           window.addEventListener('orientationchange', queueFit, {passive:true});
+          window.addEventListener('pageshow', queueFit);
           if (document.fonts?.ready) document.fonts.ready.then(queueFit).catch(() => {});
-          if (window.ResizeObserver) new ResizeObserver(queueFit).observe(heading);
+          if (window.ResizeObserver) new ResizeObserver(() => {
+            const width = heading.getBoundingClientRect().width;
+            if (Math.abs(width - lastWidth) > 0.5) queueFit();
+          }).observe(heading);
         }
       })();
     </script>

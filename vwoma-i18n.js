@@ -8,7 +8,12 @@
     es: 'Español', en: 'English', fr: 'Français',
     it: 'Italiano', de: 'Deutsch', pt: 'Português'
   };
-  const flagEmoji = Object.freeze({es:'🇪🇸',en:'🇬🇧',fr:'🇫🇷',it:'🇮🇹',de:'🇩🇪',pt:'🇵🇹'});
+  // Same-origin vector flags: native emoji/select rendering crops on mobile browsers.
+  const flagFiles = Object.freeze({
+    es:'assets/flags/es.svg', en:'assets/flags/gb.svg',
+    fr:'assets/flags/fr.svg', it:'assets/flags/it.svg',
+    de:'assets/flags/de.svg', pt:'assets/flags/pt.svg'
+  });
   const languageLabel = {
     es: 'Idioma', en: 'Language', fr: 'Langue',
     it: 'Lingua', de: 'Sprache', pt: 'Idioma'
@@ -211,14 +216,15 @@
     const next = SUPPORTED.includes(value) ? value : 'es';
     current = next;
     document.documentElement.lang = next;
-    if (picker && picker.value !== next) picker.value = next;
     if (picker) {
+      const icon = picker.querySelector('.vwoma-flag-icon');
+      if (icon) icon.src = flagFiles[next];
       picker.setAttribute('aria-label', languageLabel[next] + ': ' + nativeNames[next]);
-      picker.title = languageLabel[next] + ': ' + nativeNames[next];
-      // The closed native picker is visually transparent. Render the selected
-      // flag in a normal inline element so iOS/Android cannot crop the emoji.
-      const visibleFlag = picker.parentElement?.querySelector('.vwoma-language-current-flag');
-      if (visibleFlag) visibleFlag.textContent = flagEmoji[next];
+      picker.title = nativeNames[next];
+      const menu = picker.parentElement?.querySelector('.vwoma-language-menu');
+      for (const option of menu?.querySelectorAll('.vwoma-language-choice') || []) {
+        option.setAttribute('aria-checked', String(option.dataset.language === next));
+      }
     }
     if (save) storeLanguage(next);
     if (document.body) visit(document.body);
@@ -235,25 +241,101 @@
   function makePicker() {
     const header = document.querySelector('body.vwoma-brand > header');
     if (!header || header.querySelector('#vwomaLanguage')) return;
-    const label = document.createElement('label');
-    label.className = 'vwoma-language-picker';
-    label.setAttribute('data-no-i18n','');
-    label.innerHTML = '<span class="vwoma-language-current-flag" aria-hidden="true"></span>' +
-      '<select id="vwomaLanguage" aria-label="Idioma"></select>';
-    picker = label.querySelector('select');
+    const wrap = document.createElement('div');
+    wrap.className = 'vwoma-language-picker';
+    wrap.setAttribute('data-no-i18n','');
+    const trigger = document.createElement('button');
+    trigger.id = 'vwomaLanguage';
+    trigger.type = 'button';
+    trigger.className = 'vwoma-language-trigger';
+    trigger.setAttribute('aria-haspopup','menu');
+    trigger.setAttribute('aria-expanded','false');
+    trigger.setAttribute('aria-controls','vwomaLanguageMenu');
+    const selectedFlag = document.createElement('img');
+    selectedFlag.className = 'vwoma-flag-icon';
+    selectedFlag.src = flagFiles[current];
+    selectedFlag.alt = '';
+    selectedFlag.width = 34;
+    selectedFlag.height = 26;
+    selectedFlag.draggable = false;
+    trigger.appendChild(selectedFlag);
+    const menu = document.createElement('div');
+    menu.id = 'vwomaLanguageMenu';
+    menu.className = 'vwoma-language-menu';
+    menu.setAttribute('role','menu');
+    menu.setAttribute('aria-label','Languages');
+    menu.hidden = true;
     for (const code of SUPPORTED) {
-      const option = document.createElement('option');
-      option.value = code;
-      // Native select keeps a single visible flag; accessible name preserves the language.
-      option.textContent = flagEmoji[code];
-      option.setAttribute('aria-label', nativeNames[code]);
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'vwoma-language-choice';
+      option.dataset.language = code;
+      option.setAttribute('role','menuitemradio');
+      option.setAttribute('aria-label',nativeNames[code]);
+      option.setAttribute('aria-checked',String(code === current));
       option.title = nativeNames[code];
-      picker.appendChild(option);
+      const flag = document.createElement('img');
+      flag.className = 'vwoma-flag-icon';
+      flag.src = flagFiles[code];
+      flag.alt = '';
+      flag.width = 34;
+      flag.height = 26;
+      flag.draggable = false;
+      option.appendChild(flag);
+      option.addEventListener('click',() => {
+        setLanguage(code);
+        close();
+        trigger.focus({preventScroll:true});
+      });
+      menu.appendChild(option);
     }
-    picker.value = current;
-    label.querySelector('.vwoma-language-current-flag').textContent = flagEmoji[current];
-    picker.addEventListener('change', () => setLanguage(picker.value));
-    header.appendChild(label);
+    const close = () => {
+      menu.hidden = true;
+      trigger.setAttribute('aria-expanded','false');
+    };
+    const open = () => {
+      menu.hidden = false;
+      trigger.setAttribute('aria-expanded','true');
+    };
+    trigger.addEventListener('click',() => {
+      if (menu.hidden) open();
+      else close();
+    });
+    trigger.addEventListener('keydown',event => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        open();
+        menu.querySelector('[aria-checked="true"]')?.focus();
+      }
+    });
+    menu.addEventListener('keydown',event => {
+      const options = [...menu.querySelectorAll('.vwoma-language-choice')];
+      const index = options.indexOf(document.activeElement);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close();
+        trigger.focus({preventScroll:true});
+      } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        options[(index + 1) % options.length].focus();
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        options[(index + options.length - 1) % options.length].focus();
+      }
+    });
+    document.addEventListener('pointerdown',event => {
+      if (!wrap.contains(event.target)) close();
+    },{passive:true});
+    document.addEventListener('keydown',event => {
+      if (event.key === 'Escape' && !menu.hidden) {
+        close();
+        trigger.focus({preventScroll:true});
+      }
+    });
+    picker = trigger;
+    wrap.appendChild(trigger);
+    wrap.appendChild(menu);
+    header.appendChild(wrap);
   }
   function observe() {
     observer = new MutationObserver(records => {
