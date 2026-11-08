@@ -213,8 +213,8 @@
     document.documentElement.lang = next;
     if (picker && picker.value !== next) picker.value = next;
     if (picker) {
-      picker.setAttribute('aria-label', languageLabel[next]);
-      picker.title = languageLabel[next];
+      picker.setAttribute('aria-label', languageLabel[next] + ': ' + nativeNames[next]);
+      picker.title = languageLabel[next] + ': ' + nativeNames[next];
     }
     if (save) storeLanguage(next);
     if (document.body) visit(document.body);
@@ -239,7 +239,10 @@
     for (const code of SUPPORTED) {
       const option = document.createElement('option');
       option.value = code;
-      option.textContent = flagEmoji[code] + ' ' + nativeNames[code];
+      // Native select keeps a single visible flag; accessible name preserves the language.
+      option.textContent = flagEmoji[code];
+      option.setAttribute('aria-label', nativeNames[code]);
+      option.title = nativeNames[code];
       picker.appendChild(option);
     }
     picker.value = current;

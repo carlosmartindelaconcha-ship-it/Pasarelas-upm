@@ -185,3 +185,26 @@ body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-tagline {
     font-size: clamp(10.6px, 3.5vw, 12px);
   }
 }
+
+/* v6 — compact flag-only selector; native picker and accessible names retained. */
+body.vwoma-brand > header .vwoma-language-picker {
+  padding: 3px 4px;
+}
+body.vwoma-brand > header #vwomaLanguage {
+  width: 55px;
+  min-width: 55px;
+  max-width: 55px;
+  min-height: 40px;
+  padding: 2px 16px 2px 5px;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 19px;
+  line-height: 1.2;
+}
+@media (max-width: 359px) {
+  body.vwoma-brand > header #vwomaLanguage {
+    width: 53px;
+    min-width: 53px;
+    max-width: 53px;
+    font-size: 18px;
+  }
+}
