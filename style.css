@@ -1640,3 +1640,110 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
     .joint-actions button { flex: 1; }
     #jointPlan { min-height: 170px; }
 }
+
+/* =========================================================
+   IDENTIDAD VWOMA: ajuste cromático global
+   Sin modificaciones de estructura, tamaños, gestos o funcionalidad.
+   Mantener colores funcionales X/Y/Z, grabación, alertas y borrado.
+   ========================================================= */
+:root {
+    --vwoma-panel: #edf4fb;
+    --vwoma-panel-soft: #f7faff;
+    --vwoma-stroke: #c9dceb;
+    --vwoma-muted: #526d87;
+}
+
+/* Superficies y jerarquía */
+body { background-color: #edf3f9; }
+header p { color: #dceafa; }
+main .welcome-card,
+main .menu-card {
+    background-color: #ffffff;
+    box-shadow: 0 4px 12px rgba(7,29,84,.09), inset 0 0 0 1px rgba(38,115,171,.17);
+}
+main h2,
+main h3,
+main h4 { color: var(--vwoma-navy); }
+.welcome-card > p,
+#mainMenu > p { color: #4a6580; }
+.field-label,
+.structural-fields .field-label,
+.damage-fieldset legend { color: #25466d; }
+.sensor-panel span,
+.test-info span,
+.live-value small,
+footer { color: var(--vwoma-muted); }
+
+/* Fondos antiguos gris neutro -> azul hielo del logotipo */
+.photo-instructions,
+.sensor-panel div,
+.live-value,
+.test-info div { background-color: var(--vwoma-panel); }
+.chart-card { background-color: #fcfdff; border-color: var(--vwoma-stroke); }
+#spectrumPanel,
+#psdPanel,
+#rmsPanel { border-top-color: var(--vwoma-border); }
+.chart-control {
+    background-color: #e5f0fa;
+    border-color: #c1d6e8;
+    color: #1d4d77;
+}
+.chart-control:hover {
+    background-color: #d7e8f6;
+    color: #173e65;
+}
+
+/* Formularios, sin tocar dimensiones ni validación */
+.photo-title-input,
+.structural-fields input,
+.structural-fields select,
+#testDescription { color: var(--vwoma-text); border-color: #b9cfe2; }
+.damage-fieldset { border-color: var(--vwoma-border); }
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible { outline-color: var(--vwoma-blue); }
+
+/* Acciones secundarias (las principales conservan su azul) */
+.secondary-button {
+    background-color: #dfeefa;
+    color: #204d76;
+    box-shadow: inset 0 0 0 1px #bfd5e8;
+}
+.secondary-button:hover {
+    background-color: #cfe3f3;
+    color: #153d64;
+}
+
+/* Ensayo multipunto: misma composición, superficies más cohesionadas */
+.joint-app .joint-secondary {
+    background: #e0effa;
+    color: #204d76;
+    border-color: #bfd5e8;
+}
+.joint-app .joint-secondary:hover {
+    background: #cfe4f4;
+    color: #153d64;
+}
+.joint-options article,
+.joint-device-card {
+    background: var(--vwoma-panel-soft);
+    border-color: var(--vwoma-stroke);
+}
+.joint-tabs button {
+    background: #e3eff9;
+    color: #2c567d;
+}
+.joint-tabs button[aria-selected="true"] {
+    background: var(--vwoma-blue);
+    color: #ffffff;
+}
+.joint-points-head { background: #eaf3fb; }
+.joint-points-table th { background: #e2eff9; color: #365978; }
+.joint-help,
+.joint-device-card small { color: var(--vwoma-muted); }
+.joint-calibration,
+.joint-physical-sync,
+.joint-sync-results { background: var(--vwoma-panel-soft); }
+.joint-sync-card,
+.joint-rtt-figure { border-color: var(--vwoma-stroke); }
+.joint-measurement-chart { border-color: var(--vwoma-stroke); }
