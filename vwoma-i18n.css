@@ -41,3 +41,49 @@ body.vwoma-brand.recording-lock > header .vwoma-language-picker { display: none;
   body.vwoma-brand > header #vwomaLanguage {min-width: 88px; max-width: 108px; font-size: 11px;}
   body.vwoma-brand:not(.recording-lock) > header .vwoma-language-picker {padding: 3px 4px;gap: 3px;}
 }
+/* VWOMA brand meaning, permanently visible underneath the unaltered logo. */
+body.vwoma-brand > header .vwoma-brand-stack {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+body.vwoma-brand > header .vwoma-brand-description {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  max-width: 440px;
+  color: #4c6278;
+  font: 500 11.5px/1.42 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+  text-align: left;
+  text-wrap: pretty;
+}
+body.vwoma-brand > header .vwoma-brand-tagline {
+  display: block;
+  color: #2673ab;
+  font-weight: 550;
+}
+body.vwoma-brand > header .vwoma-language-icon {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 19px;
+  line-height: 1;
+}
+body.vwoma-brand > header #vwomaLanguage {
+  max-width: 151px;
+}
+@media (max-width: 720px) {
+  body.vwoma-brand:not(.recording-lock) > header { gap: 11px; align-items: flex-start; }
+  body.vwoma-brand > header .vwoma-logo { width: min(160px, 100%); }
+  body.vwoma-brand > header .vwoma-brand-description { font-size: 10.5px; line-height: 1.43; }
+  body.vwoma-brand > header .vwoma-language-picker { margin-top: 1px; }
+}
+@media (max-width: 359px) {
+  body.vwoma-brand:not(.recording-lock) > header { gap: 7px; }
+  body.vwoma-brand > header .vwoma-logo { width: min(140px, 100%); }
+  body.vwoma-brand > header .vwoma-brand-description { font-size: 10px; }
+  body.vwoma-brand > header .vwoma-language-icon { font-size: 17px; }
+  body.vwoma-brand > header #vwomaLanguage { min-width: 78px; max-width: 99px; }
+}

@@ -8,6 +8,7 @@
     es: 'Español', en: 'English', fr: 'Français',
     it: 'Italiano', de: 'Deutsch', pt: 'Português'
   };
+  const flagEmoji = Object.freeze({es:'🇪🇸',en:'🇬🇧',fr:'🇫🇷',it:'🇮🇹',de:'🇩🇪',pt:'🇵🇹'});
   const languageLabel = {
     es: 'Idioma', en: 'Language', fr: 'Langue',
     it: 'Lingua', de: 'Sprache', pt: 'Idioma'
@@ -189,6 +190,8 @@
     current = next;
     document.documentElement.lang = next;
     if (picker && picker.value !== next) picker.value = next;
+    const activeFlag = picker?.closest('.vwoma-language-picker')?.querySelector('.vwoma-language-icon');
+    if (activeFlag) activeFlag.textContent = flagEmoji[next];
     if (picker) {
       picker.setAttribute('aria-label', languageLabel[next]);
       picker.title = languageLabel[next];
@@ -211,16 +214,17 @@
     const label = document.createElement('label');
     label.className = 'vwoma-language-picker';
     label.setAttribute('data-no-i18n','');
-    label.innerHTML = '<span class="vwoma-language-icon" aria-hidden="true">🌐</span>' +
+    label.innerHTML = '<span class="vwoma-language-icon" aria-hidden="true">🇪🇸</span>' +
       '<select id="vwomaLanguage" aria-label="Idioma"></select>';
     picker = label.querySelector('select');
     for (const code of SUPPORTED) {
       const option = document.createElement('option');
       option.value = code;
-      option.textContent = nativeNames[code];
+      option.textContent = flagEmoji[code] + ' ' + nativeNames[code];
       picker.appendChild(option);
     }
     picker.value = current;
+    label.querySelector('.vwoma-language-icon').textContent = flagEmoji[current];
     picker.addEventListener('change', () => setLanguage(picker.value));
     header.appendChild(label);
   }
