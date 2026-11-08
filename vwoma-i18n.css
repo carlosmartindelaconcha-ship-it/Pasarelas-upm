@@ -102,8 +102,8 @@ body.vwoma-brand > header .vwoma-language-picker {
   position: relative;
   display: block;
   box-sizing: border-box;
-  width: 58px;
-  height: 44px;
+  width: 48px;
+  height: 36px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -114,14 +114,14 @@ body.vwoma-brand > header .vwoma-language-trigger {
   box-sizing: border-box;
   align-items: center;
   justify-content: flex-start;
-  gap: 3px;
-  width: 58px;
-  height: 44px;
-  min-height: 44px;
+  gap: 2px;
+  width: 48px;
+  height: 36px;
+  min-height: 36px;
   margin: 0;
-  padding: 0 7px;
+  padding: 0 6px;
   border: 1px solid #d7e3ee;
-  border-radius: 10px;
+  border-radius: 8px;
   color: #193d64;
   background: #f7fafc;
   background-image: none;
@@ -137,10 +137,10 @@ body.vwoma-brand > header .vwoma-language-trigger:hover {
 }
 body.vwoma-brand > header .vwoma-language-trigger::after {
   content: "";
-  flex: 0 0 5px;
-  width: 5px;
-  height: 5px;
-  margin: -3px 0 0 1px;
+  flex: 0 0 4px;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 1px;
   border-right: 1.5px solid #385d80;
   border-bottom: 1.5px solid #385d80;
   transform: rotate(45deg);
@@ -160,11 +160,11 @@ body.vwoma-brand > header .vwoma-flag-icon {
 }
 /* The opened flag grid keeps the larger icons for easy selection. */
 body.vwoma-brand > header .vwoma-language-trigger .vwoma-flag-icon {
-  flex-basis: 31px;
-  width: 31px;
-  min-width: 31px;
-  height: 24px;
-  min-height: 24px;
+  flex-basis: 26px;
+  width: 26px;
+  min-width: 26px;
+  height: 20px;
+  min-height: 20px;
 }
 body.vwoma-brand > header .vwoma-language-menu {
   position: absolute;
