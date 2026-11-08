@@ -1,0 +1,43 @@
+/* Language selector: intentionally outside the acquisition and point-row controls. */
+body.vwoma-brand > header .vwoma-language-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex: 0 0 auto;
+  margin: 0 0 0 3px;
+  padding: 4px 6px 4px 8px;
+  border: 1px solid #d7e3ee;
+  background: #f7fafc;
+  border-radius: 9px;
+  color: #193d64;
+  font: 600 12px/1.3 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+body.vwoma-brand > header .vwoma-language-icon {font-size: 15px; line-height: 1;}
+body.vwoma-brand > header #vwomaLanguage {
+  width: auto;
+  max-width: 135px;
+  min-width: 100px;
+  min-height: 34px;
+  margin: 0;
+  padding: 3px 21px 3px 2px;
+  border: 0;
+  outline-offset: 3px;
+  background: transparent;
+  color: #193d64;
+  font: inherit;
+  cursor: pointer;
+  -webkit-appearance: menulist;
+  appearance: auto;
+}
+body.vwoma-brand > header #vwomaLanguage:focus-visible {outline: 2px solid #2673ab; border-radius: 4px;}
+body.vwoma-brand.recording-lock > header .vwoma-language-picker { display: none; }
+@media (max-width: 720px) {
+  body.vwoma-brand:not(.recording-lock) > header {flex-wrap: nowrap;}
+  body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-context {display: none;}
+  body.vwoma-brand:not(.recording-lock) > header .vwoma-language-picker {margin-left:auto;}
+}
+@media (max-width: 359px) {
+  body.vwoma-brand > header #vwomaLanguage {min-width: 88px; max-width: 108px; font-size: 11px;}
+  body.vwoma-brand:not(.recording-lock) > header .vwoma-language-picker {padding: 3px 4px;gap: 3px;}
+}
