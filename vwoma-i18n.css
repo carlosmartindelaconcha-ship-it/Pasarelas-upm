@@ -208,3 +208,12 @@ body.vwoma-brand > header #vwomaLanguage {
     font-size: 18px;
   }
 }
+
+/* v7 — accentuate the V·W·O·M·A initials in the expanded name. */
+body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-description .vwoma-acronym-initial {
+  display: inline;
+  font-size: 1.18em;
+  font-weight: 850;
+  color: #0b2050;
+  letter-spacing: -.035em;
+}
