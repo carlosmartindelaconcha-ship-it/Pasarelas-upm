@@ -33,7 +33,7 @@
     </script>
 
     <link rel="stylesheet" href="vwoma-identity.css?v=20261108-identity-v1">
-    <link rel="stylesheet" href="vwoma-i18n.css?v=20261108-subtitle-large-v4">
+    <link rel="stylesheet" href="vwoma-i18n.css?v=20261108-brand-inline-v5">
     <meta name="theme-color" content="#ffffff">
 </head>
 
@@ -45,7 +45,7 @@
          CABECERA
          ===================================================== -->
 
-    <header><div class="vwoma-brand-stack"><h1 class="vwoma-brand-title"><img class="vwoma-logo" src="assets/brand/vwoma-logo.webp" width="1446" height="374" alt="VWOMA" decoding="async"></h1></div><p class="vwoma-brand-context">PASARELAS UPM<span>Aprendizaje y Servicio</span></p><p class="vwoma-brand-description" data-no-i18n="true">Vibration Web for Operational Modal Analysis<span class="vwoma-brand-tagline">Learning Experience</span></p></header>
+    <header><div class="vwoma-brand-stack"><h1 class="vwoma-brand-title"><button id="vwomaBrandRefresh" class="vwoma-brand-refresh" type="button" aria-label="Doble toque para recargar VWOMA" title="Doble toque para recargar"><img class="vwoma-logo" src="assets/brand/vwoma-logo.webp" width="1446" height="374" alt="VWOMA" decoding="async"></button></h1></div><p class="vwoma-brand-context">PASARELAS UPM<span>Aprendizaje y Servicio</span></p><p class="vwoma-brand-description" data-no-i18n="true">Vibration Web for Operational Modal Analysis<span class="vwoma-brand-tagline">Learning Experience</span></p></header>
 
 
     <!-- =====================================================
@@ -810,6 +810,24 @@
     <script defer src="vwoma-i18n.js?v=20261108-clean-icons-v3"></script>
 
 
+
+    <!-- Un doble clic o doble toque sobre el logo recarga la página. -->
+    <script>
+      (() => {
+        const logo = document.getElementById('vwomaBrandRefresh');
+        if (!logo) return;
+        let lastTap = 0;
+        logo.addEventListener('click', (event) => {
+          const now = performance.now();
+          if (event.detail >= 2 || (lastTap > 0 && now - lastTap <= 430)) {
+            event.preventDefault();
+            window.location.reload();
+          } else {
+            lastTap = now;
+          }
+        });
+      })();
+    </script>
 </body>
 
 </html>

@@ -120,3 +120,68 @@ body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-tagline {
     font-size: 16px;
   }
 }
+
+/* Header v5: larger original VWOMA mark; two exact text lines. */
+body.vwoma-brand > header .vwoma-brand-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  border: 0;
+  border-radius: 5px;
+  appearance: none;
+  -webkit-appearance: none;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+body.vwoma-brand > header .vwoma-brand-refresh:hover,
+body.vwoma-brand > header .vwoma-brand-refresh:active {
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+body.vwoma-brand > header .vwoma-brand-refresh:focus-visible {
+  outline: 2px solid #2673ab;
+  outline-offset: 4px;
+}
+body.vwoma-brand:not(.recording-lock) > header .vwoma-logo {
+  width: 286px;
+  max-width: 100%;
+  height: auto;
+}
+body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-description {
+  white-space: nowrap;
+  font-size: clamp(17px, 2.25vw, 24px);
+  letter-spacing: -.025em;
+}
+body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-tagline {
+  display: block;
+  white-space: nowrap;
+  letter-spacing: normal;
+}
+@media (max-width: 720px) {
+  body.vwoma-brand:not(.recording-lock) > header .vwoma-logo {
+    width: 235px;
+    max-width: 100%;
+  }
+  body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-description {
+    font-size: clamp(11.8px, 3.4vw, 17px);
+  }
+}
+@media (max-width: 359px) {
+  body.vwoma-brand:not(.recording-lock) > header .vwoma-logo {
+    width: 214px;
+    max-width: 100%;
+  }
+  body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-description {
+    font-size: clamp(10.6px, 3.5vw, 12px);
+  }
+}
