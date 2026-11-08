@@ -1,0 +1,385 @@
+/* VWOMA visual layer. The measurement code and all gesture rules stay untouched. */
+body.vwoma-brand {
+    --vwoma-ink: #102b4c;
+    --vwoma-navy: #0b2050;
+    --vwoma-action: #153963;
+    --vwoma-action-hover: #102d50;
+    --vwoma-action-gradient: linear-gradient(110deg, #13355e, #205384);
+    --vwoma-wave: #2673ab;
+    --vwoma-canvas: #f4f7fa;
+    --vwoma-surface: #ffffff;
+    --vwoma-line: #dce5ee;
+    --vwoma-soft: #edf4fa;
+    --vwoma-muted: #586b80;
+    --vwoma-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--vwoma-canvas);
+    color: var(--vwoma-ink);
+    font-family: var(--vwoma-font);
+    -webkit-font-smoothing: antialiased;
+}
+body.vwoma-brand:not(.recording-lock) > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 19px max(22px, calc((100% - 900px) / 2));
+    background: #fff;
+    border-bottom: 1px solid var(--vwoma-line);
+    color: var(--vwoma-ink);
+    text-align: left;
+    box-shadow: none;
+}
+body.vwoma-brand header .vwoma-brand-title {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0;
+    font-size: 0;
+    line-height: 0;
+}
+.vwoma-brand .vwoma-logo {
+    display: block;
+    width: 186px;
+    height: auto;
+    max-width: 100%;
+}
+body.vwoma-brand header p.vwoma-brand-context {
+    margin: 0;
+    padding-left: 18px;
+    border-left: 1px solid #e2eaf1;
+    color: #2a4667;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.55;
+    letter-spacing: .075em;
+    text-align: right;
+}
+.vwoma-brand .vwoma-brand-context span {
+    display: block;
+    color: #61748a;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+body.vwoma-brand:not(.recording-lock) main {
+    max-width: 900px;
+    margin: 26px auto;
+    padding: 0 18px;
+}
+body.vwoma-brand main :is(.welcome-card, .menu-card) {
+    background: #fff;
+    box-shadow: 0 7px 26px rgba(20, 47, 81, .045), inset 0 0 0 1px #e0e8f0;
+    border-radius: 17px;
+}
+body.vwoma-brand main :is(h2,h3,h4) { color: var(--vwoma-ink); }
+body.vwoma-brand:not(.recording-lock) main :is(.welcome-card, #mainMenu) {
+    padding: 27px;
+    text-align: left;
+}
+.vwoma-brand :is(.welcome-card, #mainMenu) > h2 {
+    margin: 7px 0 9px;
+    font-size: 26px;
+    line-height: 1.22;
+    font-weight: 720;
+    letter-spacing: -.025em;
+}
+.vwoma-brand .vwoma-eyebrow {
+    margin: 0 0 9px;
+    color: #426d96;
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1.5;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+}
+.vwoma-brand .vwoma-lead,
+.vwoma-brand .welcome-card > p:not(.vwoma-eyebrow) {
+    margin: 0 0 21px;
+    max-width: 62ch;
+    color: var(--vwoma-muted);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.6;
+}
+.vwoma-brand :is(button, .photo-button) { font-family: var(--vwoma-font); }
+.vwoma-brand :is(button,.photo-button).vwoma-action {
+    background: var(--vwoma-action-gradient);
+    color: #fff;
+    border-radius: 10px;
+    font-weight: 600;
+    box-shadow: none;
+    transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+.vwoma-brand :is(button,.photo-button).vwoma-action:hover {
+    background: var(--vwoma-action-hover);
+    color: #fff;
+}
+.vwoma-brand :is(button,.photo-button).vwoma-action:disabled {
+    opacity: .48;
+    cursor: not-allowed;
+}
+.vwoma-brand :is(.secondary-button,.joint-secondary) {
+    background: #f0f5fa;
+    background-image: none;
+    color: #254e75;
+    border-color: #d6e3ef;
+    box-shadow: inset 0 0 0 1px #d6e3ef;
+}
+.vwoma-brand :is(.secondary-button,.joint-secondary):hover {
+    background: #e5eef7;
+    background-image: none;
+    color: #153963;
+}
+.vwoma-brand button[data-vwoma-icon]::before,
+.vwoma-brand .photo-button[data-vwoma-icon]::before {
+    content: "";
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    margin-inline-end: 8px;
+    vertical-align: -3px;
+    background: currentColor;
+    -webkit-mask: var(--vwoma-icon) center / contain no-repeat;
+    mask: var(--vwoma-icon) center / contain no-repeat;
+    pointer-events: none;
+}
+.vwoma-brand .joint-app button[data-vwoma-icon]::before { margin-inline-end: 1px; }
+/* Existing menu options, same order and same IDs. */
+body.vwoma-brand #mainMenu > button.vwoma-menu-action {
+    display: block;
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 11px 0 0;
+    padding: 16px 38px 16px 61px;
+    min-height: 81px;
+    background: #fff;
+    background-image: none;
+    color: var(--vwoma-ink);
+    text-align: left;
+    border: 1px solid #dce5ee;
+    border-radius: 12px;
+    box-shadow: none;
+}
+body.vwoma-brand #mainMenu > button.vwoma-menu-action:hover {
+    background: #f5f8fc;
+    border-color: #b2c9dd;
+}
+body.vwoma-brand #mainMenu > button.vwoma-menu-action::before {
+    position: absolute;
+    left: 19px;
+    top: 50%;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    transform: translateY(-50%);
+    color: #37668f;
+}
+body.vwoma-brand #mainMenu > button.vwoma-menu-action::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 18px;
+    width: 6px;
+    height: 6px;
+    border-top: 1.6px solid currentColor;
+    border-right: 1.6px solid currentColor;
+    transform: translateY(-50%) rotate(45deg);
+    opacity: .55;
+    pointer-events: none;
+}
+.vwoma-brand .vwoma-menu-label {
+    display: block;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.35;
+    letter-spacing: -.012em;
+    pointer-events: none;
+}
+.vwoma-brand .vwoma-menu-description {
+    display: block;
+    margin-top: 4px;
+    font-size: 12.5px;
+    font-weight: 400;
+    line-height: 1.45;
+    color: var(--vwoma-muted);
+    pointer-events: none;
+}
+body.vwoma-brand #mainMenu > #standaloneTestButton { background: #f5f9fd; }
+body.vwoma-brand #mainMenu > #openJointButton {
+    background: var(--vwoma-action-gradient);
+    border-color: #204972;
+    color: #fff;
+}
+body.vwoma-brand #mainMenu > #openJointButton:hover { background: #14375e; }
+body.vwoma-brand #mainMenu > #openJointButton::before { color: #d5eaff; }
+.vwoma-brand #openJointButton .vwoma-menu-description { color: #d5e3f2; }
+/* Cohesive panels without changing the app's visibility or state rules. */
+.vwoma-brand .joint-app .joint-heading { padding-bottom: 4px; }
+.vwoma-brand .joint-app .joint-secondary { box-shadow: none; }
+.vwoma-brand .joint-app h2 {
+    font-size: 25px;
+    font-weight: 720;
+    letter-spacing: -.025em;
+    line-height: 1.25;
+}
+.vwoma-brand .joint-app h3 { font-size: 18px; letter-spacing: -.012em; }
+.vwoma-brand .joint-app h4 { font-size: 15px; letter-spacing: -.008em; }
+.vwoma-brand .joint-eyebrow { color: #426d96; font-size: 10px; letter-spacing: .11em; }
+.vwoma-brand .joint-help { color: #5d7186; font-size: 12.5px; line-height: 1.55; }
+.vwoma-brand .joint-notice {
+    background: #eff6fc;
+    border-left-color: #4b89b9;
+    border-radius: 7px;
+    color: #2b5379;
+    font-size: 13px;
+}
+.vwoma-brand .joint-notice[data-error="true"] {
+    background: #fff0ed;
+    border-color: #c44839;
+    color: #84291d;
+}
+.vwoma-brand .joint-options article {
+    background: #fbfcfe;
+    border-color: var(--vwoma-line);
+    border-radius: 12px;
+}
+.vwoma-brand .joint-options article p { color: #596e84; font-size: 13px; }
+.vwoma-brand .joint-tabs { gap: 6px; scrollbar-width: none; padding: 13px 0 17px; }
+.vwoma-brand .joint-tabs::-webkit-scrollbar { display: none; }
+.vwoma-brand .joint-tabs button {
+    flex: 0 0 auto;
+    background: #edf3f8;
+    color: #526981;
+    padding: 10px 12px;
+    min-height: 44px;
+    border-radius: 9px;
+    font-size: 12.5px;
+    font-weight: 600;
+}
+.vwoma-brand .joint-tabs button[aria-selected="true"] {
+    background: var(--vwoma-action-gradient);
+    color: #fff;
+}
+.vwoma-brand .joint-tabs button[data-vwoma-icon]::before { width: 15px; height: 15px; flex-basis: 15px; }
+.vwoma-brand .joint-app fieldset {
+    background: #f8fafc;
+    border-color: var(--vwoma-line);
+    border-radius: 10px;
+}
+.vwoma-brand .joint-app legend { color: #37536f; font-size: 12px; }
+.vwoma-brand .joint-app label { color: #395570; font-size: 12px; }
+.vwoma-brand :is(.joint-app input,.joint-app select,.joint-app textarea,
+    .structural-fields input,.structural-fields select,.photo-title-input,#testDescription) {
+    border-color: #ccdbe7;
+    color: var(--vwoma-ink);
+    background: #fff;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+}
+.vwoma-brand :is(input,select,textarea):focus-visible {
+    outline: 2px solid #528fbd;
+    outline-offset: 2px;
+}
+.vwoma-brand button:focus-visible {
+    outline: 3px solid #497ea9;
+    outline-offset: 3px;
+}
+.vwoma-brand .joint-plan-wrap { border-color: #d6e2ed; box-shadow: none; }
+.vwoma-brand .joint-points-section { border-color: #dce5ee; border-radius: 12px; }
+.vwoma-brand .joint-points-head { background: #f5f8fc; }
+.vwoma-brand .joint-points-head h4 { font-size: 15px; }
+.vwoma-brand .joint-points-head p { font-size: 12px; color: #61768d; }
+.vwoma-brand .joint-points-table th { background: #edf3f8; color: #4b637b; font-size: 11px; }
+.vwoma-brand .joint-point-table-cell { border-bottom-color: #e4ebf2; }
+.vwoma-brand .joint-device-card { background: #fff; border-color: var(--vwoma-line); border-radius: 10px; }
+.vwoma-brand .joint-device-card strong { color: #183956; font-size: 14px; }
+.vwoma-brand .joint-device-card :is(p,small) { color: #60758c; font-size: 12.5px; }
+.vwoma-brand :is(.joint-calibration,.joint-physical-sync,.joint-sync-results,.joint-compare-wrap) {
+    background: #fafcfe;
+    border-color: #dbe6ef;
+    border-radius: 12px;
+}
+.vwoma-brand .joint-calibration-animation { background: #fff; border-color: #e3ebf2; }
+.vwoma-brand .joint-app .joint-axis-x { background: #e8f3ff; color: #1269ad; border-color: #9fcdf4; }
+.vwoma-brand .joint-app .joint-axis-y { background: #fff0f0; color: #b83f45; border-color: #efb7bb; }
+.vwoma-brand .joint-app .joint-axis-z { background: #eaf7ef; color: #247a50; border-color: #a8d9bd; }
+.vwoma-brand :is(.chart-card,.joint-measurement-chart) { border-color: #dce6ef; background: #fff; box-shadow: none; }
+.vwoma-brand .chart-control { background: #edf3f8; color: #365c80; border-color: #d6e2ed; }
+.vwoma-brand .chart-control:hover { background: #e2edf6; color: #183e65; }
+.vwoma-brand :is(.sensor-panel div,.live-value,.test-info div) { background: #f0f5fa; }
+.vwoma-brand .joint-app .joint-danger { background: #fff4f3; color: #a83229; border-color: #ebbbb7; }
+.vwoma-brand .recording { background: #b71c1c; color: #fff; }
+.vwoma-brand .recording:hover { background: #8e0000; }
+.vwoma-brand .location-button-active { background: #e67e22; color: #fff; }
+.vwoma-brand footer { padding: 22px 18px; color: #5b7086; font-size: 12px; line-height: 1.6; }
+/* Keep the acquisition viewport and native swipe mechanics intact. */
+body.vwoma-brand.recording-lock header { padding: 5px 12px; background: #fff; border: 0; }
+body.vwoma-brand.recording-lock header .vwoma-logo { width: 108px; height: 28px; object-fit: contain; }
+body.vwoma-brand.recording-lock header p { display: none; }
+body.vwoma-brand #testForm.measurement-active { border-radius: 0; box-shadow: none; }
+body.vwoma-brand.recording-lock .joint-app { border-radius: 0; box-shadow: none; }
+@media (max-width: 600px) {
+    body.vwoma-brand:not(.recording-lock) > header { padding: 15px 20px; gap: 13px; }
+    .vwoma-brand .vwoma-logo { width: 154px; }
+    body.vwoma-brand header p.vwoma-brand-context { font-size: 9px; padding-left: 12px; }
+    .vwoma-brand .vwoma-brand-context span { font-size: 10px; }
+    body.vwoma-brand:not(.recording-lock) main { margin: 20px auto; padding: 0 16px; }
+    body.vwoma-brand:not(.recording-lock) main :is(.welcome-card, #mainMenu) { padding: 22px 18px; }
+    .vwoma-brand :is(.welcome-card, #mainMenu) > h2 { font-size: 24px; }
+    .vwoma-brand .vwoma-lead { font-size: 13px; margin-bottom: 18px; }
+    .vwoma-brand .vwoma-menu-label { font-size: 15.5px; }
+    .vwoma-brand .vwoma-menu-description { font-size: 12px; }
+    .vwoma-brand .joint-app { padding: 18px 14px; margin: 0; }
+    .vwoma-brand .joint-app h2 { font-size: 23px; }
+    .vwoma-brand .joint-heading { gap: 10px; }
+    .vwoma-brand .joint-tabs { margin-right: -5px; }
+    .vwoma-brand .joint-tabs button { font-size: 12px; padding: 10px; }
+}
+@media (max-width: 359px) {
+    body.vwoma-brand:not(.recording-lock) > header { padding: 13px 15px; gap: 8px; }
+    .vwoma-brand .vwoma-logo { width: 130px; }
+    body.vwoma-brand header p.vwoma-brand-context { padding-left: 9px; font-size: 8px; }
+    .vwoma-brand .vwoma-brand-context span { font-size: 9px; }
+    body.vwoma-brand #mainMenu > button.vwoma-menu-action { padding-left: 52px; padding-right: 25px; }
+    body.vwoma-brand #mainMenu > button.vwoma-menu-action::before { left: 16px; width: 22px; height: 22px; }
+    body.vwoma-brand #mainMenu > button.vwoma-menu-action::after { right: 13px; }
+    .vwoma-brand .vwoma-menu-label { font-size: 14.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .vwoma-brand :is(button,.photo-button).vwoma-action { transition: none; }
+}
+
+/* Small local SVG icons. No icon font, CDN or JavaScript required. */
+.vwoma-brand [data-vwoma-icon="map"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m9%203%206%203%206-3v15l-6%203-6-3-6%203V6l6-3Z%22%2F%3E%3Cpath%20d%3D%22M9%203v15M15%206v15%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="bridge"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M3%2014h18M5%2014v6M19%2014v6M3%2013c4-10%2014-10%2018%200M8%208v6M12%206v8M16%208v6%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="activity"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M2%2012h5l3-8%204%2016%203-8h5%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="network"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%229%22%20y%3D%222%22%20width%3D%226%22%20height%3D%227%22%20rx%3D%221.5%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2215%22%20width%3D%226%22%20height%3D%227%22%20rx%3D%221.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2215%22%20width%3D%226%22%20height%3D%227%22%20rx%3D%221.5%22%2F%3E%3Cpath%20d%3D%22M12%209v3M5%2015v-3h14v3%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="plus"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%205v14M5%2012h14%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="play"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m8%204%2012%208-12%208V4Z%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="stop"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%2214%22%20height%3D%2214%22%20rx%3D%222%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand .recording[data-vwoma-icon] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%2214%22%20height%3D%2214%22%20rx%3D%222%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="arrow"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%2012h16m-6-6%206%206-6%206%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="back"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M20%2012H4m6-6-6%206%206%206%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="location"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M19%2010c0%205-7%2011-7%2011S5%2015%205%2010a7%207%200%201%201%2014%200Z%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2210%22%20r%3D%222.3%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="camera"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m8%205%201.5-2h5L16%205h4a1%201%200%200%201%201%201v13H3V6a1%201%200%200%201%201-1h4Z%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%224%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="image"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22m3%2016%205-5%205%205%203-3%205%205%22%2F%3E%3Ccircle%20cx%3D%2215.5%22%20cy%3D%227.5%22%20r%3D%221%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="phone"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%2212%22%20height%3D%2220%22%20rx%3D%222.5%22%2F%3E%3Cpath%20d%3D%22M10%205h4M11%2019h2%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="link"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m10%2014%204-4m-6%206-2%202a4%204%200%200%201-6-6l4-4a4%204%200%200%201%206%200m4%200%202-2a4%204%200%200%201%206%206l-4%204a4%204%200%200%201-6%200%22%20transform%3D%22translate%281%20-1%29%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="sync"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M20%207a9%209%200%200%200-15-2L2%208m0-5v5h5m-3%209a9%209%200%200%200%2015%202l3-3m0%205v-5h-5%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="calibration"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%227%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%222%22%2F%3E%3Cpath%20d%3D%22M12%201v4M12%2019v4M1%2012h4M19%2012h4%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="chart"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%203v17h17M8%2015l4-5%204%203%205-7%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="compare"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%203v18M19%203v18M2%208h8l3%208h9M2%2016h6l4-8h10%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="download"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%203v12m-5-5%205%205%205-5M4%2015v5h16v-5%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="upload"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%2016V4m-5%205%205-5%205%205M4%2015v5h16v-5%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="copy"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%2213%22%20height%3D%2213%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M16%208V3H3v13h5%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="scan"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M3%208V3h5m8%200h5v5M3%2016v5h5m8%200h5v-5M5%2012h14%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="close"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%206%2012%2012M6%2018%2018%206%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="trash"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M3%206h18M9%206V3h6v3M5%206l1%2015h12l1-15M10%2010v7M14%2010v7%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="reset"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M3%2010a9%209%200%201%201%201%207M3%204v6h6%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="save"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%203h13l4%204v14H3V3h1ZM7%203v6h10V3M7%2021v-8h10v8%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="file"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%202h9l5%205v15H5V2Zm9%200v6h5M8%2012h8M8%2016h8%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="folder"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M3%206V4h6l2%203h10v13H3V6Z%22%2F%3E%3C%2Fsvg%3E"); }
+.vwoma-brand [data-vwoma-icon="help"] { --vwoma-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%229%22%2F%3E%3Cpath%20d%3D%22M9%209a3%203%200%200%201%206%200c0%202-3%202-3%204M12%2017h.01%22%2F%3E%3C%2Fsvg%3E"); }
