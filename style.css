@@ -3,6 +3,8 @@
     --vwoma-navy: #071d54;
     --vwoma-blue: #2673ab;
     --vwoma-blue-hover: #1b5d91;
+    --vwoma-action: #153963;
+    --vwoma-action-hover: #0c2a4e;
     --vwoma-ice: #f4f8fc;
     --vwoma-border: #d5e3ef;
     --vwoma-text: #253750;
@@ -114,7 +116,7 @@ main {
 
 button {
 
-    background-color: var(--vwoma-blue);
+    background-color: var(--vwoma-action);
 
     color: white;
 
@@ -135,7 +137,7 @@ button {
 
 button:hover {
 
-    background-color: var(--vwoma-blue-hover);
+    background-color: var(--vwoma-action-hover);
 
 }
 
@@ -234,7 +236,7 @@ button:hover {
 
     display: block;
 
-    background-color: var(--vwoma-blue);
+    background-color: var(--vwoma-action);
 
     color: white;
 
@@ -1747,3 +1749,16 @@ textarea:focus-visible { outline-color: var(--vwoma-blue); }
 .joint-sync-card,
 .joint-rtt-figure { border-color: var(--vwoma-stroke); }
 .joint-measurement-chart { border-color: var(--vwoma-stroke); }
+
+/* Los cuatro botones del menú: azul marino visible, con un matiz
+   apenas perceptible de la onda VWOMA. Sin alterar tamaño ni disposición. */
+#mainMenu > button {
+    background-color: var(--vwoma-action);
+    background-image: linear-gradient(105deg, #113460, #205384);
+    color: #ffffff;
+}
+#mainMenu > button:hover,
+#mainMenu > button:focus-visible {
+    background-color: var(--vwoma-action-hover);
+    background-image: linear-gradient(105deg, #0d2d56, #174775);
+}
