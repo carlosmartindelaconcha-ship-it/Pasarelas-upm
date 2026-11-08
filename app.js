@@ -5259,7 +5259,7 @@ function formatTime(
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
         $('jointPointsTable').innerHTML=s.plan.points.map(p=>{
             const assigned=!!p.device;
-            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><button type="button" class="joint-point-delete" tabindex="-1" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button><div class="joint-point-row" data-point-id="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Sensor</span><select data-point-field="device" aria-label="Sensor asignado a ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div></div></td></tr>`;
+            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><div class="joint-point-row" data-point-id="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Sensor</span><select data-point-field="device" aria-label="Sensor asignado a ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div><button type="button" class="joint-point-delete" tabindex="-1" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button></div></td></tr>`;
         }).join('');
         for(const p of s.plan.points) {const select=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(p.id)}"] select[data-point-field="device"]`);if(select)select.value=p.device||'';}
         $('jointMyPoint').textContent=pointFor()?.name||'Sin asignar';
@@ -5310,8 +5310,7 @@ function formatTime(
         if(!point)return;
         const record=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(id)}"]`);
         const swipe=record?.querySelector('.joint-point-swipe');
-        const row=record?.querySelector('.joint-point-row');
-        const commitDelete=()=>{
+        const remove=()=>{
             if(!s.plan.points.some(p=>p.id===id))return;
             s.plan.points=s.plan.points.filter(p=>p.id!==id);
             if(s.selected===id)s.selected=s.plan.points[0]?.id||null;
@@ -5322,27 +5321,17 @@ function formatTime(
             renderDevices();
             tell(`${point.id} eliminado del plano.`);
         };
-        if(!animate||!swipe||record.dataset.deleting){if(!record?.dataset.deleting)commitDelete();return;}
+        if(!animate||!swipe){remove();return;}
+        if(record.dataset.deleting)return;
         record.dataset.deleting='true';
-        s.rowSwipe=null;
+        // La única animación propia es colapsar verticalmente la fila.
         swipe.style.height=swipe.getBoundingClientRect().height+'px';
-        const collapse=()=>{
-            swipe.style.transition='height 230ms cubic-bezier(.22,.8,.25,1), opacity 230ms ease';
+        swipe.style.transition='height 240ms cubic-bezier(.22,.8,.25,1),opacity 240ms ease';
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
             swipe.style.height='0px';
             swipe.style.opacity='0';
-            setTimeout(commitDelete,250);
-        };
-        if(exitLeft&&row){
-            // Flick: la fila termina de salir mientras la papelera permanece
-            // inmóvil en el centro del fondo rojo. Después se contrae la altura.
-            row.style.transition='transform 270ms cubic-bezier(.2,.8,.2,1)';
-            row.style.transform=`translate3d(-${row.offsetWidth}px,0,0)`;
-            setTimeout(collapse,285);
-        }else{
-            // Borrado confirmado tocando el fondo rojo: no vuelve a aparecer
-            // la fila ni se reconstruye toda la tabla.
-            collapse();
-        }
+        }));
+        setTimeout(remove,275);
     }
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
     function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}
@@ -6865,105 +6854,78 @@ function formatTime(
     $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');s.plan.points=s.plan.points.filter(p=>p.id!==s.selected);s.selected=s.plan.points[0]?.id;savePlan();});
     $('jointResetView').onclick=guard(()=>{requireHostEdit();resetPlanView();});
     $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
-    // Interacción tipo swipe-to-reveal: reconocer primero la dirección del gesto,
-    // permitir el scroll vertical y no confundir edición de campos con eliminar.
+    // Safari y demás navegadores gestionan el gesto horizontal con CSS Scroll Snap:
+    // inercia, desplazamiento y ajuste quedan a cargo del motor de desplazamiento.
     const pointsTable=$('jointPointsTable');
-    let suppressRowClickUntil=0;
-    function setPointRowOpen(row,open) {
-        if(!row||!row.isConnected)return;
-        row.style.transition='transform 310ms cubic-bezier(.22,.8,.25,1)';
-        row.style.transform=open?`translate3d(-${row.offsetWidth}px,0,0)`:'translate3d(0,0,0)';
-        row.dataset.swipeOpen=open?'true':'false';
-        const button=row.closest('.joint-point-record')?.querySelector('.joint-point-delete');
-        if(button)button.tabIndex=open?0:-1;
-    }
-    function closeOtherPointRows(except=null) {
-        pointsTable.querySelectorAll('.joint-point-row[data-swipe-open="true"]').forEach(row=>{
-            if(row!==except)setPointRowOpen(row,false);
+    let pointTouch=null;
+    const tableEditable=()=>s.role==='host'&&!running()&&!s.transaction;
+    function closeNativeSwipeRows(except=null) {
+        pointsTable.querySelectorAll('.joint-point-swipe').forEach(track=>{
+            if(track!==except&&track.scrollLeft>2)track.scrollTo({left:0,behavior:'smooth'});
         });
     }
-    // El botón existe detrás de cada fila y, una vez revelado, tiene acción real.
+    function settleNativeSwipe(track) {
+        if(!track?.isConnected||track.closest('.joint-point-record')?.dataset.deleting)return;
+        const open=track.scrollLeft>=track.clientWidth*.72;
+        track.dataset.swipeOpen=open?'true':'false';
+        const button=track.querySelector('.joint-point-delete');
+        if(button)button.tabIndex=open?0:-1;
+        if(open&&track.dataset.fastDelete==='true'){
+            track.dataset.fastDelete='false';
+            const id=track.closest('[data-point-id]')?.dataset.pointId;
+            if(id&&tableEditable())deletePlanPoint(id,true,false);
+        }else if(!open)track.dataset.fastDelete='false';
+    }
+    pointsTable.addEventListener('scrollend',e=>{
+        const track=e.target.closest?.('.joint-point-swipe');
+        if(track)settleNativeSwipe(track);
+    },true);
+    // Compatibilidad con WebKit antiguos que no exponen scrollend.
+    const scrollTimers=new WeakMap();
+    pointsTable.addEventListener('scroll',e=>{
+        const track=e.target.closest?.('.joint-point-swipe');
+        if(!track)return;
+        clearTimeout(scrollTimers.get(track));
+        scrollTimers.set(track,setTimeout(()=>settleNativeSwipe(track),180));
+    },{capture:true,passive:true});
     pointsTable.addEventListener('click',guard(e=>{
-        const deleteButton=e.target.closest('[data-delete-point]');
-        if(deleteButton){
-            e.preventDefault();
-            const record=deleteButton.closest('.joint-point-record');
-            if(record&&!record.dataset.deleting)deletePlanPoint(deleteButton.dataset.deletePoint,true,false);
-            return;
-        }
-        if(performance.now()<suppressRowClickUntil){
-            e.preventDefault();e.stopPropagation();
-        }
+        const button=e.target.closest('[data-delete-point]');
+        if(!button)return;
+        e.preventDefault();
+        if(tableEditable())deletePlanPoint(button.dataset.deletePoint,true,false);
     }));
     pointsTable.addEventListener('change',guard(e=>{
         const field=e.target.dataset.pointField,row=e.target.closest('[data-point-id]');
         if(!field||!row)return;
         updatePlanPoint(row.dataset.pointId,field,e.target.value);
     }));
+    pointsTable.addEventListener('touchstart',e=>{
+        if(!tableEditable()||e.touches.length!==1)return;
+        const track=e.target.closest('.joint-point-swipe');
+        if(!track||e.target.closest('.joint-point-delete'))return;
+        closeNativeSwipeRows(track);
+        const finger=e.touches[0];
+        pointTouch={track,x:finger.clientX,y:finger.clientY,at:performance.now()};
+    },{passive:true});
+    pointsTable.addEventListener('touchend',e=>{
+        const gesture=pointTouch;pointTouch=null;
+        if(!gesture||!tableEditable()||!gesture.track.isConnected||e.changedTouches.length!==1)return;
+        const finger=e.changedTouches[0];
+        const dx=finger.clientX-gesture.x,dy=finger.clientY-gesture.y;
+        const ms=Math.max(1,performance.now()-gesture.at);
+        if(dx<-80&&Math.abs(dx)>Math.abs(dy)*1.3&&ms<=350&&-dx/ms>.75){
+            gesture.track.dataset.fastDelete='true';
+            // Nunca se desplaza manualmente: dejar terminar la inercia de Safari.
+            setTimeout(()=>settleNativeSwipe(gesture.track),550);
+        }
+    },{passive:true});
+    pointsTable.addEventListener('touchcancel',()=>{pointTouch=null;},{passive:true});
     pointsTable.addEventListener('pointerdown',e=>{
-        const row=e.target.closest('.joint-point-row');
-        if(!row||!e.isPrimary||e.button!==0||s.role!=='host'||running()||s.transaction||row.closest('.joint-point-record')?.dataset.deleting)return;
-        closeOtherPointRows(row);
-        const time=performance.now();
-        s.rowSwipe={row,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,startedAt:time,
-            samples:[{x:e.clientX,time}],dx:0,active:false,frame:0};
+        if(e.pointerType==='mouse'&&e.button===0){
+            const track=e.target.closest('.joint-point-swipe');
+            if(track)closeNativeSwipeRows(track);
+        }
     });
-    pointsTable.addEventListener('pointermove',e=>{
-        const swipe=s.rowSwipe;
-        if(!swipe||e.pointerId!==swipe.pointerId)return;
-        const dx=e.clientX-swipe.startX,dy=e.clientY-swipe.startY;
-        if(!swipe.active){
-            if(Math.abs(dx)<9&&Math.abs(dy)<9)return;
-            if(dx>=0||Math.abs(dy)>=Math.abs(dx)*1.15){
-                s.rowSwipe=null;return;
-            }
-            swipe.active=true;
-            swipe.row.style.transition='none';
-            try{swipe.row.setPointerCapture(e.pointerId);}catch(_) {}
-        }
-        swipe.dx=Math.max(-swipe.row.offsetWidth,Math.min(0,dx));
-        const time=performance.now();
-        swipe.samples.push({x:e.clientX,time});
-        while(swipe.samples.length>2&&time-swipe.samples[1].time>120)swipe.samples.shift();
-        if(!swipe.frame)swipe.frame=requestAnimationFrame(()=>{
-            swipe.frame=0;
-            if(s.rowSwipe===swipe&&swipe.row.isConnected)
-                swipe.row.style.transform=`translate3d(${swipe.dx}px,0,0)`;
-        });
-        e.preventDefault();
-    });
-    for(const type of ['pointerup','pointercancel'])pointsTable.addEventListener(type,guard(e=>{
-        const swipe=s.rowSwipe;
-        if(!swipe||e.pointerId!==swipe.pointerId)return;
-        s.rowSwipe=null;
-        if(swipe.frame)cancelAnimationFrame(swipe.frame);
-        if(!swipe.active)return;
-        suppressRowClickUntil=performance.now()+420;
-        const dx=Math.max(-swipe.row.offsetWidth,Math.min(0,e.clientX-swipe.startX));
-        const time=performance.now();
-        const samples=[...swipe.samples,{x:e.clientX,time}];
-        while(samples.length>2&&time-samples[1].time>120)samples.shift();
-        const first=samples[0];
-        const recentSpeed=(e.clientX-first.x)/Math.max(1,time-first.time);
-        const averageSpeed=dx/Math.max(1,time-swipe.startedAt);
-        const fastLeft=type==='pointerup'&&dx<-(Math.min(48,swipe.row.offsetWidth*.22))&&
-            (recentSpeed<-.72||averageSpeed<-.9);
-        if(fastLeft){
-            // Eliminar solo con flick verdaderamente rápido, no con un gesto
-            // lento que recorra la fila completa.
-            swipe.row.style.transition='none';
-            swipe.row.style.transform=`translate3d(${dx}px,0,0)`;
-            void swipe.row.offsetWidth;
-            deletePlanPoint(swipe.row.closest('[data-point-id]').dataset.pointId,true,true);
-            return;
-        }
-        if(type==='pointerup'&&dx<-Math.min(72,swipe.row.offsetWidth*.2)){
-            // Gesto lento: completar hasta una fila roja con papelera centrada.
-            setPointRowOpen(swipe.row,true);
-        }else{
-            setPointRowOpen(swipe.row,false);
-        }
-    }));
     $('jointPlan').addEventListener('keydown',guard(e=>{
         const el=e.target.closest('[data-point]');if(!el)return;
         if(e.key==='Enter'||e.key===' '){e.preventDefault();s.selected=el.dataset.point;renderPlan();}
