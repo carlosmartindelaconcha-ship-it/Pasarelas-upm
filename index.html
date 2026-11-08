@@ -33,7 +33,7 @@
     </script>
 
     <link rel="stylesheet" href="vwoma-identity.css?v=20261108-identity-v1">
-    <link rel="stylesheet" href="vwoma-i18n.css?v=20261108-acronym-v7">
+    <link rel="stylesheet" href="vwoma-i18n.css?v=20261108-flag-fit-v8">
     <meta name="theme-color" content="#ffffff">
 </head>
 
@@ -807,7 +807,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <script defer src="app.js?v=20261108-native-scroll-snap-delete-v5"></script>
-    <script defer src="vwoma-i18n.js?v=20261108-flag-only-v6"></script>
+    <script defer src="vwoma-i18n.js?v=20261108-flag-fit-v8"></script>
 
 
 
@@ -826,6 +826,38 @@
             lastTap = now;
           }
         });
+
+        // Fit the complete first line to the actual portrait viewport width
+        // without wrapping, changing only header typography (not app state).
+        const heading = document.querySelector('.vwoma-brand-description');
+        if (heading) {
+          let frame = 0;
+          const fit = () => {
+            const width = heading.clientWidth;
+            if (!width) return;
+            const max = window.innerWidth <= 720 ? 19 : 24;
+            const min = 9.5;
+            heading.style.fontSize = max + 'px';
+            if (heading.scrollWidth <= width - 2) return;
+            let low = min, high = max;
+            for (let i = 0; i < 13; i++) {
+              const mid = (low + high) / 2;
+              heading.style.fontSize = mid + 'px';
+              if (heading.scrollWidth <= width - 2) low = mid;
+              else high = mid;
+            }
+            heading.style.fontSize = Math.max(min, low - 0.12).toFixed(2) + 'px';
+          };
+          const queueFit = () => {
+            if (frame) cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(() => { frame = 0; fit(); });
+          };
+          queueFit();
+          window.addEventListener('resize', queueFit, {passive:true});
+          window.addEventListener('orientationchange', queueFit, {passive:true});
+          if (document.fonts?.ready) document.fonts.ready.then(queueFit).catch(() => {});
+          if (window.ResizeObserver) new ResizeObserver(queueFit).observe(heading);
+        }
       })();
     </script>
 </body>

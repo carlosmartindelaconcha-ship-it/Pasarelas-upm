@@ -215,6 +215,10 @@
     if (picker) {
       picker.setAttribute('aria-label', languageLabel[next] + ': ' + nativeNames[next]);
       picker.title = languageLabel[next] + ': ' + nativeNames[next];
+      // The closed native picker is visually transparent. Render the selected
+      // flag in a normal inline element so iOS/Android cannot crop the emoji.
+      const visibleFlag = picker.parentElement?.querySelector('.vwoma-language-current-flag');
+      if (visibleFlag) visibleFlag.textContent = flagEmoji[next];
     }
     if (save) storeLanguage(next);
     if (document.body) visit(document.body);
@@ -234,7 +238,8 @@
     const label = document.createElement('label');
     label.className = 'vwoma-language-picker';
     label.setAttribute('data-no-i18n','');
-    label.innerHTML = '<select id="vwomaLanguage" aria-label="Idioma"></select>';
+    label.innerHTML = '<span class="vwoma-language-current-flag" aria-hidden="true"></span>' +
+      '<select id="vwomaLanguage" aria-label="Idioma"></select>';
     picker = label.querySelector('select');
     for (const code of SUPPORTED) {
       const option = document.createElement('option');
@@ -246,6 +251,7 @@
       picker.appendChild(option);
     }
     picker.value = current;
+    label.querySelector('.vwoma-language-current-flag').textContent = flagEmoji[current];
     picker.addEventListener('change', () => setLanguage(picker.value));
     header.appendChild(label);
   }

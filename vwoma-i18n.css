@@ -217,3 +217,93 @@ body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-description .vwoma-a
   color: #0b2050;
   letter-spacing: -.035em;
 }
+
+/* v8: robust flag-only selector. The visual emoji sits outside the native
+   select's cramped glyph box; the transparent select remains fully tappable. */
+body.vwoma-brand > header .vwoma-language-picker {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 60px;
+  box-sizing: border-box;
+  width: 60px;
+  min-width: 60px;
+  height: 46px;
+  min-height: 46px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border-radius: 10px;
+  cursor: pointer;
+}
+body.vwoma-brand > header .vwoma-language-current-flag {
+  display: block;
+  position: relative;
+  z-index: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0 9px 0 0;
+  color: #193d64;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 27px;
+  line-height: 32px;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+body.vwoma-brand > header .vwoma-language-picker::after {
+  content: "";
+  position: absolute;
+  right: 9px;
+  top: 18px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid #385d80;
+  border-bottom: 1.5px solid #385d80;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+body.vwoma-brand > header #vwomaLanguage {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+}
+body.vwoma-brand > header .vwoma-language-picker:focus-within {
+  outline: 2px solid #2673ab;
+  outline-offset: 2px;
+}
+body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-description {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  /* The precise fitted size is calculated from the available width. */
+  font-size: clamp(10px, 3.1vw, 24px);
+}
+body.vwoma-brand:not(.recording-lock) > header .vwoma-brand-tagline {
+  white-space: nowrap;
+}
+@media (max-width: 359px) {
+  body.vwoma-brand > header .vwoma-language-picker {
+    width: 54px;
+    min-width: 54px;
+    flex-basis: 54px;
+  }
+  body.vwoma-brand > header .vwoma-language-current-flag {
+    font-size: 25px;
+  }
+}
