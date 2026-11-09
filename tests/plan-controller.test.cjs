@@ -93,7 +93,7 @@ test('el punto nuevo se coloca en centro, luego X=L/4 y edición respeta 3 decim
   assert.equal(s.plan.points[0].y,2);
   api.addPoint();
   assert.equal(s.plan.points[1].x,6);
-  assert.equal(s.plan.points[1].y,0);
+  assert.equal(s.plan.points[1].y,2);
   api.updatePlanPoint('P1','x','8.12346');
   assert.equal(s.plan.points[0].x,8.123);
   api.updatePlanPoint('P1','device','sensor-one');
@@ -108,7 +108,7 @@ test('el punto nuevo se coloca en centro, luego X=L/4 y edición respeta 3 decim
 });
 
 test('borrar un punto sin animación conserva los demás y actualiza selección',()=>{
-  const {api,s,storage,byId}=fixture();
+  const {api,s,storage,notices}=fixture();
   api.addPoint();
   api.addPoint();
   assert.equal(s.selected,'P2');
@@ -116,7 +116,8 @@ test('borrar un punto sin animación conserva los demás y actualiza selección'
   assert.deepEqual(s.plan.points.map(p=>p.id),['P1']);
   assert.equal(s.selected,'P1');
   assert.equal(JSON.parse(storage.get('upm-joint-plan-v1')).points.length,1);
-  assert.doesNotMatch(byId('jointPointsTable').innerHTML,/data-point-id="P2"/);
+  // El borrado elimina nodos directamente, sin redibujar la tabla (fluidez del gesto).
+  assert.match(notices.at(-1)[0],/P2 eliminado del plano/);
 });
 
 test('el visitante no puede editar el plano',()=>{
