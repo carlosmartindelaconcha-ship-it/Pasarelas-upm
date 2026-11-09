@@ -25,6 +25,7 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   const legacy = find('app.js?');
   const plan = find('src/joint/plan-controller.js?');
   const transport = find('src/joint/webrtc-transport.js?');
+  const clock = find('src/joint/clock-model.js?');
   const joint = find('src/joint/joint-app.js?');
   const translations = find('vwoma-i18n.js?');
 
@@ -33,9 +34,10 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   assert.ok(legacy >= 0, 'falta app.js');
   assert.ok(plan > legacy && plan < joint, 'el controlador del plano debe cargarse antes de la medida conjunta');
   assert.ok(transport > plan && transport < joint, 'WebRTC debe cargarse después del plano y antes de joint-app.js');
+  assert.ok(clock > transport && clock < joint, 'el modelo de reloj debe cargarse después del transporte y antes de joint-app.js');
   assert.ok(joint > legacy, 'la medida conjunta debe cargarse después de app.js');
   assert.ok(translations > joint, 'las traducciones se cargan al final');
-  for (const index of [preprocessing, spectra, legacy, plan, transport, joint]) {
+  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, joint]) {
     assert.doesNotMatch(scripts[index][1], /\btype\s*=\s*["']module["']/);
     assert.match(scripts[index][1], /\bdefer\b/);
   }
@@ -73,4 +75,18 @@ test('el transporte usa callbacks diferidos para orquestación de la aplicación
   for (const callback of ['renderDevices','workspace','startSync','onMessage']) {
     assert.match(joint, new RegExp(callback + ':\\s*\\(\\.\\.\\.args\\)\\s*=>\\s*' + callback + '\\(\\.\\.\\.args\\)'));
   }
+});
+
+test('los modelos de reloj y deriva están aislados del transporte y de la UI', () => {
+  const clock = read('src/joint/clock-model.js');
+  const joint = read('src/joint/joint-app.js');
+  assert.match(clock, /function createClockModel\(/);
+  assert.match(clock, /function clockFit\(/);
+  assert.match(clock, /const toMaster=/);
+  assert.match(clock, /const fromMaster=/);
+  assert.match(clock, /function validModel\(/);
+  assert.doesNotMatch(clock, /document\.|RTCPeerConnection|localStorage|indexedDB/);
+  assert.match(joint, /VWOMAClockModel\.createClockModel\(/);
+  assert.doesNotMatch(joint, /function clockFit\(/);
+  assert.doesNotMatch(joint, /const fromMaster=/);
 });
