@@ -599,98 +599,40 @@
         window.removeEventListener('devicemotion',motion);
         s.sensor=false;s.sensorEnabled=false;s.sensorSource='';
     }
-    function appendSample(run,sample) {
-        if(run.samples.length>=MAX_SAMPLES){if(!run.sampleLimit){run.sampleLimit=true;incident('limit','Se ha alcanzado el límite de muestras.');}run.end=Math.min(run.end,toMaster(now(),run.initialClock));return;}
-        const row=[...sample];row[0]=run.samples.length;run.samples.push(row);
-    }
-    function startDuringSync() {
-        clearInterval(s.duringSyncTimer);s.duringSyncTimer=null;
-        if(s.role!=='host')return;
-        s.duringSyncTimer=setInterval(()=>{
-            if(!running()||s.role!=='host')return;
-            for(const p of s.peers.values())if(p.channel?.readyState==='open')syncOnce(p,'during',s.run.id);
-        },100);
-    }
-    function stopDuringSync(){clearInterval(s.duringSyncTimer);s.duringSyncTimer=null;}
-    async function requestWake() {try{if(navigator.wakeLock)s.wake=await navigator.wakeLock.request('screen');}catch(e){incident('screen','No se pudo mantener la pantalla activa.');}}
-    function releaseWake(){if(s.wake){s.wake.release().catch(()=>{});s.wake=null;}}
-    function beginRun(id,start,end,duration) {
-        s.results.clear();s.compareExport=null;s.storageFailed=false;
-        const networkModel=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
-        const physicalCorrection=s.role==='host'?0:Number(s.syncCalibration.correctionMs||0);
-        const model={...networkModel,offset:networkModel.offset+physicalCorrection,physicalCorrectionMs:physicalCorrection};
-        const quiet=s.recent.filter(sample=>sample[2]>=now()-1000).map(sample=>correctedVector(sample.slice(3,6)));
-        const previewBaseline=['x','y','z'].map((_,index)=>quiet.length?quiet.reduce((sum,row)=>sum+row[index],0)/quiet.length:0);
-        const syncModels=s.role==='host'?Object.fromEntries([...s.peers.values()].map(p=>[p.id,structuredClone(p.startModel||p.model||{})])):{[s.id]:structuredClone(model)};
-        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,networkClock:structuredClone(networkModel),finalClock:model,syncModels,synchronizationCalibration:structuredClone(s.syncCalibration),samples:[],incidents:[],persisted:0,chunkIndex:0,previewBaseline,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
-        for(const sample of s.recent){const t=finite(sample[8])?sample[8]:toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
-        document.body.classList.add('recording-lock');tab('Measure');ensureJointCharts();setTimeout(()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},50);requestWake();startDuringSync();persist();renderPlan();renderDevices();tell('Inicio programado. Pantalla y gestos bloqueados durante la medida.');
-    }
-    async function startRun() {
-        requireHostEdit();
-        if(!localStatus().sensor||document.hidden)throw Error('Activa el acelerómetro del maestro y mantén la página visible.');
-        const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
-        if(!peers.length)throw Error('Conecta al menos otro móvil para realizar una medida conjunta.');
-        if(!pointFor())throw Error('Asigna el maestro a un punto del plano.');
-        if(s.plan.points.some(q=>q.device&&q.device!==s.id&&!peers.some(p=>p.id===q.device)))throw Error('Hay un punto asignado a un móvil desconectado. Conéctalo o elimina su asignación.');
-        for(const p of peers) {
-            if(!pointFor(p.id))throw Error('Asigna '+p.name+' a un punto del plano.');
-            if(!p.status?.sensor||!p.status.visible||now()-p.lastSeen>6000)throw Error(p.name+' no tiene el sensor preparado o la página visible.');
-            if(!p.status?.calibrated)throw Error(p.name+' debe completar la calibración de ejes.');
-        }
-        if(!s.calibration.complete)throw Error('Completa la calibración X, Y y Z del maestro antes de medir.');
-        if(!s.syncCalibration.accepted)throw Error('Completa primero la pestaña Calibrar y sincronizar.');
-        const duration=Number($('jointDuration').value);if(!finite(duration)||duration<5||duration>1800||!Number.isInteger(duration))throw Error('Introduce una duración entera entre 5 y 1800 segundos.');
-        const id=uid(),tx={id,ready:new Map(),acks:new Set(),error:null,phase:'ready',peers};
-        s.transaction=tx;tab('Measure');$('jointMeasureState').textContent='Confirmando dispositivos…';renderPlan();renderDevices();
-        try {
-            broadcast({type:'PREPARE',runId:id,duration});tell('Solicitando confirmación a los participantes…');
-            const limit=now()+5000;
-            while(tx.ready.size<peers.length&&now()<limit&&s.transaction===tx)await pause(50);
-            if(s.transaction!==tx)throw Error('Inicio cancelado.');
-            if(tx.ready.size!==peers.length)throw Error('Un participante no respondió. No se inicia el ensayo.');
-            for(const v of tx.ready.values())if(!v.ok)throw Error(v.reason||'Un participante no está preparado.');
-            const start=now()+4000,end=start+duration*1000;
-            beginRun(id,start,end,duration);broadcast({type:'START_AT',runId:id,start,end});
-            const deadline=now()+2000;
-            while(tx.acks.size<peers.length&&now()<deadline&&!tx.error&&s.transaction===tx)await pause(50);
-            if(tx.error||tx.acks.size!==peers.length||s.transaction!==tx)throw Error(tx.error||'Falta confirmación del inicio. Se cancela el ensayo.');
-            tell('Todos han confirmado. Inicio en unos segundos.');
-        } catch(e) {
-            broadcast({type:'ABORT',runId:id,reason:e.message});
-            if(s.run?.id===id&&running()) {s.run.state='cancelled';incident('cancel',e.message);await finishRun(true);}
-            if(!s.run)$('jointMeasureState').textContent='Preparación interrumpida';
-            throw e;
-        } finally {if(s.transaction===tx)s.transaction=null;renderDevices();renderPlan();}
-    }
-    function stopRun(reason='Parada manual') {
-        if(s.role==='guest') {
-            const host=[...s.peers.values()][0];send(host,{type:'STOP_REQUEST'});
-            if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,toMaster(now(),s.run.initialClock)));incident('stop','Parada local solicitada');}
-            return;
-        }
-        if(s.transaction||s.run?.state==='armed') {
-            const id=s.transaction?.id||s.run.id;s.transaction=null;broadcast({type:'ABORT',runId:id,reason});
-            if(running()){s.run.state='cancelled';incident('cancel',reason);finishRun(true);}return;
-        }
-        if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,now()));incident('stop',reason);broadcast({type:'STOP_AT',runId:s.run.id,end:s.run.end});}
-    }
+    /* Browser presentation stays here; acquisition only invokes these hooks. */
+    const acquisitionUi={
+        enterRecording:()=>{
+            document.body.classList.add('recording-lock');tab('Measure');ensureJointCharts();
+            setTimeout(()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},50);
+        },
+        runArmed:()=>{renderPlan();renderDevices();tell('Inicio programado. Pantalla y gestos bloqueados durante la medida.');},
+        preparing:()=>{tab('Measure');$('jointMeasureState').textContent='Confirmando dispositivos…';renderPlan();renderDevices();},
+        preparationInterrupted:()=>{$('jointMeasureState').textContent='Preparación interrumpida';},
+        refresh:()=>{renderDevices();renderPlan();},
+        exitRecording:()=>{document.body.classList.remove('recording-lock');},
+        closing:()=>{$('jointMeasureState').textContent='Cerrando registro…';},
+        finished:()=>{tab('Results');renderPlan();renderDevices();renderResults();}
+    };
+    const {appendSample,startDuringSync,stopDuringSync,requestWake,releaseWake,
+           beginRun,startRun,stopRun,finishRun} =
+        globalThis.VWOMAAcquisition.createAcquisition({
+            s, MAX_SAMPLES, now, running, incident, toMaster, syncOnce,
+            navigator, setInterval, clearInterval, requireHostEdit, localStatus,
+            pageHidden:()=>document.hidden,
+            readDuration:()=>$('jointDuration').value,
+            pointFor, tell, pause, finite, uid,
+            broadcast:(...args)=>broadcast(...args),
+            send:(...args)=>send(...args),
+            correctedVector, persist, persistBeforeClosing,
+            sendRecord:(...args)=>sendRecord(...args),
+            localRecord:(...args)=>localRecord(...args),
+            structuredClone, ui:acquisitionUi
+        });
+
     function runMeta(run) {
         return {schema:'pasarelas-upm-joint-vwoma-preview-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,networkClock:run.networkClock||run.initialClock,finalClock:run.finalClock,syncModels:run.syncModels||{},synchronizationCalibration:run.synchronizationCalibration||null,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj robusto fijado al inicio del ensayo más la corrección física fija de la tablilla; los intercambios posteriores solo diagnostican su estabilidad.',userAgent:navigator.userAgent};
     }
     function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
-    async function finishRun(cancelled=false) {
-        const run=s.run;if(!run||run.finishing||run.finished)return;run.finishing=true;
-        run.state=cancelled?'cancelled':'finished';run.finalClock=s.role==='host'?run.initialClock:structuredClone(s.syncModel);
-        stopDuringSync();document.body.classList.remove('recording-lock');releaseWake();
-        $('jointMeasureState').textContent='Cerrando registro…';
-        await persistBeforeClosing(run);run.finished=true;run.finishing=false;
-        if(s.run!==run)return;
-        const record=localRecord();s.results.set(s.id,record);tab('Results');renderPlan();renderDevices();renderResults();
-        tell(cancelled?'Ensayo cancelado. Los datos disponibles se conservan.':'Registro local terminado. Ya puedes descargar los datos.');
-        if(s.role==='guest'&&!cancelled)sendRecord().catch(e=>{incident('transfer',e.message);tell('Registro local conservado. '+e.message,true);});
-    }
-
     async function hashText(text) {
         const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(hash)].map(v=>v.toString(16).padStart(2,'0')).join('');
     }

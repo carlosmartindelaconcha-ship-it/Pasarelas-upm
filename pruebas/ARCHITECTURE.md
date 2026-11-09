@@ -4,7 +4,7 @@ VWOMA es una aplicación web estática para registro de pasarelas, adquisición
 de aceleraciones y medidas conjuntas con varios teléfonos. Se publica en
 GitHub Pages, sin servidor de aplicación ni proceso de compilación.
 
-## Estructura actual (fase 6 de la refactorización)
+## Estructura actual (fase 7 de la refactorización)
 
 ```text
 index.html                 HTML y orden de carga
@@ -20,9 +20,10 @@ src/joint/clock-model.js    Ajuste de offset, deriva y RTT, conversiones
                            de reloj y métricas temporales; sin DOM ni red
 src/joint/persistence.js    IndexedDB: almacenes runs/chunks, guardado por lotes,
                            recuperación de registros y cierre seguro
-src/joint/joint-app.js     Orquestación: eventos del plano y dispositivos,
-                           intercambios de reloj, calibración, adquisición,
-                           resultados, UI de recuperación y exportación
+src/joint/acquisition.js    Ciclo de medida: muestras, preparación, inicio,
+                           parada/cancelación, wake lock y cierre persistente
+src/joint/joint-app.js     Orquestación: eventos del plano, WebRTC/SYNC,
+                           calibración, UI de medida, resultados y exportación
 style.css                  Estilos generales
 vwoma-identity.css         Identidad visual
 vwoma-i18n.css             Selector de idiomas
@@ -32,6 +33,7 @@ tests/preprocessing.test.cjs Pruebas de interpolación, detrend, RMS y remuestre
 tests/plan-controller.test.cjs Pruebas del plano y gestión de puntos
 tests/clock-model.test.cjs Modelos de reloj y conversiones temporales
 tests/persistence.test.cjs Guardado por lotes, recuperación y fallos IndexedDB
+tests/acquisition.test.cjs Pruebas de ciclo de medida, abortos y confirmaciones
 tests/spectra.test.cjs     Pruebas numéricas de FFT, espectro y Welch
 tests/architecture.test.cjs Contrato de integración entre scripts
 ```
@@ -83,6 +85,15 @@ La vista de recuperación continúa en `joint-app.js`, pero lee los registros
 mediante `storedRuns()` y `storedChunks()`; así no accede directamente a IndexedDB.
 La clave del plano se pasa a `plan-controller.js` como `storageKey` para que
 el sitio `/pruebas/` mantenga su plano separado de la página pública.
+
+El ciclo de adquisición conjunta se aloja en `src/joint/acquisition.js`.
+`VWOMAAcquisition.createAcquisition({...})` recibe el estado, temporizadores,
+reloj, sensores, callbacks de envío/persistencia y una interfaz explícita `ui`.
+`joint-app.js` conserva los eventos de presentación, el manejo de DOM y los
+metadatos del registro. Las transiciones `armed` → `recording` → `finished`,
+los mensajes PREPARE/READY/START_AT/STOP_AT/ABORT, las ventanas temporales y
+los márgenes de registro no se modifican. Las funciones de `ui` mantienen
+el orden de bloqueo/desbloqueo de la pantalla y actualización de resultados.
 Para evitar cambios de comportamiento, `app.js` y
 `src/joint/joint-app.js` son *scripts clásicos* (no ES modules) y se cargan
 en ese orden con `defer`. En el ámbito global de la página, un script
@@ -121,6 +132,7 @@ node --check app.js
 node --check src/joint/plan-controller.js
 node --check src/joint/clock-model.js
 node --check src/joint/persistence.js
+node --check src/joint/acquisition.js
 node --check src/joint/webrtc-transport.js
 node --check src/joint/joint-app.js
 node --check vwoma-i18n.js
@@ -147,8 +159,8 @@ en móvil (especialmente Safari iOS y Chrome Android):
 1. Cubrir con pruebas deterministas las funciones puras de procesamiento
    (interpolación, eliminación de tendencia, FFT y Welch).
 2. Ampliar pruebas numéricas y de integración para preprocesamiento y FFT.
-3. Completar tests de integración y separar el ciclo de adquisición,
-   calibración, resultados y transferencias; diseñar setups sobre el plano.
+3. Separar calibración, resultados y transferencias; extender pruebas de
+   integración y diseñar setups automáticos sobre el plano existente.
 4. Introducir un único estado coordinador y ciclos de vida explícitos para
    dispositivos, adquisición, transferencias y almacenamiento.
 5. Completar pruebas de integración y compatibilidad antes de fusionar.

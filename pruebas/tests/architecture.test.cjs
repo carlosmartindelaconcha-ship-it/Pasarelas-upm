@@ -27,6 +27,7 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   const transport = find('src/joint/webrtc-transport.js?');
   const clock = find('src/joint/clock-model.js?');
   const persistence = find('src/joint/persistence.js?');
+  const acquisition = find('src/joint/acquisition.js?');
   const joint = find('src/joint/joint-app.js?');
   const translations = find('vwoma-i18n.js?');
 
@@ -37,9 +38,10 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   assert.ok(transport > plan && transport < joint, 'WebRTC debe cargarse después del plano y antes de joint-app.js');
   assert.ok(clock > transport && clock < joint, 'el modelo de reloj debe cargarse después del transporte y antes de joint-app.js');
   assert.ok(persistence > clock && persistence < joint, 'el almacenamiento debe cargarse antes de joint-app.js');
+  assert.ok(acquisition > persistence && acquisition < joint, 'el controlador de adquisición debe cargarse antes de joint-app.js');
   assert.ok(joint > legacy, 'la medida conjunta debe cargarse después de app.js');
   assert.ok(translations > joint, 'las traducciones se cargan al final');
-  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, persistence, joint]) {
+  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, persistence, acquisition, joint]) {
     assert.doesNotMatch(scripts[index][1], /\btype\s*=\s*["']module["']/);
     assert.match(scripts[index][1], /\bdefer\b/);
   }
@@ -109,4 +111,18 @@ test('IndexedDB se mantiene fuera de la UI y conserva almacenes y claves', () =>
   assert.doesNotMatch(joint, /indexedDB\.open\(/);
   assert.doesNotMatch(joint, /IDBKeyRange\.bound\(/);
   assert.doesNotMatch(joint, /function storeBatch\(/);
+});
+
+test('el ciclo de adquisición está separado del DOM y de la señalización WebRTC', () => {
+  const acquisition = read('src/joint/acquisition.js');
+  const joint = read('src/joint/joint-app.js');
+  assert.match(acquisition, /function createAcquisition\(/);
+  for(const name of ['appendSample','beginRun','startRun','stopRun','finishRun']) {
+    assert.match(acquisition,new RegExp('function '+name+'\\('));
+    assert.doesNotMatch(joint,new RegExp('function '+name+'\\('));
+  }
+  assert.doesNotMatch(acquisition, /document\.|querySelector|RTCPeerConnection|indexedDB/);
+  assert.match(joint, /VWOMAAcquisition\.createAcquisition\(/);
+  assert.match(joint, /enterRecording:.*=>/);
+  assert.match(joint, /readDuration:\(\)=>\$\('jointDuration'\)\.value/);
 });

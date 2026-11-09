@@ -20,7 +20,7 @@ function setup(options={}) {
   removeEventListener(type,fn){this.listeners.get(type)?.delete(fn)}
   emit(type,event={}){for(const fn of this.listeners.get(type)||[])fn(event)}
  }
- const ctx={console,TextEncoder,TextDecoder,Uint8Array,Blob,Response,Map,Set,Date,JSON,Number,Math,Promise,Error,crypto:webcrypto,performance:{now:()=>100},RTCPeerConnection:PC,atob,btoa,
+ const ctx={console,TextEncoder,TextDecoder,Uint8Array,Blob,Response,Map,Set,Date,JSON,Number,Math,Promise,Error,structuredClone,crypto:webcrypto,performance:{now:()=>100},RTCPeerConnection:PC,atob,btoa,
  document:{getElementById:el,querySelectorAll:()=>[],addEventListener(){},visibilityState:'visible'},window:{addEventListener(){},removeEventListener(){}},location:{hash:'',href:'https://test.example/app',pathname:'/app',search:''},
  setInterval:()=>0,clearInterval(){},setTimeout:(f,ms)=>{const id=++nextTimer;timers.set(id,{f,ms});return id},clearTimeout:id=>timers.delete(id),cancelAnimationFrame(){},history:{replaceState(){}},localStorage:{setItem(){}},navigator:{userAgent:options.userAgent||''},};
  ctx.window.document=ctx.document;
@@ -36,6 +36,7 @@ function setup(options={}) {
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/webrtc-transport.js'),'utf8'),ctx);
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/clock-model.js'),'utf8'),ctx);
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/persistence.js'),'utf8'),ctx);
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/acquisition.js'),'utf8'),ctx);
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
