@@ -82,7 +82,7 @@
     /* Plane and point management are isolated from WebRTC/clock synchronization.
        Keep injected callbacks wired to this application's existing state. */
     const { checkPlan, savePlan, pointFor, deviceName, deviceCode, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, renderPlan, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint } = globalThis.VWOMAPlan.createController({
-        s, finite, MAX_POINTS, running, $, tell, broadcast, escape, requireHostEdit, renderDevices
+        s, finite, MAX_POINTS, running, $, tell, broadcast: (...args) => broadcast(...args), escape, requireHostEdit, renderDevices
     });
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
     function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}

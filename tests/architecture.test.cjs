@@ -62,3 +62,8 @@ test('WebRTC y el emparejamiento pertenecen al controlador de transporte', () =>
   assert.doesNotMatch(joint, /function newPeer\(/);
   assert.match(joint, /VWOMATransport\.createTransport\(/);
 });
+
+test('el plano difiere el envío hasta inicializar WebRTC', () => {
+  const joint = read('src/joint/joint-app.js');
+  assert.match(joint, /broadcast:\s*\(\.\.\.args\)\s*=>\s*broadcast\(\.\.\.args\)/);
+});
