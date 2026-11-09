@@ -158,13 +158,13 @@ body.vwoma-brand > header .vwoma-flag-icon {
   border-radius: 2px;
   pointer-events: none;
 }
-/* The opened flag grid keeps the larger icons for easy selection. */
+/* Keep the selected flag compact; retain larger flags in the open menu. */
 body.vwoma-brand > header .vwoma-language-trigger .vwoma-flag-icon {
-  flex-basis: 26px;
-  width: 26px;
-  min-width: 26px;
-  height: 20px;
-  min-height: 20px;
+  flex-basis: 18px;
+  width: 18px;
+  min-width: 18px;
+  height: 14px;
+  min-height: 14px;
 }
 body.vwoma-brand > header .vwoma-language-menu {
   position: absolute;
