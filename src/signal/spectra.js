@@ -210,5 +210,7 @@ function fft(real, imag) {
         module.exports = api;
     } else {
         root.VWOMASpectra = api;
+        // Keep the original classic-script globals during migration.
+        Object.assign(root, api);
     }
 })(globalThis);
