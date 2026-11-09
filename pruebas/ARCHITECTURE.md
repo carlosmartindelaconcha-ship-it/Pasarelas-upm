@@ -1,0 +1,100 @@
+# Arquitectura de VWOMA
+
+VWOMA es una aplicación web estática para registro de pasarelas, adquisición
+de aceleraciones y medidas conjuntas con varios teléfonos. Se publica en
+GitHub Pages, sin servidor de aplicación ni proceso de compilación.
+
+## Estructura actual (fase 1 de la refactorización)
+
+```text
+index.html                 HTML y orden de carga
+app.js                     Registro e inspección, adquisición individual,
+                           gráficas y adaptación a cálculos espectrales
+src/signal/spectra.js      FFT, espectro de amplitudes y PSD Welch; módulo puro
+src/joint/joint-app.js     Medida conjunta: plano, dispositivos, WebRTC,
+                           sincronización, calibración, adquisición,
+                           almacenamiento, resultados y exportación
+style.css                  Estilos generales
+vwoma-identity.css         Identidad visual
+vwoma-i18n.css             Selector de idiomas
+vwoma-i18n.js              Traducciones e interfaz multilingüe
+tests/pairing.test.cjs     Pruebas del emparejamiento y señalización
+ tests/spectra.test.cjs     Pruebas numéricas de FFT, espectro y Welch
+tests/architecture.test.cjs Contrato de integración entre scripts
+```
+
+### Contrato de integración
+
+Esta primera fase **separa archivos, pero no elimina todavía el acoplamiento**.
+El cálculo espectral se extrae a `src/signal/spectra.js`, que publica
+`globalThis.VWOMASpectra` en navegador y `module.exports` en Node.
+El procesamiento conserva exactamente las funciones FFT, espectro y Welch
+anteriores. `app.js` mantiene los nombres antiguos como adaptadores.
+`src/signal/spectra.js` se carga antes que `app.js`.
+Para evitar cambios de comportamiento, `app.js` y
+`src/joint/joint-app.js` son *scripts clásicos* (no ES modules) y se cargan
+en ese orden con `defer`. En el ámbito global de la página, un script
+clásico posterior puede utilizar identificadores de nivel superior de otro
+script clásico anterior.
+
+El módulo de medida conjunta utiliza todavía funciones y variables
+de la aplicación heredada, entre ellas:
+
+- `calculateSpectrum`
+- `mainMenu`, `testForm`
+- `createAccelerationChart`, `createSpectrumChart`,
+  `createPsdChart`, `createRmsChart`
+- `accelerationChart`, `spectrumChart`, `psdChart`, `rmsChart`
+- `enableLegendToggling`
+
+**No convertir ninguno de los dos scripts a `type="module"` por separado.**
+Hacerlo requeriría diseñar e implementar explícitamente esos contratos
+mediante importaciones/exportaciones o APIs. Tampoco hay que alterar el
+orden de las etiquetas `script` sin revisar sus dependencias.
+
+La extracción fue textual, sin modificar los algoritmos, las estructuras
+de datos, el modelo temporal, la configuración ICE ni los eventos de UI.
+El contenido de los dos archivos JavaScript concatenados reproduce
+exactamente el `app.js` original de `main` en el momento de la extracción
+(9 de noviembre de 2026).
+
+## Pruebas
+
+Las pruebas automatizadas no necesitan dependencias externas:
+
+```sh
+node --check src/signal/spectra.js
+node --check app.js
+node --check src/joint/joint-app.js
+node --check vwoma-i18n.js
+node --test tests/*.test.cjs
+```
+
+Las pruebas de emparejamiento sustituyen WebRTC por dobles de prueba.
+No verifican una conexión real entre dispositivos.
+
+Antes de fusionar con `main`, se necesita una prueba manual de humo
+en móvil (especialmente Safari iOS y Chrome Android):
+
+1. Inicio, cambio de idioma, navegación e identidad visual.
+2. Registro de pasarela y toma de imágenes; acceso GPS cuando proceda.
+3. Adquisición individual: permisos, señales, FFT/PSD, parada y exportaciones.
+4. Plano de medida conjunta: añadir y borrar puntos, deslizamiento,
+   pellizco, selección, zoom y persistencia.
+5. Dos dispositivos: intercambio de códigos/QR, enlace local/STUN, estados
+   y diagnósticos, calibraciones y medidas sincronizadas.
+6. Resultados, importación, exportación, recuperación y ensayo repetido.
+
+## Siguientes fases propuestas
+
+1. Cubrir con pruebas deterministas las funciones puras de procesamiento
+   (interpolación, eliminación de tendencia, FFT y Welch).
+2. Continuar la extracción de las funciones puras de interpolación, eliminación
+   de tendencia y RMS, manteniendo resultados numéricos y contratos estables.
+3. Separar dentro de `src/joint/` el plano y la distribución de setups
+   del transporte WebRTC, el ajuste de relojes y la persistencia.
+4. Introducir un único estado coordinador y ciclos de vida explícitos para
+   dispositivos, adquisición, transferencias y almacenamiento.
+5. Completar pruebas de integración y compatibilidad antes de fusionar.
+
+En todas las fases, mantener `main` estable hasta terminar las comprobaciones.
