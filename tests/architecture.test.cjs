@@ -24,6 +24,7 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   const spectra = find('src/signal/spectra.js?');
   const legacy = find('app.js?');
   const plan = find('src/joint/plan-controller.js?');
+  const transport = find('src/joint/webrtc-transport.js?');
   const joint = find('src/joint/joint-app.js?');
   const translations = find('vwoma-i18n.js?');
 
@@ -31,9 +32,10 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   assert.ok(spectra >= 0 && spectra < legacy, 'el cálculo espectral debe cargarse primero');
   assert.ok(legacy >= 0, 'falta app.js');
   assert.ok(plan > legacy && plan < joint, 'el controlador del plano debe cargarse antes de la medida conjunta');
+  assert.ok(transport > plan && transport < joint, 'WebRTC debe cargarse después del plano y antes de joint-app.js');
   assert.ok(joint > legacy, 'la medida conjunta debe cargarse después de app.js');
   assert.ok(translations > joint, 'las traducciones se cargan al final');
-  for (const index of [preprocessing, spectra, legacy, plan, joint]) {
+  for (const index of [preprocessing, spectra, legacy, plan, transport, joint]) {
     assert.doesNotMatch(scripts[index][1], /\btype\s*=\s*["']module["']/);
     assert.match(scripts[index][1], /\bdefer\b/);
   }
@@ -48,4 +50,15 @@ test('el controlador del plano está separado del transporte y usa dependencias 
   assert.doesNotMatch(plan, /RTCPeerConnection|function startSync\(/);
   assert.match(joint, /VWOMAPlan\.createController\(/);
   assert.doesNotMatch(joint, /function deletePlanPoint\(/);
+});
+
+test('WebRTC y el emparejamiento pertenecen al controlador de transporte', () => {
+  const transport = read('src/joint/webrtc-transport.js');
+  const joint = read('src/joint/joint-app.js');
+  assert.match(transport, /function createTransport\(/);
+  assert.match(transport, /function newPeer\(/);
+  assert.match(transport, /function wireChannel\(/);
+  assert.match(transport, /function decodeToken\(/);
+  assert.doesNotMatch(joint, /function newPeer\(/);
+  assert.match(joint, /VWOMATransport\.createTransport\(/);
 });
