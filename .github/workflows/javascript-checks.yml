@@ -22,6 +22,7 @@ jobs:
           node-version: "22"
       - name: Check source syntax
         run: |
+          node --check src/signal/spectra.js
           node --check app.js
           node --check src/joint/joint-app.js
           node --check vwoma-i18n.js
