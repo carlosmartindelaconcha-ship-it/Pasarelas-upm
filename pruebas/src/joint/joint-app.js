@@ -114,28 +114,13 @@
         onMessage: (...args) => onMessage(...args)
     });
 
-    // Four timestamps. Network asymmetry remains an unobservable error source.
-    function clockFit(samples) {
-        if(!samples.length)return null;
-        const recent=samples.slice(-240),sorted=[...recent].sort((a,b)=>a.rtt-b.rtt);
-        const cutoff=sorted[Math.max(0,Math.ceil(sorted.length*.3)-1)].rtt;
-        const chosen=recent.filter(v=>v.rtt<=cutoff);
-        const reference=median(chosen.map(v=>v.local));
-        const span=Math.max(...chosen.map(v=>v.local))-Math.min(...chosen.map(v=>v.local));
-        const slopes=[];
-        if(span>=20000&&chosen.length>=6)for(let i=0;i<chosen.length;i++)for(let j=i+1;j<chosen.length;j++){
-            const dt=chosen[j].local-chosen[i].local;if(Math.abs(dt)>=50)slopes.push((chosen[j].offset-chosen[i].offset)/dt);
-        }
-        const drift=slopes.length?median(slopes):0;
-        // Offset at the reference instant. Median makes isolated path asymmetries harmless.
-        const offset=median(chosen.map(v=>v.offset-drift*(v.local-reference)));
-        // Grossly implausible fits are not used to schedule an acquisition.
-        if(!finite(drift)||Math.abs(drift)>.005)return null;
-        const residual=Math.sqrt(chosen.reduce((a,v)=>a+(v.offset-offset-drift*(v.local-reference))**2,0)/chosen.length);
-        return {reference,offset,drift,rtt:sorted[0].rtt,residual,count:samples.length,selectedCount:chosen.length,rttCutoff:cutoff,rttMedian:median(chosen.map(v=>v.rtt)),span,method:'mediana del 30 % de RTT menor; deriva Theil–Sen',updated:now()};
-    }
-    const toMaster=(t,m=s.syncModel)=>t-m.offset-m.drift*(t-m.reference);
-    const fromMaster=(t,m)=> (t+m.offset-m.drift*m.reference)/(1-m.drift);
+    // Clock estimation is independent of WebRTC and of the browser UI.
+    // Retain the original default model for participant -> master conversion.
+    const clockModel = globalThis.VWOMAClockModel.createClockModel({now, finite});
+    const { median, clockFit, fromMaster, validModel,
+            modelOffsetAt, offsetResidual, selectedForModel, syncMetric } = clockModel;
+    const toMaster=(t,m=s.syncModel)=>clockModel.toMaster(t,m);
+
     function syncOnce(p,phase='idle',runId=null) {
         if(p.channel?.readyState!=='open')return;
         const id=uid(),t1=now();p.requests.set(id,{time:t1,phase,runId});send(p,{type:'SYNC_REQUEST',id,t1});
@@ -246,8 +231,6 @@
         }
         if(m.type==='TRANSFER_ACK') {const key=m.transferId+':'+m.index,resolve=p.acks.get(key);if(resolve){p.acks.delete(key);resolve();}return;}
     }
-    function validModel(m) {return m&&['offset','drift','reference','count','rtt'].every(k=>finite(m[k]))&&Math.abs(m.drift)<=.005&&m.count>=1;}
-
     // Local durable chunks. Sensor callbacks only push to memory; storage is batched.
     async function db() {
         if(s.db)return s.db;
@@ -798,10 +781,6 @@
         renderSyncResults(r);
     }
     function clearSyncCharts(){for(const chart of s.syncCharts)chart?.destroy();s.syncCharts=[];}
-    const modelOffsetAt=(model,time)=>{const m=model||{offset:0,drift:0,reference:0};return m.offset+m.drift*(time-m.reference);};
-    const offsetResidual=(row,model)=>row.offset-modelOffsetAt(model,row.local);
-    const selectedForModel=(row,model)=>!finite(model?.rttCutoff)||row.rtt<=model.rttCutoff;
-    function syncMetric(row,metric,model){return metric==='rtt'?row.rtt:offsetResidual(row,model);}
     function jointTemporalOptions(duration,yTitle,tooltip,legend=true) {
         return {responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:legend,position:'top',labels:{boxWidth:22,font:{size:11}}},tooltip:{callbacks:{title:items=>items.length?'t = '+items[0].parsed.x.toFixed(3)+' s':'',label:tooltip}},zoom:{pan:{enabled:true,mode:'xy'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:duration},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:duration,title:{display:true,text:'Tiempo desde el inicio del ensayo (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:yTitle},grid:{color:'rgba(0,0,0,.08)'}}}};
     }
@@ -923,10 +902,6 @@
             for(const sample of record.samples) if(!sample||!Array.isArray(sample.raw)||sample.raw.length<8||!finite(sample.masterTimeMs))throw Error('El archivo contiene muestras incompatibles.');
         }
         return data;
-    }
-    function median(values) {
-        const a=values.filter(finite).sort((x,y)=>x-y),n=a.length;if(!n)return null;
-        return n%2?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2;
     }
     function samplePeriodMs(record,start,end) {
         const times=record.samples.map(s=>s.masterTimeMs).filter(t=>finite(t)&&t>=start-1000&&t<=end+1000).sort((a,b)=>a-b);
