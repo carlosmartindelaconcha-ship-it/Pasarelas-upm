@@ -28,6 +28,7 @@ jobs:
           node --check src/joint/plan-controller.js
           node --check src/joint/webrtc-transport.js
           node --check src/joint/clock-model.js
+          node --check src/joint/persistence.js
           node --check src/joint/joint-app.js
           node --check vwoma-i18n.js
       - name: Run regression tests

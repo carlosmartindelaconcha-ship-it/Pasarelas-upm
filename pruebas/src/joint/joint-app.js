@@ -82,7 +82,8 @@
     /* Plane and point management are isolated from WebRTC/clock synchronization.
        Keep injected callbacks wired to this application's existing state. */
     const { checkPlan, savePlan, pointFor, deviceName, deviceCode, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, renderPlan, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint } = globalThis.VWOMAPlan.createController({
-        s, finite, MAX_POINTS, running, $, tell, broadcast: (...args) => broadcast(...args), escape, requireHostEdit, renderDevices
+        s, finite, MAX_POINTS, running, $, tell, broadcast: (...args) => broadcast(...args),
+        storageKey:'upm-joint-plan-vwoma-preview-v1', escape, requireHostEdit, renderDevices
     });
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
     function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}
@@ -231,58 +232,25 @@
         }
         if(m.type==='TRANSFER_ACK') {const key=m.transferId+':'+m.index,resolve=p.acks.get(key);if(resolve){p.acks.delete(key);resolve();}return;}
     }
-    // Local durable chunks. Sensor callbacks only push to memory; storage is batched.
-    async function db() {
-        if(s.db)return s.db;
-        s.db=await new Promise((resolve,reject)=>{
-            const req=indexedDB.open('upm-joint-vwoma-preview-v1',1);
-            req.onupgradeneeded=()=>{req.result.createObjectStore('runs',{keyPath:'key'});req.result.createObjectStore('chunks',{keyPath:'key'});};
-            req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
-        });return s.db;
-    }
-    async function storeBatch(run,rows,index) {
-        const database=await db();
-        await new Promise((resolve,reject)=>{
-            const tx=database.transaction(['runs','chunks'],'readwrite');
-            tx.objectStore('runs').put({key:run.id+':'+run.device.id,meta:runMeta(run)});
-            if(rows.length)tx.objectStore('chunks').put({key:run.id+':'+run.device.id+':'+String(index).padStart(8,'0'),rows});
-            tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('Guardado interrumpido'));
+    /* Browser storage and run recovery are delegated to the persistence layer.
+       Database name is explicit so /pruebas/ can use a separate data store. */
+    const {persist, persistBeforeClosing, storedRuns, storedChunks} =
+        globalThis.VWOMAPersistence.createPersistence({
+            s, runMeta, incident, tell,
+            databaseName:'upm-joint-vwoma-preview-v1',
+            indexedDB:typeof indexedDB==='undefined'?null:indexedDB,
+            IDBKeyRange:typeof IDBKeyRange==='undefined'?null:IDBKeyRange,
+            structuredClone:value=>structuredClone(value),
+            setTimeout, clearTimeout
         });
-    }
-    function persist(run=s.run) {
-        if(!run)return s.writeChain;
-        if(run.device.role==='guest') run.sync=structuredClone(s.syncLog);
-        const start=run.persisted||0,rows=run.samples.slice(start);run.persisted=run.samples.length;
-        const index=run.chunkIndex||0;run.chunkIndex=index+1;
-        s.writeChain=s.writeChain.then(()=>storeBatch(run,rows,index)).catch(e=>{
-            if(!s.storageFailed){s.storageFailed=true;incident('storage','Guardado local fallido: '+e.message);tell('No se pudo guardar en el navegador. Conserva la página abierta y descarga el registro.',true);}
-        });return s.writeChain;
-    }
-    async function persistBeforeClosing(run) {
-        // IndexedDB puede quedar pendiente en móviles cuando el navegador cambia de
-        // estado. Nunca debe impedir cerrar bien un ensayo ni arrancar el siguiente.
-        let timer;
-        try {
-            await Promise.race([
-                persist(run),
-                new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('El guardado local tardó demasiado.')),8000);})
-            ]);
-        } catch(error) {
-            s.storageFailed=true;incident('storage',error.message);
-            s.writeChain=Promise.resolve();
-            tell('El guardado local sigue pendiente. El registro permanece en memoria: descárgalo antes de cerrar.',true);
-        } finally {clearTimeout(timer);}
-    }
     async function recover() {
-        const database=await db();
-        const entries=await new Promise((resolve,reject)=>{const req=database.transaction('runs').objectStore('runs').getAll();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+        const entries=await storedRuns();
         $('jointRecoveryList').replaceChildren();
         if(!entries.length){$('jointRecoveryList').textContent='No hay registros locales guardados.';return;}
         for(const entry of entries.sort((a,b)=>b.meta.created.localeCompare(a.meta.created))) {
             const b=document.createElement('button');b.type='button';b.className='joint-secondary';b.textContent=entry.meta.created.slice(0,19)+' · '+entry.meta.device.name;
             b.onclick=guard(async()=>{
-                const range=IDBKeyRange.bound(entry.key+':',entry.key+':\uffff');
-                const chunks=await new Promise((resolve,reject)=>{const req=database.transaction('chunks').objectStore('chunks').getAll(range);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+                const chunks=await storedChunks(entry.key);
                 download('recuperado_'+entry.meta.id+'.json',{...entry.meta,recovered:true,samples:chunks.flatMap(v=>v.rows)});
             });$('jointRecoveryList').append(b);
         }
