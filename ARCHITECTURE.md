@@ -4,7 +4,7 @@ VWOMA es una aplicación web estática para registro de pasarelas, adquisición
 de aceleraciones y medidas conjuntas con varios teléfonos. Se publica en
 GitHub Pages, sin servidor de aplicación ni proceso de compilación.
 
-## Estructura actual (fase 5 de la refactorización)
+## Estructura actual (fase 6 de la refactorización)
 
 ```text
 index.html                 HTML y orden de carga
@@ -18,9 +18,11 @@ src/joint/webrtc-transport.js Protocolo QR/SDP, conexiones WebRTC, ICE/STUN,
                            canales de datos y diagnósticos de emparejamiento
 src/joint/clock-model.js    Ajuste de offset, deriva y RTT, conversiones
                            de reloj y métricas temporales; sin DOM ni red
+src/joint/persistence.js    IndexedDB: almacenes runs/chunks, guardado por lotes,
+                           recuperación de registros y cierre seguro
 src/joint/joint-app.js     Orquestación: eventos del plano y dispositivos,
                            intercambios de reloj, calibración, adquisición,
-                           almacenamiento, resultados y exportación
+                           resultados, UI de recuperación y exportación
 style.css                  Estilos generales
 vwoma-identity.css         Identidad visual
 vwoma-i18n.css             Selector de idiomas
@@ -29,6 +31,7 @@ tests/pairing.test.cjs     Pruebas del emparejamiento y señalización
 tests/preprocessing.test.cjs Pruebas de interpolación, detrend, RMS y remuestreo
 tests/plan-controller.test.cjs Pruebas del plano y gestión de puntos
 tests/clock-model.test.cjs Modelos de reloj y conversiones temporales
+tests/persistence.test.cjs Guardado por lotes, recuperación y fallos IndexedDB
 tests/spectra.test.cjs     Pruebas numéricas de FFT, espectro y Welch
 tests/architecture.test.cjs Contrato de integración entre scripts
 ```
@@ -70,6 +73,16 @@ las expresiones matemáticas originales. La dependencia de `now()` se inyecta
 para poder probar con marcas reproducibles. `joint-app.js` conserva el envío
 de mensajes SYNC, el estado de la sesión y el valor por defecto de `toMaster`
 para no alterar la secuencia de adquisición.
+
+La persistencia se extrae a `src/joint/persistence.js`, cuya factoría
+`VWOMAPersistence.createPersistence({...})` recibe explícitamente el nombre de
+IndexedDB, el estado del ensayo y las APIs del navegador. Se conservan los
+almacenes `runs` y `chunks`, la versión 1, las claves de lotes, la cola de
+escritura, los avisos por fallo y el límite de 8 segundos al cerrar el ensayo.
+La vista de recuperación continúa en `joint-app.js`, pero lee los registros
+mediante `storedRuns()` y `storedChunks()`; así no accede directamente a IndexedDB.
+La clave del plano se pasa a `plan-controller.js` como `storageKey` para que
+el sitio `/pruebas/` mantenga su plano separado de la página pública.
 Para evitar cambios de comportamiento, `app.js` y
 `src/joint/joint-app.js` son *scripts clásicos* (no ES modules) y se cargan
 en ese orden con `defer`. En el ámbito global de la página, un script
@@ -107,6 +120,7 @@ node --check src/signal/spectra.js
 node --check app.js
 node --check src/joint/plan-controller.js
 node --check src/joint/clock-model.js
+node --check src/joint/persistence.js
 node --check src/joint/webrtc-transport.js
 node --check src/joint/joint-app.js
 node --check vwoma-i18n.js
@@ -133,8 +147,8 @@ en móvil (especialmente Safari iOS y Chrome Android):
 1. Cubrir con pruebas deterministas las funciones puras de procesamiento
    (interpolación, eliminación de tendencia, FFT y Welch).
 2. Ampliar pruebas numéricas y de integración para preprocesamiento y FFT.
-3. Completar tests de integración del intercambio SYNC y después aislar
-   persistencia y resultados. Diseñar setups futuros sobre el plano existente.
+3. Completar tests de integración y separar el ciclo de adquisición,
+   calibración, resultados y transferencias; diseñar setups sobre el plano.
 4. Introducir un único estado coordinador y ciclos de vida explícitos para
    dispositivos, adquisición, transferencias y almacenamiento.
 5. Completar pruebas de integración y compatibilidad antes de fusionar.

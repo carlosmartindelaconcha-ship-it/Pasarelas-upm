@@ -7,7 +7,7 @@ const vm = require('node:vm');
 
 const moduleSource = fs.readFileSync(path.join(__dirname,'../src/joint/plan-controller.js'),'utf8');
 
-function fixture(role='host') {
+function fixture(role='host', storageKey) {
   const elements = new Map(), broadcasts = [], notices = [], storage = new Map();
   const byId = id => {
     if (!elements.has(id)) elements.set(id, {
@@ -39,7 +39,7 @@ function fixture(role='host') {
     requireHostEdit:()=>{
       if(hostState.role!=='host')throw Error('El plano lo edita el maestro.');
     },
-    renderDevices:()=>{}
+    renderDevices:()=>{},storageKey
   });
   return {api,s:hostState,elements,byId,broadcasts,notices,storage};
 }
@@ -124,4 +124,11 @@ test('el visitante no puede editar el plano',()=>{
   const {api}=fixture('guest');
   assert.throws(()=>api.addPoint(),/maestro/);
   assert.throws(()=>api.deletePlanPoint('P1',false),/maestro/);
+});
+
+test('permite aislar la persistencia del plano de pruebas sin afectar la versión pública',()=>{
+  const {api,storage}=fixture('host','upm-joint-plan-vwoma-preview-v1');
+  api.addPoint();
+  assert.equal(storage.has('upm-joint-plan-vwoma-preview-v1'),true);
+  assert.equal(storage.has('upm-joint-plan-v1'),false);
 });

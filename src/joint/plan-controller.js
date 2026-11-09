@@ -4,7 +4,7 @@
  */
 (function registerPlanController(root) {
     'use strict';
-    function createController({ s, finite, MAX_POINTS, running, $, tell, broadcast, escape, requireHostEdit, renderDevices }) {
+    function createController({ s, finite, MAX_POINTS, running, $, tell, broadcast, escape, requireHostEdit, renderDevices, storageKey='upm-joint-plan-v1' }) {
     function checkPlan(plan) {
         if (!plan || !finite(plan.length) || !finite(plan.width) || plan.length<.1 || plan.width<.1 || plan.length>10000 || plan.width>10000 || !Array.isArray(plan.points) || plan.points.length>MAX_POINTS) throw Error('Plano no válido: revisa dimensiones y puntos.');
         const ids=new Set(), devices=new Set();
@@ -19,7 +19,7 @@
     }
     function savePlan(render=true) {
         s.plan=checkPlan(s.plan);
-        try {localStorage.setItem('upm-joint-plan-v1',JSON.stringify({...s.plan,points:s.plan.points.map(p=>({...p,device:null}))}));} catch(e){tell('Plano en memoria. No se ha podido guardar en este navegador.',true);}
+        try {localStorage.setItem(storageKey,JSON.stringify({...s.plan,points:s.plan.points.map(p=>({...p,device:null}))}));} catch(e){tell('Plano en memoria. No se ha podido guardar en este navegador.',true);}
         broadcast({type:'PLAN',plan:s.plan}); if(render)renderPlan();
     }
     function pointFor(device=s.id, plan=s.plan) {return plan.points.find(p=>p.device===device);}

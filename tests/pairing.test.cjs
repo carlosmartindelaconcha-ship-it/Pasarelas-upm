@@ -35,6 +35,7 @@ function setup(options={}) {
  ctx.VWOMAPlan = {createController:deps=>({...createPlanController(deps),renderPlan:()=>{},savePlan:()=>{}})};
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/webrtc-transport.js'),'utf8'),ctx);
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/clock-model.js'),'utf8'),ctx);
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/persistence.js'),'utf8'),ctx);
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
