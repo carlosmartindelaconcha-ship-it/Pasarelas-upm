@@ -9,7 +9,8 @@ GitHub Pages, sin servidor de aplicación ni proceso de compilación.
 ```text
 index.html                 HTML y orden de carga
 app.js                     Registro e inspección, adquisición individual,
-                           procesamiento espectral y gráficas
+                           gráficas y adaptación a cálculos espectrales
+src/signal/spectra.js      FFT, espectro de amplitudes y PSD Welch; módulo puro
 src/joint/joint-app.js     Medida conjunta: plano, dispositivos, WebRTC,
                            sincronización, calibración, adquisición,
                            almacenamiento, resultados y exportación
@@ -18,12 +19,18 @@ vwoma-identity.css         Identidad visual
 vwoma-i18n.css             Selector de idiomas
 vwoma-i18n.js              Traducciones e interfaz multilingüe
 tests/pairing.test.cjs     Pruebas del emparejamiento y señalización
+ tests/spectra.test.cjs     Pruebas numéricas de FFT, espectro y Welch
 tests/architecture.test.cjs Contrato de integración entre scripts
 ```
 
 ### Contrato de integración
 
 Esta primera fase **separa archivos, pero no elimina todavía el acoplamiento**.
+El cálculo espectral se extrae a `src/signal/spectra.js`, que publica
+`globalThis.VWOMASpectra` en navegador y `module.exports` en Node.
+El procesamiento conserva exactamente las funciones FFT, espectro y Welch
+anteriores. `app.js` mantiene los nombres antiguos como adaptadores.
+`src/signal/spectra.js` se carga antes que `app.js`.
 Para evitar cambios de comportamiento, `app.js` y
 `src/joint/joint-app.js` son *scripts clásicos* (no ES modules) y se cargan
 en ese orden con `defer`. En el ámbito global de la página, un script
@@ -56,6 +63,7 @@ exactamente el `app.js` original de `main` en el momento de la extracción
 Las pruebas automatizadas no necesitan dependencias externas:
 
 ```sh
+node --check src/signal/spectra.js
 node --check app.js
 node --check src/joint/joint-app.js
 node --check vwoma-i18n.js
@@ -81,8 +89,8 @@ en móvil (especialmente Safari iOS y Chrome Android):
 
 1. Cubrir con pruebas deterministas las funciones puras de procesamiento
    (interpolación, eliminación de tendencia, FFT y Welch).
-2. Extraer el procesamiento a una API pública pequeña con entradas y salidas
-   documentadas, sin cambiar resultados numéricos inadvertidamente.
+2. Continuar la extracción de las funciones puras de interpolación, eliminación
+   de tendencia y RMS, manteniendo resultados numéricos y contratos estables.
 3. Separar dentro de `src/joint/` el plano y la distribución de setups
    del transporte WebRTC, el ajuste de relojes y la persistencia.
 4. Introducir un único estado coordinador y ciclos de vida explícitos para
