@@ -30,7 +30,7 @@ function setup(options={}) {
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
- const answer=p=>'J1.'+btoa(JSON.stringify({v:3,network:p.network,kind:'answer',host:'host',peer:p.id,session:'session',expires:Date.now()+60000,sdp:{type:'answer',sdp}})).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+ const answer=p=>'J1.'+btoa(JSON.stringify({v:4,network:p.network,kind:'answer',host:'host',peer:p.id,session:'session',expires:Date.now()+60000,sdp:{type:'answer',sdp}})).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
  return {a,el,timers,peer,answer};
 }
 test('channel open closes the pairing modal, updates status and cancels timeout',()=>{
@@ -74,7 +74,7 @@ test('rejected answer closes peer rather than leaving an indefinite wait',async(
  const {a,peer,answer,timers}=setup({rejectRemote:true});const p=peer();p.pc.signalingState='have-local-offer';await assert.rejects(a.readCode(answer(p)),/Invalid SDP/);assert.equal(p.pairFailed,true);assert.equal(timers.size,0);
 });
 function token(payload){return 'J1.'+btoa(JSON.stringify(payload)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
-function offer(network='stun',candidate=sdp){return {v:3,network,kind:'offer',host:'master',peer:'guest',session:'new-session',expires:Date.now()+60000,sdp:{type:'offer',sdp:candidate}}}
+function offer(network='stun',candidate=sdp){return {v:4,network,kind:'offer',host:'master',peer:'guest',session:'new-session',expires:Date.now()+60000,sdp:{type:'offer',sdp:candidate}}}
 const srflx='v=0\r\na=candidate:2 1 udp 123 198.51.100.2 6000 typ srflx raddr 0.0.0.0 rport 0\r\n';
 test('STUN mode configures app-owned discovery servers; local mode configures none',()=>{
  const {a}=setup();const stun=a.newPeer('a','stun'),local=a.newPeer('b','local');assert.equal(stun.pc.config.iceServers[0].urls[0],'stun:stun.l.google.com:19302');assert.equal(local.pc.config.iceServers.length,0);assert.throws(()=>a.newPeer('x','unknown'),/modo/);
