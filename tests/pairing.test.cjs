@@ -26,9 +26,13 @@ function setup(options={}) {
  ctx.window.document=ctx.document;
  let block=source.slice(source.indexOf('(() => {',source.indexOf('MEDIDA CONJUNTA')));
  const end=block.lastIndexOf('})();');
- block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary,candidateDetails,icePairSnapshot,qrTransferPages,acceptQrPage,isAndroidChrome,updateAndroidNearbyNotice};`+block.slice(end);
+ block=block.slice(0,end)+`renderDevices=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary,candidateDetails,icePairSnapshot,qrTransferPages,acceptQrPage,isAndroidChrome,updateAndroidNearbyNotice};`+block.slice(end);
  // Load the browser plan controller before evaluating the joint application.
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/plan-controller.js'),'utf8'),ctx);
+ // The pairing suite tests transport, not the SVG/DOM plan renderer.
+ // Stub the controller's UI callbacks instead of reassigning immutable bindings.
+ const createPlanController = ctx.VWOMAPlan.createController;
+ ctx.VWOMAPlan = {createController:deps=>({...createPlanController(deps),renderPlan:()=>{},savePlan:()=>{}})};
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
