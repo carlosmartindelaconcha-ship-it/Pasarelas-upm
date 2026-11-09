@@ -67,3 +67,10 @@ test('el plano difiere el envío hasta inicializar WebRTC', () => {
   const joint = read('src/joint/joint-app.js');
   assert.match(joint, /broadcast:\s*\(\.\.\.args\)\s*=>\s*broadcast\(\.\.\.args\)/);
 });
+
+test('el transporte usa callbacks diferidos para orquestación de la aplicación', () => {
+  const joint = read('src/joint/joint-app.js');
+  for (const callback of ['renderDevices','workspace','startSync','onMessage']) {
+    assert.match(joint, new RegExp(callback + ':\\s*\\(\\.\\.\\.args\\)\\s*=>\\s*' + callback + '\\(\\.\\.\\.args\\)'));
+  }
+});

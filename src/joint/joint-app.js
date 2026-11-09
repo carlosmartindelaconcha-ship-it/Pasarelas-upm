@@ -107,7 +107,11 @@
     /* WebRTC transport and QR signaling are separate from acquisition and clocks.
        Keep method bindings writable for the existing diagnostic test harness. */
     let { encodeToken, decodeToken, stopQrCycle, qrTransferPages, renderQrPage, acceptQrPage, showToken, openPair, browserLabel, isAndroidChrome, updateAndroidNearbyNotice, diagnosticEvent, diagnosticText, showPairDiagnostic, pairingError, gather, candidateSummary, parsedCandidates, candidateEndpoint, candidateLabel, candidateDetails, icePairSnapshot, captureIceStats, scheduleIceStats, pairingDetails, pairStatus, disposePeer, failPair, watchPair, localDescription, prepareSafariConnection, pairingAction, retryPair, wirePeer, newPeer, send, broadcast, wireChannel, checkRoute, invite, createGuestAnswer, readCode, stopScan, scanCode } = globalThis.VWOMATransport.createTransport({
-        s, VERSION, STUN_SERVERS, MAX_PEERS, MAX_TOKEN, MAX_MESSAGE, QR_CHUNK_SIZE, MAX_QR_PAGES, uid, now, finite, $, running, tell, incident, guard, tab, open, workspace, requireHostEdit, localStatus, renderDevices, savePlan, renderPlan, startSync, onMessage
+        s, VERSION, STUN_SERVERS, MAX_PEERS, MAX_TOKEN, MAX_MESSAGE, QR_CHUNK_SIZE, MAX_QR_PAGES, uid, now, finite, $, running, tell, incident, guard, tab, open,
+        workspace: (...args) => workspace(...args), requireHostEdit, localStatus,
+        renderDevices: (...args) => renderDevices(...args), savePlan, renderPlan,
+        startSync: (...args) => startSync(...args),
+        onMessage: (...args) => onMessage(...args)
     });
 
     // Four timestamps. Network asymmetry remains an unobservable error source.
