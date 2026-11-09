@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const {webcrypto}=require('node:crypto');
-const source=fs.readFileSync(require('node:path').join(__dirname,'../app.js'),'utf8');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../src/joint/joint-app.js'),'utf8');
 const sdp='v=0\r\na=candidate:1 1 udp 123 192.168.1.2 5000 typ host\r\n';
 function setup(options={}) {
  const elements=new Map(),timers=new Map();let nextTimer=0;
