@@ -23,16 +23,29 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   const preprocessing = find('src/signal/preprocessing.js?');
   const spectra = find('src/signal/spectra.js?');
   const legacy = find('app.js?');
+  const plan = find('src/joint/plan-controller.js?');
   const joint = find('src/joint/joint-app.js?');
   const translations = find('vwoma-i18n.js?');
 
   assert.ok(preprocessing >= 0 && preprocessing < legacy, 'el preprocesamiento debe cargarse antes de app.js');
   assert.ok(spectra >= 0 && spectra < legacy, 'el cálculo espectral debe cargarse primero');
   assert.ok(legacy >= 0, 'falta app.js');
+  assert.ok(plan > legacy && plan < joint, 'el controlador del plano debe cargarse antes de la medida conjunta');
   assert.ok(joint > legacy, 'la medida conjunta debe cargarse después de app.js');
   assert.ok(translations > joint, 'las traducciones se cargan al final');
-  for (const index of [preprocessing, spectra, legacy, joint]) {
+  for (const index of [preprocessing, spectra, legacy, plan, joint]) {
     assert.doesNotMatch(scripts[index][1], /\btype\s*=\s*["']module["']/);
     assert.match(scripts[index][1], /\bdefer\b/);
   }
+});
+
+test('el controlador del plano está separado del transporte y usa dependencias explícitas', () => {
+  const joint = read('src/joint/joint-app.js');
+  const plan = read('src/joint/plan-controller.js');
+  assert.match(plan, /function createController\(/);
+  assert.match(plan, /function deletePlanPoint\(/);
+  assert.match(plan, /function renderPlan\(/);
+  assert.doesNotMatch(plan, /RTCPeerConnection|function startSync\(/);
+  assert.match(joint, /VWOMAPlan\.createController\(/);
+  assert.doesNotMatch(joint, /function deletePlanPoint\(/);
 });

@@ -4,7 +4,7 @@ VWOMA es una aplicación web estática para registro de pasarelas, adquisición
 de aceleraciones y medidas conjuntas con varios teléfonos. Se publica en
 GitHub Pages, sin servidor de aplicación ni proceso de compilación.
 
-## Estructura actual (fase 2 de la refactorización)
+## Estructura actual (fase 3 de la refactorización)
 
 ```text
 index.html                 HTML y orden de carga
@@ -12,8 +12,10 @@ app.js                     Registro e inspección, adquisición individual,
                            gráficas y adaptación a cálculos espectrales
 src/signal/preprocessing.js Interpolación, regularización, detrend y RMS; módulo puro
 src/signal/spectra.js      FFT, espectro de amplitudes y PSD Welch; módulo puro
-src/joint/joint-app.js     Medida conjunta: plano, dispositivos, WebRTC,
-                           sincronización, calibración, adquisición,
+src/joint/plan-controller.js Plano, geometría, puntos, tabla y dibujo SVG;
+                           controlador con dependencias explícitas
+src/joint/joint-app.js     Medida conjunta: eventos del plano, dispositivos,
+                           WebRTC, sincronización, calibración, adquisición,
                            almacenamiento, resultados y exportación
 style.css                  Estilos generales
 vwoma-identity.css         Identidad visual
@@ -21,6 +23,7 @@ vwoma-i18n.css             Selector de idiomas
 vwoma-i18n.js              Traducciones e interfaz multilingüe
 tests/pairing.test.cjs     Pruebas del emparejamiento y señalización
 tests/preprocessing.test.cjs Pruebas de interpolación, detrend, RMS y remuestreo
+tests/plan-controller.test.cjs Pruebas del plano y gestión de puntos
 tests/spectra.test.cjs     Pruebas numéricas de FFT, espectro y Welch
 tests/architecture.test.cjs Contrato de integración entre scripts
 ```
@@ -38,6 +41,13 @@ El procesamiento conserva exactamente las funciones FFT, espectro y Welch
 anteriores. `app.js` mantiene los nombres antiguos como adaptadores.
 `src/signal/preprocessing.js` y `src/signal/spectra.js` se cargan
 antes que `app.js` y no dependen de la interfaz, la red ni el almacenamiento.
+El plano está separado en `src/joint/plan-controller.js`. Su factoría
+`VWOMAPlan.createController({...})` recibe estado, límites, acceso DOM,
+comprobaciones y callbacks de persistencia/dispositivos; conserva la lógica
+existente de creación, validación, dibujo y borrado de puntos.
+`src/joint/joint-app.js` todavía contiene los listeners de gesto del plano,
+pero ya no contiene el controlador del plano. Se carga el controlador
+entre `app.js` y `src/joint/joint-app.js`.
 Para evitar cambios de comportamiento, `app.js` y
 `src/joint/joint-app.js` son *scripts clásicos* (no ES modules) y se cargan
 en ese orden con `defer`. En el ámbito global de la página, un script
@@ -73,6 +83,7 @@ Las pruebas automatizadas no necesitan dependencias externas:
 node --check src/signal/preprocessing.js
 node --check src/signal/spectra.js
 node --check app.js
+node --check src/joint/plan-controller.js
 node --check src/joint/joint-app.js
 node --check vwoma-i18n.js
 node --test tests/*.test.cjs
@@ -98,8 +109,8 @@ en móvil (especialmente Safari iOS y Chrome Android):
 1. Cubrir con pruebas deterministas las funciones puras de procesamiento
    (interpolación, eliminación de tendencia, FFT y Welch).
 2. Ampliar pruebas numéricas y de integración para preprocesamiento y FFT.
-3. Separar dentro de `src/joint/` el plano y la distribución de setups
-   del transporte WebRTC, el ajuste de relojes y la persistencia.
+3. Separar progresivamente los listeners de gesto del plano, la distribución
+   futura de setups, el transporte WebRTC, el ajuste de relojes y la persistencia.
 4. Introducir un único estado coordinador y ciclos de vida explícitos para
    dispositivos, adquisición, transferencias y almacenamiento.
 5. Completar pruebas de integración y compatibilidad antes de fusionar.
