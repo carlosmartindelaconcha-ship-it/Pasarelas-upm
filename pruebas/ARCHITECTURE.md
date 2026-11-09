@@ -4,7 +4,7 @@ VWOMA es una aplicación web estática para registro de pasarelas, adquisición
 de aceleraciones y medidas conjuntas con varios teléfonos. Se publica en
 GitHub Pages, sin servidor de aplicación ni proceso de compilación.
 
-## Estructura actual (fase 3 de la refactorización)
+## Estructura actual (fase 4 de la refactorización)
 
 ```text
 index.html                 HTML y orden de carga
@@ -14,8 +14,10 @@ src/signal/preprocessing.js Interpolación, regularización, detrend y RMS; mód
 src/signal/spectra.js      FFT, espectro de amplitudes y PSD Welch; módulo puro
 src/joint/plan-controller.js Plano, geometría, puntos, tabla y dibujo SVG;
                            controlador con dependencias explícitas
-src/joint/joint-app.js     Medida conjunta: eventos del plano, dispositivos,
-                           WebRTC, sincronización, calibración, adquisición,
+src/joint/webrtc-transport.js Protocolo QR/SDP, conexiones WebRTC, ICE/STUN,
+                           canales de datos y diagnósticos de emparejamiento
+src/joint/joint-app.js     Orquestación: eventos del plano y dispositivos,
+                           sincronización, calibración, adquisición,
                            almacenamiento, resultados y exportación
 style.css                  Estilos generales
 vwoma-identity.css         Identidad visual
@@ -48,6 +50,14 @@ existente de creación, validación, dibujo y borrado de puntos.
 `src/joint/joint-app.js` todavía contiene los listeners de gesto del plano,
 pero ya no contiene el controlador del plano. Se carga el controlador
 entre `app.js` y `src/joint/joint-app.js`.
+
+La comunicación WebRTC se traslada a `src/joint/webrtc-transport.js`.
+`VWOMATransport.createTransport({...})` recibe explícitamente el estado,
+el reloj, los callbacks de sincronización y las funciones de UI.
+No se cambian los mensajes, modos de red, parámetros ICE/STUN, códigos QR,
+tiempos de espera ni diagnósticos. Se carga entre `plan-controller.js` y
+`joint-app.js`. El módulo sigue acoplado al estado del ensayo por diseño:
+será objeto de fases posteriores con contratos más estrechos.
 Para evitar cambios de comportamiento, `app.js` y
 `src/joint/joint-app.js` son *scripts clásicos* (no ES modules) y se cargan
 en ese orden con `defer`. En el ámbito global de la página, un script
@@ -84,6 +94,7 @@ node --check src/signal/preprocessing.js
 node --check src/signal/spectra.js
 node --check app.js
 node --check src/joint/plan-controller.js
+node --check src/joint/webrtc-transport.js
 node --check src/joint/joint-app.js
 node --check vwoma-i18n.js
 node --test tests/*.test.cjs
@@ -109,8 +120,8 @@ en móvil (especialmente Safari iOS y Chrome Android):
 1. Cubrir con pruebas deterministas las funciones puras de procesamiento
    (interpolación, eliminación de tendencia, FFT y Welch).
 2. Ampliar pruebas numéricas y de integración para preprocesamiento y FFT.
-3. Separar progresivamente los listeners de gesto del plano, la distribución
-   futura de setups, el transporte WebRTC, el ajuste de relojes y la persistencia.
+3. Desacoplar los modelos de reloj y sincronización, y después los
+   eventos del plano, setups futuros y persistencia respecto a WebRTC.
 4. Introducir un único estado coordinador y ciclos de vida explícitos para
    dispositivos, adquisición, transferencias y almacenamiento.
 5. Completar pruebas de integración y compatibilidad antes de fusionar.
