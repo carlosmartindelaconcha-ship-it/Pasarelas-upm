@@ -45,3 +45,16 @@ test('Welch PSD reports positive power near a known sine frequency', () => {
   assert.ok(totalVariance > 0.4 && totalVariance < 0.6, `potencia integrada: ${totalVariance}`);
   assert.ok(points.every(p => p.x >= 0 && p.x <= 30 && p.y >= 0 && Number.isFinite(p.y)));
 });
+
+test('browser classic script preserves the original global function names', () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '../src/signal/spectra.js'), 'utf8');
+  const browser = {};
+  vm.runInNewContext(source, browser);
+  for (const name of ['fft', 'nextPowerOfTwo', 'calculateSpectrum', 'calculateWelchPsd']) {
+    assert.equal(typeof browser[name], 'function', `falta ${name}`);
+    assert.equal(browser[name], browser.VWOMASpectra[name]);
+  }
+});
