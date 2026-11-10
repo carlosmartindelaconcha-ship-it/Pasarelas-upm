@@ -12,10 +12,21 @@ small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;ma
 #eventCount{color:#53647a;font-size:13px}#summary{height:180px}
 .note{font-size:13px;color:#53647a}
 </style></head><body>
-<h2>VWOMA · Laboratorio WebRTC</h2><p class="note"><strong>Versión de diagnóstico 2.2 · mDNS</strong> · incluye exportación íntegra y medición de RTT del canal.</p>
+<h2>VWOMA · Laboratorio WebRTC</h2><p class="note"><strong>Versión de diagnóstico 2.3 · candidatos en directo</strong> · incluye exportación íntegra y medición de RTT del canal.</p>
 <p>Conexión entre dos móviles, sin STUN, TURN ni servidor de señalización. GitHub Pages solo aloja los archivos estáticos. Esta prueba es independiente de VWOMA.</p>
 <section><label>Este teléfono: <select id="role"><option value="host">Maestro (crea oferta)</option><option value="guest">Participante (responde)</option></select></label>
 <button id="start">1. Crear oferta / preparar participante</button><p id="status">Sin iniciar</p></section>
+<section id="candidatePanel"><h3>Direcciones ICE en tiempo real</h3>
+<p class="note">Las direcciones aparecen en cuanto Safari genera cada candidato, sin esperar a que se establezca la conexión. Las del otro móvil aparecen al pegar o aplicar su SDP. Un nombre <code>.local</code> no revela por sí mismo la dirección IP que representa.</p>
+<h4>Direcciones propias (este teléfono)</h4>
+<pre id="liveLocalCandidates" role="log" aria-live="polite">Aún no hay candidatos propios. Pulsa «Crear oferta / preparar participante».</pre>
+<h4>Direcciones del otro teléfono</h4>
+<pre id="liveRemoteCandidates" role="log" aria-live="polite">Aún no hay candidatos remotos. Pega la oferta o respuesta.</pre>
+<h4>Direcciones adicionales disponibles en las estadísticas de Safari</h4>
+<pre id="liveStatsCandidates">Esperando estadísticas ICE…</pre>
+<button id="copyCandidates">Copiar lista de direcciones</button>
+<p class="note">Se muestran dirección, puerto, protocolo, tipo ICE y momento de detección. Si Safari oculta una IP detrás de mDNS, esta página no puede resolverla automáticamente.</p>
+</section>
 <section><h3>Intercambio manual de SDP</h3>
 <p class="note">Genera la oferta en el maestro, envíala como texto al participante, aplícala allí y devuelve la respuesta al maestro. Mantén ambas páginas abiertas. La copia entre móviles es externa a WebRTC.</p>
 <label>Texto local para enviar:</label><textarea id="out" readonly></textarea><button id="copy">Copiar descripción local</button>
@@ -45,4 +56,4 @@ small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;ma
 <p class="note"><strong>Importante:</strong> el informe completo incluye direcciones IP locales y credenciales temporales ICE presentes en el SDP. Compártelo solo con personas de confianza. No se envía a servidores mediante esta página. Exporta antes de reiniciar la prueba.</p>
 <textarea id="summary" hidden readonly aria-label="Texto de diagnóstico para copiar"></textarea>
 <pre id="log"></pre></section>
-<script src="./test.js?v=diagnostics-2-2-mdns"></script></body></html>
+<script src="./test.js?v=diagnostics-2-3-live-candidates"></script></body></html>
