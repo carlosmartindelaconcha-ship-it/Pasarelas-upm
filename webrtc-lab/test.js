@@ -1,7 +1,7 @@
 'use strict';
 /* VWOMA - isolated Safari/WebRTC diagnostic laboratory. No server signaling. */
 const $ = id => document.getElementById(id);
-const VERSION = 'webrtc-lab-diagnostics-2.2-mdns';
+const VERSION = 'webrtc-lab-diagnostics-2.3-live-candidates';
 const MAX_SNAPSHOTS = 300;
 let pc = null, channel = null, role = null, report = null;
 let timer = null, pendingSnapshot = null, snapshotCount = 0;
@@ -85,6 +85,63 @@ function candidateList(sdp) {
   }
   return result;
 }
+function formatCandidateForDisplay(entry, index) {
+  const c=entry.candidate;
+  const address=c.address || '(dirección no expuesta)';
+  const port=c.port || '(puerto no expuesto)';
+  const kind=c.mdns ? 'mDNS .local' : (address.includes(':') ? 'IPv6' : 'IP / nombre');
+  return (index+1)+'. +'+(entry.ms/1000).toFixed(3)+' s · '+(c.candidateType||'tipo desconocido')+
+    ' · '+(c.protocol||'protocolo desconocido')+'\n   '+address+':'+port+
+    ' ['+kind+']'+(entry.source?'\n   Origen: '+entry.source:'');
+}
+function renderLiveCandidates() {
+  if(!report || !report.liveCandidates) return;
+  for(const [which,elementId] of [['local','liveLocalCandidates'],['remote','liveRemoteCandidates']]) {
+    const entries=report.liveCandidates[which];
+    const target=$(elementId);
+    if(!target)continue;
+    target.textContent=entries.length ?
+      entries.map(formatCandidateForDisplay).join('\n\n') :
+      (which==='local'?'Esperando candidatos ICE propios…':'Esperando el SDP del otro móvil…');
+  }
+}
+function liveCandidate(direction, candidate, source) {
+  if(!report || !report.liveCandidates || !candidate || !candidate.raw) return;
+  const entries=report.liveCandidates[direction];
+  if(!entries || entries.some(x=>x.candidate.raw===candidate.raw))return;
+  entries.push({ms:elapsed(),utc:iso(),candidate,source});
+  renderLiveCandidates();
+}
+function liveFromDescription(info) {
+  if(!info)return;
+  const direction=info.phase.startsWith('remota')?'remote':'local';
+  for(const candidate of info.candidates)liveCandidate(direction,candidate,info.phase);
+}
+function liveFromStats(summary) {
+  if(!summary || !$('liveStatsCandidates'))return;
+  const seen=new Set();
+  const candidates=(summary.candidates||[]).filter(c=>{
+    const key=[c.kind,c.address||'',c.port||'',c.protocol||'',c.candidateType||''].join('|');
+    if(seen.has(key))return false;
+    seen.add(key);return true;
+  });
+  $('liveStatsCandidates').textContent=candidates.length ?
+    candidates.map((c,i)=>(i+1)+'. '+(c.kind==='local-candidate'?'Propia':'Remota')+
+      ' · '+(c.candidateType||'tipo desconocido')+' · '+(c.protocol||'protocolo desconocido')+
+      '\n   '+(c.address||'(Safari no expone la dirección)')+':'+(c.port||'?')).join('\n\n') :
+    'Safari aún no expone direcciones adicionales en getStats().';
+}
+function candidateTextToCopy() {
+  if(!report || !report.liveCandidates)return 'No se ha iniciado ninguna prueba.';
+  return 'VWOMA · candidatos ICE · '+iso()+'\nRol: '+(role||'sin configurar')+
+    '\n\nDIRECCIONES PROPIAS\n'+
+    (report.liveCandidates.local.map(formatCandidateForDisplay).join('\n\n')||'Sin candidatos')+
+    '\n\nDIRECCIONES REMOTAS\n'+
+    (report.liveCandidates.remote.map(formatCandidateForDisplay).join('\n\n')||'Sin candidatos')+
+    '\n\nDATOS ADICIONALES GETSTATS\n'+$('liveStatsCandidates').textContent+
+    '\n\nLos nombres .local no se convierten en IP mediante JavaScript.';
+}
+
 function validIPv4(address) {
   const octets = address.split('.');
   return octets.length===4 && octets.every(x =>
@@ -138,6 +195,7 @@ function descriptionInfo(description, phase) {
   };
   const destination = phase.startsWith('remota') ? report.remoteDescriptions : report.localDescriptions;
   destination.push(d);
+  liveFromDescription(d);
   event('SDP',phase+' · '+description.type+' · '+d.candidates.length+' candidatos', {
     candidates:d.candidates, mediaLinesCount:d.mediaLines.length
   });
@@ -192,6 +250,7 @@ async function capture(label='automática') {
         snap.stats.push(plain);
       });
       snap.summary=summaryFromStats(snap.stats);
+      if(currentReport===report)liveFromStats(snap.summary);
       if(currentReport!==report) return;
       const pairs=snap.summary.candidatePairs;
       const sent=pairs.reduce((n,p)=>n+(Number(p.requestsSent)||0),0);
@@ -310,6 +369,7 @@ async function init(){
     environment:environment(),config:{iceServers:[],iceTransportPolicy:'all'},
     events:[],snapshots:[],localDescriptions:[],remoteDescriptions:[],
     iceCandidateEvents:[],sdpExchanges:[],probeRoundTrips:[],
+    liveCandidates:{local:[],remote:[]},
     mdnsExperiment:{mode:$('mdnsMode').value, enteredAddress:$('mdnsIP').value.trim(),replacements:[],testApplied:false},
     warnings:['Datos limitados a lo que Safari expone en sus API. No demuestra por sí solo un bloqueo del hotspot.',
       'El informe contiene direcciones IP locales, candidatos y credenciales ICE en SDP: compartir con precaución.']
@@ -319,6 +379,8 @@ async function init(){
   $('out').value='';$('incoming').value='';
   $('liveStats').textContent='Esperando primeras estadísticas…';
   $('mdnsInfo').textContent='Esperando candidatos y datos ICE…';
+  $('liveStatsCandidates').textContent='Esperando estadísticas ICE…';
+  renderLiveCandidates();
   $('send').disabled=true;
   try {
     pc=new RTCPeerConnection({iceServers:[],iceTransportPolicy:'all'});
@@ -334,6 +396,11 @@ async function init(){
         json:typeof candidate.toJSON==='function'?candidate.toJSON():null
       } : {endOfCandidates:true};
       report.iceCandidateEvents.push({ms:elapsed(),utc:iso(),...detail});
+      if(candidate && candidate.candidate){
+        const raw=candidate.candidate.startsWith('a=') ? candidate.candidate : 'a='+candidate.candidate;
+        const parsed=candidateList(raw)[0];
+        if(parsed)liveCandidate('local',parsed,'evento ICE en tiempo real');
+      }
       event('ICE candidato',candidate?candidate.candidate:'Fin de candidatos',detail);
     };
     pc.onicecandidateerror=e=> {
@@ -500,4 +567,5 @@ $('stats').onclick=()=>capture('solicitada manualmente').catch(e=>handleError('g
 $('export').onclick=download;
 $('copySummary').onclick=()=>copyText(diagnosticSummary());
 $('copyFull').onclick=()=>copyText(JSON.stringify(fullReport(),null,2));
+$('copyCandidates').onclick=()=>copyText(candidateTextToCopy());
 setupEvents();
