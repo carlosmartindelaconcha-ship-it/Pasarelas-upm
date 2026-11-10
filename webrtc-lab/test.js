@@ -1,7 +1,7 @@
 'use strict';
 /* VWOMA - isolated Safari/WebRTC diagnostic laboratory. No server signaling. */
 const $ = id => document.getElementById(id);
-const VERSION = 'webrtc-lab-diagnostics-2.0';
+const VERSION = 'webrtc-lab-diagnostics-2.2-mdns';
 const MAX_SNAPSHOTS = 300;
 let pc = null, channel = null, role = null, report = null;
 let timer = null, pendingSnapshot = null, snapshotCount = 0;
@@ -85,6 +85,51 @@ function candidateList(sdp) {
   }
   return result;
 }
+function validIPv4(address) {
+  const octets = address.split('.');
+  return octets.length===4 && octets.every(x =>
+    /^\d{1,3}$/.test(x) && Number(x)>=0 && Number(x)<=255 && String(Number(x))===x);
+}
+/* This is NOT an mDNS resolver. It changes an SDP host candidate's destination IP
+   while keeping the candidate port, ICE priority and credentials unchanged.
+   This intervention can reveal whether bypassing .local candidate handling helps. */
+function replaceRemoteMdnsWithIP(description,address) {
+  if(!validIPv4(address)) throw Error('Introduce una IPv4 válida; consulta «Router» en el Wi-Fi del participante');
+  const changed=[];
+  const modified=description.sdp.replace(/^a=candidate:([^\r\n]+)$/gm,(line,body)=>{
+    const parts=body.trim().split(/\s+/);
+    const typeIndex=parts.indexOf('typ');
+    if(parts.length<8 || typeIndex<0 || parts[typeIndex+1]!=='host' ||
+       !/\.local$/i.test(parts[4]) || parts[2].toLowerCase()!=='udp') return line;
+    changed.push({
+      originalHost:parts[4],replacementIP:address,originalPort:parts[5],
+      protocol:parts[2],originalCandidate:line,
+      modifiedCandidate:'a=candidate:'+parts.map((p,i)=>i===4?address:p).join(' ')
+    });
+    parts[4]=address;
+    return 'a=candidate:'+parts.join(' ');
+  });
+  if(!changed.length)throw Error('El SDP remoto no contiene candidatos UDP host con nombre .local para sustituir. Esta prueba no es aplicable.');
+  return {description:{type:description.type,sdp:modified},changed};
+}
+function updateMdnsPanel(snap=null) {
+  if(!report) return;
+  const loc=report.localDescriptions.at(-1);
+  const rem=report.remoteDescriptions.at(-1);
+  const localMdns=(loc?.candidates||[]).filter(c=>c.mdns).length;
+  const remoteMdns=(rem?.candidates||[]).filter(c=>c.mdns).length;
+  const pairs=(snap?.summary || report.snapshots.at(-1)?.summary)?.candidatePairs || [];
+  const succeeded=pairs.filter(p=>p.state==='succeeded').length;
+  const replies=pairs.reduce((sum,p)=>sum+(Number(p.responsesReceived)||0),0);
+  const replaced=report.mdnsExperiment?.replacements?.length||0;
+  const mode=report.mdnsExperiment?.mode==='replace'?'Prueba con IP directa':'Normal (mDNS original)';
+  $('mdnsInfo').textContent=
+    'Modo: '+mode+' · candidatos .local: propios '+localMdns+', remotos '+remoteMdns+
+    ' · sustituidos '+replaced+' · pares ICE satisfactorios '+succeeded+
+    ' · respuestas ICE '+replies+'\n'+
+    'Safari no ofrece una API JavaScript para confirmar la resolución mDNS. '+
+    'La prueba comparativa puede aportar evidencia, no una lectura directa de DNS.';
+}
 function descriptionInfo(description, phase) {
   if (!description) return null;
   const d = {ms:elapsed(), utc:iso(), phase, type:description.type, sdp:description.sdp,
@@ -96,6 +141,7 @@ function descriptionInfo(description, phase) {
   event('SDP',phase+' · '+description.type+' · '+d.candidates.length+' candidatos', {
     candidates:d.candidates, mediaLinesCount:d.mediaLines.length
   });
+  updateMdnsPanel();
   return d;
 }
 function publishLocal() {
@@ -153,6 +199,7 @@ async function capture(label='automática') {
       $('liveStats').textContent='ICE '+snap.states.iceConnectionState+
         ' · pares '+pairs.length+' · comprobaciones '+sent+' · respuestas '+received+
         ' · canal '+snap.states.channelState;
+      updateMdnsPanel(snap);
       if(label!=='automática') event('muestra ICE',label+' · '+pairs.length+' pares · '+sent+' solicitudes / '+received+' respuestas');
     } catch(error) {
       snap.error=errorInfo(error);
@@ -263,6 +310,7 @@ async function init(){
     environment:environment(),config:{iceServers:[],iceTransportPolicy:'all'},
     events:[],snapshots:[],localDescriptions:[],remoteDescriptions:[],
     iceCandidateEvents:[],sdpExchanges:[],probeRoundTrips:[],
+    mdnsExperiment:{mode:$('mdnsMode').value, enteredAddress:$('mdnsIP').value.trim(),replacements:[],testApplied:false},
     warnings:['Datos limitados a lo que Safari expone en sus API. No demuestra por sí solo un bloqueo del hotspot.',
       'El informe contiene direcciones IP locales, candidatos y credenciales ICE en SDP: compartir con precaución.']
   };
@@ -270,12 +318,14 @@ async function init(){
   $('log').textContent='';$('messages').textContent='';
   $('out').value='';$('incoming').value='';
   $('liveStats').textContent='Esperando primeras estadísticas…';
+  $('mdnsInfo').textContent='Esperando candidatos y datos ICE…';
   $('send').disabled=true;
   try {
     pc=new RTCPeerConnection({iceServers:[],iceTransportPolicy:'all'});
     report.actualConfiguration=dataSafe(pc.getConfiguration());
     report.sessionId=iso()+'-'+Math.random().toString(36).slice(2,8);
     event('inicio','Conexión nueva · '+role,report.environment);
+    event('prueba mDNS','Modo '+report.mdnsExperiment.mode+' (sustitución solo al aplicar SDP remoto)',report.mdnsExperiment);
     pc.onicecandidate=e=>{
       const candidate=e.candidate;
       const detail=candidate ? {
@@ -336,9 +386,24 @@ async function apply(){
   if((role==='host' && d.type!=='answer')||(role==='guest'&&d.type!=='offer'))
     throw Error('Se esperaba '+(role==='host'?'una respuesta':'una oferta'));
   report.sdpExchanges.push({ms:elapsed(),direction:'recibida',type:d.type,sdp:d.sdp});
-  descriptionInfo(d,'remota recibida antes de aplicar');
-  event('operación','setRemoteDescription('+d.type+')');
-  await pc.setRemoteDescription(d);
+  descriptionInfo(d,'remota original recibida antes de aplicar');
+  let toApply=d;
+  if(report.mdnsExperiment.mode==='replace') {
+    const ip=report.mdnsExperiment.enteredAddress;
+    const result=replaceRemoteMdnsWithIP(d,ip);
+    toApply=result.description;
+    report.mdnsExperiment.testApplied=true;
+    report.mdnsExperiment.replacements.push(...result.changed);
+    report.sdpExchanges.push({ms:elapsed(),direction:'modificada para diagnóstico',
+      type:d.type,sdp:toApply.sdp});
+    event('PRUEBA mDNS','Se sustituyeron '+result.changed.length+' candidatos .local por '+ip,
+      result.changed);
+    descriptionInfo(toApply,'remota modificada ANTES de aplicar');
+  } else {
+    event('PRUEBA mDNS','Se mantiene el SDP remoto original (control)');
+  }
+  event('operación','setRemoteDescription('+toApply.type+')');
+  await pc.setRemoteDescription(toApply);
   descriptionInfo(pc.remoteDescription,'remota aplicada');
   await capture('SDP remoto aplicado');
   if(role==='guest'){
@@ -386,6 +451,7 @@ function diagnosticSummary(){
       d.phase+' ('+d.type+', '+d.candidates.length+' candidatos)').join('; '),
     'Candidatos locales: '+JSON.stringify(report.localDescriptions.at(-1)?.candidates||[]),
     'Candidatos remotos: '+JSON.stringify(report.remoteDescriptions.at(-1)?.candidates||[]),
+    'Ensayo mDNS: '+JSON.stringify(report.mdnsExperiment),
     'Estadísticas finales: '+JSON.stringify(latest?.summary||{}),
     'Eventos ('+report.events.length+'):'
   ];
