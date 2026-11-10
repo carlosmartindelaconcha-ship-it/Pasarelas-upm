@@ -12,10 +12,19 @@ small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;ma
 #eventCount{color:#53647a;font-size:13px}#summary{height:180px}
 .note{font-size:13px;color:#53647a}
 </style></head><body>
-<h2>VWOMA · Laboratorio WebRTC</h2><p class="note"><strong>Versión de diagnóstico 2.3 · candidatos en directo</strong> · incluye exportación íntegra y medición de RTT del canal.</p>
+<h2>VWOMA · Laboratorio WebRTC</h2><p class="note"><strong>Versión de diagnóstico 2.4 · cámara previa y candidatos</strong> · incluye exportación íntegra y medición de RTT del canal.</p>
 <p>Conexión entre dos móviles, sin STUN, TURN ni servidor de señalización. GitHub Pages solo aloja los archivos estáticos. Esta prueba es independiente de VWOMA.</p>
 <section><label>Este teléfono: <select id="role"><option value="host">Maestro (crea oferta)</option><option value="guest">Participante (responde)</option></select></label>
-<button id="start">1. Crear oferta / preparar participante</button><p id="status">Sin iniciar</p></section>
+<label>Permiso de cámara antes de crear WebRTC:
+<select id="cameraMode">
+<option value="normal">Control: no solicitar cámara previamente</option>
+<option value="before">Prueba: pedir cámara ANTES de crear RTCPeerConnection</option>
+</select></label>
+<p class="note">En «Prueba», Safari pedirá permiso de cámara antes de crear la conexión. La cámara permanecerá activa durante la obtención de candidatos ICE y se detendrá al terminar. En el participante, se mantendrá activa mientras espera la oferta; si no vas a continuar, utiliza «Detener cámara».</p>
+<button id="start">1. Crear oferta / preparar participante</button>
+<button id="stopCamera" type="button" disabled style="background:#52677f">Detener cámara</button>
+<p id="cameraStatus" class="note">Cámara: sin solicitar.</p>
+<p id="status">Sin iniciar</p></section>
 <section id="candidatePanel"><h3>Direcciones ICE en tiempo real</h3>
 <p class="note">Las direcciones aparecen en cuanto Safari genera cada candidato, sin esperar a que se establezca la conexión. Las del otro móvil aparecen al pegar o aplicar su SDP. Un nombre <code>.local</code> no revela por sí mismo la dirección IP que representa.</p>
 <h4>Direcciones propias (este teléfono)</h4>
@@ -56,4 +65,4 @@ small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;ma
 <p class="note"><strong>Importante:</strong> el informe completo incluye direcciones IP locales y credenciales temporales ICE presentes en el SDP. Compártelo solo con personas de confianza. No se envía a servidores mediante esta página. Exporta antes de reiniciar la prueba.</p>
 <textarea id="summary" hidden readonly aria-label="Texto de diagnóstico para copiar"></textarea>
 <pre id="log"></pre></section>
-<script src="./test.js?v=diagnostics-2-3-live-candidates"></script></body></html>
+<script src="./test.js?v=diagnostics-2-4-camera-first"></script></body></html>
