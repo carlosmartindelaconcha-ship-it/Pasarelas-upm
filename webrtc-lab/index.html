@@ -12,7 +12,7 @@ small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;ma
 #eventCount{color:#53647a;font-size:13px}#summary{height:180px}
 .note{font-size:13px;color:#53647a}
 </style></head><body>
-<h2>VWOMA · Laboratorio WebRTC</h2>
+<h2>VWOMA · Laboratorio WebRTC</h2><p class="note"><strong>Versión de diagnóstico 2.1</strong> · incluye exportación íntegra y medición de RTT del canal.</p>
 <p>Conexión entre dos móviles, sin STUN, TURN ni servidor de señalización. GitHub Pages solo aloja los archivos estáticos. Esta prueba es independiente de VWOMA.</p>
 <section><label>Este teléfono: <select id="role"><option value="host">Maestro (crea oferta)</option><option value="guest">Participante (responde)</option></select></label>
 <button id="start">1. Crear oferta / preparar participante</button><p id="status">Sin iniciar</p></section>
@@ -32,4 +32,4 @@ small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;ma
 <p class="note"><strong>Importante:</strong> el informe completo incluye direcciones IP locales y credenciales temporales ICE presentes en el SDP. Compártelo solo con personas de confianza. No se envía a servidores mediante esta página. Exporta antes de reiniciar la prueba.</p>
 <textarea id="summary" hidden readonly aria-label="Texto de diagnóstico para copiar"></textarea>
 <pre id="log"></pre></section>
-<script src="./test.js?v=diagnostics-2"></script></body></html>
+<script src="./test.js?v=diagnostics-2-1"></script></body></html>
