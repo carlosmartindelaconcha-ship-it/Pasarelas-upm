@@ -1,12 +1,14 @@
 'use strict';
 /* VWOMA - isolated Safari/WebRTC diagnostic laboratory. No server signaling. */
 const $ = id => document.getElementById(id);
-const VERSION = 'webrtc-lab-diagnostics-2.3-live-candidates';
+const VERSION = 'webrtc-lab-diagnostics-2.4-camera-first';
 const MAX_SNAPSHOTS = 300;
 let pc = null, channel = null, role = null, report = null;
 let timer = null, pendingSnapshot = null, snapshotCount = 0;
 let started = 0;
 let probeSerial = 0;
+let cameraStream = null;
+let cameraGeneration = 0;
 const pendingProbes = new Map();
 const iso = () => new Date().toISOString();
 const elapsed = () => started ? Math.round(performance.now() - started) : 0;
@@ -356,7 +358,35 @@ function handleError(context,error){
   event('EXCEPCIÓN',context,info);
   capture('excepción '+context).catch(()=>{});
 }
+function stopCamera(reason='detenida por el usuario') {
+  cameraGeneration++;
+  const previous=cameraStream;
+  cameraStream=null;
+  if(previous)previous.getTracks().forEach(track=>track.stop());
+  $('stopCamera').disabled=true;
+  $('cameraStatus').textContent='Cámara: detenida ('+reason+').';
+  if(report && report.cameraTest) {
+    report.cameraTest.stopReason=reason;
+    report.cameraTest.stoppedAtMs=elapsed();
+    if(previous)event('cámara','Flujo de cámara detenido: '+reason);
+  }
+}
 async function init(){
+  // Solicitar getUserMedia directamente desde la pulsación: en Safari importa
+  // conservar el gesto del usuario antes de cualquier await de estadísticas.
+  const cameraMode=$('cameraMode').value;
+  stopCamera('reinicio del ensayo');
+  const currentCameraGeneration=cameraGeneration;
+  let cameraRequest=null;
+  if(cameraMode==='before') {
+    if(!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia!=='function')
+      throw Error('Este navegador no dispone de getUserMedia para la prueba de cámara.');
+    $('cameraStatus').textContent='Cámara: solicitando permiso previo a WebRTC…';
+    // La llamada se inicia ANTES de crear RTCPeerConnection y antes del primer await.
+    cameraRequest=navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  } else {
+    $('cameraStatus').textContent='Cámara: prueba de control, no solicitada.';
+  }
   clearInterval(timer);
   if(pc) {
     await capture('antes de reiniciar');
@@ -370,6 +400,8 @@ async function init(){
     events:[],snapshots:[],localDescriptions:[],remoteDescriptions:[],
     iceCandidateEvents:[],sdpExchanges:[],probeRoundTrips:[],
     liveCandidates:{local:[],remote:[]},
+    cameraTest:{mode:cameraMode, permissionRequested:cameraMode==='before', requestedBeforePeer:true,
+      granted:false, activeDuringGathering:false, stoppedAtMs:null, stopReason:null, error:null},
     mdnsExperiment:{mode:$('mdnsMode').value, enteredAddress:$('mdnsIP').value.trim(),replacements:[],testApplied:false},
     warnings:['Datos limitados a lo que Safari expone en sus API. No demuestra por sí solo un bloqueo del hotspot.',
       'El informe contiene direcciones IP locales, candidatos y credenciales ICE en SDP: compartir con precaución.']
@@ -383,6 +415,36 @@ async function init(){
   renderLiveCandidates();
   $('send').disabled=true;
   try {
+    if(cameraRequest) {
+      event('cámara','Solicitada antes de crear RTCPeerConnection');
+      try {
+        const stream=await cameraRequest;
+        if(currentCameraGeneration!==cameraGeneration) {
+          stream.getTracks().forEach(track=>track.stop());
+          throw Error('Se ha reiniciado la prueba mientras se solicitaba permiso de cámara.');
+        }
+        cameraStream=stream;
+        report.cameraTest.granted=true;
+        report.cameraTest.grantedAtMs=elapsed();
+        report.cameraTest.activeDuringGathering=stream.getVideoTracks().some(track=>track.readyState==='live');
+        $('cameraStatus').textContent='Cámara: permiso concedido; activa durante la búsqueda ICE.';
+        $('stopCamera').disabled=false;
+        stream.getTracks().forEach(track=>track.addEventListener('ended',()=>{
+          event('cámara','Safari ha terminado la pista de vídeo', {readyState:track.readyState});
+          $('cameraStatus').textContent='Cámara: pista terminada por Safari.';
+        }));
+        event('cámara','Permiso obtenido ANTES de crear RTCPeerConnection',{
+          tracks:stream.getTracks().map(track=>({kind:track.kind,readyState:track.readyState,label:track.label}))
+        });
+      }catch(error) {
+        report.cameraTest.error=errorInfo(error);
+        $('cameraStatus').textContent='Cámara: permiso no disponible · '+str(error.name||error.message);
+        event('error cámara','No se ha podido iniciar prueba previa; WebRTC no se crea',errorInfo(error));
+        throw error;
+      }
+    }else{
+      event('cámara','Control sin solicitud de cámara previa');
+    }
     pc=new RTCPeerConnection({iceServers:[],iceTransportPolicy:'all'});
     report.actualConfiguration=dataSafe(pc.getConfiguration());
     report.sessionId=iso()+'-'+Math.random().toString(36).slice(2,8);
@@ -437,12 +499,13 @@ async function init(){
       await pc.setLocalDescription(offer);
       descriptionInfo(pc.localDescription,'local tras setLocalDescription(offer)');
       const complete=await gather();
+      if(cameraStream)stopCamera('candidatos de oferta recopilados');
       publishLocal();
       setStatus(complete ? 'Oferta completa: envíala al participante' :
         'Oferta preparada sin completar ICE: comprueba los candidatos antes de enviarla');
     } else setStatus('Participante preparado: pega la oferta del maestro');
     await capture('inicialización completada');
-  }catch(error){handleError('crear conexión',error)}
+  }catch(error){if(cameraStream)stopCamera('error al iniciar la conexión');handleError('crear conexión',error)}
 }
 async function apply(){
   if(!pc)throw Error('Primero debes iniciar este teléfono');
@@ -480,6 +543,7 @@ async function apply(){
     await pc.setLocalDescription(answer);
     descriptionInfo(pc.localDescription,'local tras setLocalDescription(answer)');
     const complete=await gather();
+    if(cameraStream)stopCamera('candidatos de respuesta recopilados');
     publishLocal();
     setStatus(complete ? 'Respuesta completa: devuélvela al maestro' :
       'Respuesta preparada sin completar ICE: comprueba los candidatos');
@@ -560,6 +624,7 @@ function setupEvents() {
   window.addEventListener('unhandledrejection',e=>event('PROMESA RECHAZADA',str(e.reason),errorInfo(e.reason)));
 }
 $('start').onclick=()=>init().catch(e=>handleError('iniciar',e));
+$('stopCamera').onclick=()=>stopCamera('detenida manualmente');
 $('apply').onclick=()=>apply().catch(e=>handleError('aplicar descripción',e));
 $('copy').onclick=()=>copyText($('out').value);
 $('send').onclick=send;
