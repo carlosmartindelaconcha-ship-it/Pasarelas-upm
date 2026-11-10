@@ -6,6 +6,8 @@ const MAX_SNAPSHOTS = 300;
 let pc = null, channel = null, role = null, report = null;
 let timer = null, pendingSnapshot = null, snapshotCount = 0;
 let started = 0;
+let probeSerial = 0;
+const pendingProbes = new Map();
 const iso = () => new Date().toISOString();
 const elapsed = () => started ? Math.round(performance.now() - started) : 0;
 const str = x => String(x === undefined || x === null ? '' : x);
@@ -169,7 +171,32 @@ async function capture(label='automática') {
 }
 function startSampling() {
   clearInterval(timer);
-  timer=setInterval(()=>{ if(pc && report) capture('automática').catch(e=>event('error muestreo',str(e))); },2000);
+  let ticks=0;
+  timer=setInterval(()=>{
+    if(pc && report){
+      capture('automática').catch(e=>event('error muestreo',str(e)));
+      if(++ticks%2===0) sendProbe();
+    }
+  },2000);
+}
+function sendProbe(){
+  if(!channel || channel.readyState!=='open' || !report) return;
+  const id=++probeSerial;
+  const at=performance.now();
+  const packet={lab:'vwoma-webrtc-lab',type:'ping',id};
+  pendingProbes.set(id,at);
+  try {
+    channel.send(JSON.stringify(packet));
+    event('prueba RTT','PING #'+id+' transmitido');
+  }catch(error){
+    pendingProbes.delete(id);
+    event('error prueba RTT',str(error),errorInfo(error));
+  }
+  if(pendingProbes.size>20) {
+    const oldest=pendingProbes.keys().next().value;
+    pendingProbes.delete(oldest);
+    event('prueba RTT','PING #'+oldest+' sin respuesta (ventana agotada)');
+  }
 }
 function gather() {
   return new Promise(resolve=>{
@@ -187,13 +214,31 @@ function wire(c) {
     label:c.label,id:c.id,negotiated:c.negotiated,ordered:c.ordered,protocol:c.protocol,
     maxRetransmits:c.maxRetransmits,maxPacketLifeTime:c.maxPacketLifeTime,readyState:c.readyState
   });
-  c.onopen=()=>{setStatus('CANAL ABIERTO');$('send').disabled=false;capture('canal abierto')};
+  c.onopen=()=>{setStatus('CANAL ABIERTO');$('send').disabled=false;capture('canal abierto');sendProbe()};
   c.onclosing=()=>{event('canal','Cerrándose');capture('canal cerrándose')};
   c.onclose=()=>{setStatus('Canal cerrado');$('send').disabled=true;capture('canal cerrado')};
   c.onerror=e=>{event('error canal','Error de RTCDataChannel',{
     error:e.error ? errorInfo(e.error):null,message:e.message||null,type:e.type
   });capture('error canal')};
   c.onmessage=e=>{
+    let packet=null;
+    try { packet=JSON.parse(e.data); }catch(_){}
+    if(packet && packet.lab==='vwoma-webrtc-lab' && packet.type==='ping'){
+      event('prueba RTT','PING #'+packet.id+' recibido');
+      try {c.send(JSON.stringify({lab:'vwoma-webrtc-lab',type:'pong',id:packet.id}));}
+      catch(error){event('error prueba RTT','No se pudo responder PONG',errorInfo(error));}
+      return;
+    }
+    if(packet && packet.lab==='vwoma-webrtc-lab' && packet.type==='pong'){
+      const at=pendingProbes.get(packet.id);
+      if(at!==undefined){
+        const rttMs=+(performance.now()-at).toFixed(2);
+        pendingProbes.delete(packet.id);
+        report.probeRoundTrips.push({ms:elapsed(),id:packet.id,rttMs});
+        event('prueba RTT','PING #'+packet.id+' RTT de datos: '+rttMs+' ms');
+      } else event('prueba RTT','PONG inesperado #'+packet.id);
+      return;
+    }
     $('messages').textContent+='Recibido: '+str(e.data)+'\n';
     event('mensaje','Recibido', {data:str(e.data), size:str(e.data).length});
   };
@@ -212,11 +257,12 @@ async function init(){
     pc.close();
   }
   started=performance.now();
+  probeSerial=0;pendingProbes.clear();
   report={
     version:VERSION,createdUTC:iso(),role:$('role').value,
     environment:environment(),config:{iceServers:[],iceTransportPolicy:'all'},
     events:[],snapshots:[],localDescriptions:[],remoteDescriptions:[],
-    iceCandidateEvents:[],sdpExchanges:[],
+    iceCandidateEvents:[],sdpExchanges:[],probeRoundTrips:[],
     warnings:['Datos limitados a lo que Safari expone en sus API. No demuestra por sí solo un bloqueo del hotspot.',
       'El informe contiene direcciones IP locales, candidatos y credenciales ICE en SDP: compartir con precaución.']
   };
