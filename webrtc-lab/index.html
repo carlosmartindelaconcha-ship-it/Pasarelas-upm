@@ -1,1 +1,35 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VWOMA · Laboratorio WebRTC</title><style>body{font:16px system-ui;background:#f4f7fb;color:#14233b;max-width:720px;margin:auto;padding:18px}section{background:white;padding:16px;margin:12px 0;border-radius:12px;box-shadow:0 1px 8px #14233b12}button,select,textarea,input{font:inherit}button{padding:12px;margin:5px 4px 5px 0;border:0;border-radius:8px;background:#1556ba;color:white}button:disabled{opacity:.4}textarea{box-sizing:border-box;width:100%;height:110px;font:12px monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eaf0f7;padding:12px;border-radius:8px;font-size:12px}small{color:#53647a}#status{font-weight:bold}label{display:block;margin:8px 0}</style></head><body><h2>VWOMA · Laboratorio WebRTC</h2><p>Prueba aislada de Safari a Safari. Sin STUN, TURN, servidor de señalización ni código de adquisición. El alojamiento GitHub Pages solo entrega estos archivos.</p><section><label>Este teléfono: <select id="role"><option value="host">Maestro (crea oferta)</option><option value="guest">Participante (responde)</option></select></label><button id="start">1. Crear oferta / preparar participante</button><p id="status">Sin iniciar</p></section><section><h3>Intercambio manual (sin servidor)</h3><small>Maestro: crea oferta y envía el texto al participante. Participante: pega la oferta, pulsa «Aplicar», genera su respuesta y la devuelve. Maestro: pega la respuesta y pulsa «Aplicar». Se puede usar AirDrop o copiar el texto; no cambies de página.</small><p>Descripción local (para enviar al otro teléfono):</p><textarea id="out" readonly></textarea><button id="copy">Copiar descripción local</button><p>Descripción recibida del otro teléfono:</p><textarea id="incoming" placeholder="Pega aquí la oferta o la respuesta SDP"></textarea><button id="apply">2. Aplicar descripción recibida</button></section><section><h3>Canal de datos</h3><input id="msg" value="Hola desde VWOMA"><button id="send" disabled>Enviar mensaje</button><pre id="messages"></pre></section><section><h3>Diagnóstico</h3><button id="stats">Consultar pares ICE</button><button id="export">Copiar diagnóstico</button><pre id="log"></pre></section><script src="./test.js"></script></body></html>
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VWOMA · Laboratorio WebRTC</title>
+<style>
+body{font:16px system-ui,-apple-system,sans-serif;background:#f4f7fb;color:#14233b;max-width:730px;margin:auto;padding:18px;line-height:1.45}
+section{background:#fff;padding:16px;margin:14px 0;border-radius:12px;box-shadow:0 1px 8px #14233b12}
+button,select,textarea,input{font:inherit}button{padding:11px 13px;margin:6px 4px 6px 0;border:0;border-radius:8px;background:#1556ba;color:#fff;cursor:pointer}button:disabled{opacity:.45;cursor:default}
+textarea{box-sizing:border-box;width:100%;height:110px;font:12px ui-monospace,monospace;border:1px solid #a9b9ce;border-radius:6px;padding:8px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eaf0f7;padding:12px;border-radius:8px;font:12px ui-monospace,monospace;max-height:350px;overflow:auto}
+small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;margin:8px 0}
+#liveStats{font:13px ui-monospace,monospace;background:#eaf0f7;padding:10px;border-radius:7px}
+#eventCount{color:#53647a;font-size:13px}#summary{height:180px}
+.note{font-size:13px;color:#53647a}
+</style></head><body>
+<h2>VWOMA · Laboratorio WebRTC</h2>
+<p>Conexión entre dos móviles, sin STUN, TURN ni servidor de señalización. GitHub Pages solo aloja los archivos estáticos. Esta prueba es independiente de VWOMA.</p>
+<section><label>Este teléfono: <select id="role"><option value="host">Maestro (crea oferta)</option><option value="guest">Participante (responde)</option></select></label>
+<button id="start">1. Crear oferta / preparar participante</button><p id="status">Sin iniciar</p></section>
+<section><h3>Intercambio manual de SDP</h3>
+<p class="note">Genera la oferta en el maestro, envíala como texto al participante, aplícala allí y devuelve la respuesta al maestro. Mantén ambas páginas abiertas. La copia entre móviles es externa a WebRTC.</p>
+<label>Texto local para enviar:</label><textarea id="out" readonly></textarea><button id="copy">Copiar descripción local</button>
+<label>Texto recibido del otro teléfono:</label><textarea id="incoming" placeholder="Pega aquí el JSON completo de oferta o respuesta"></textarea>
+<button id="apply">2. Aplicar descripción recibida</button></section>
+<section><h3>Canal de datos</h3><input id="msg" value="Hola desde VWOMA"><button id="send" disabled>Enviar mensaje</button><pre id="messages"></pre></section>
+<section><h3>Diagnóstico exhaustivo</h3>
+<p>El laboratorio registra automáticamente todos los cambios de estado, candidatos ICE, SDP, errores, eventos de visibilidad y muestras completas de <code>getStats()</code> cada 2 segundos. También guarda las estadísticas antes y después de los momentos críticos.</p>
+<div id="liveStats">Aún no hay estadísticas.</div><p id="eventCount">0 eventos · 0 muestras</p>
+<button id="stats">Capturar estadísticas ahora</button>
+<button id="export">Descargar JSON completo</button>
+<button id="copySummary">Copiar resumen</button>
+<button id="copyFull">Copiar JSON completo</button>
+<p class="note"><strong>Importante:</strong> el informe completo incluye direcciones IP locales y credenciales temporales ICE presentes en el SDP. Compártelo solo con personas de confianza. No se envía a servidores mediante esta página. Exporta antes de reiniciar la prueba.</p>
+<textarea id="summary" hidden readonly aria-label="Texto de diagnóstico para copiar"></textarea>
+<pre id="log"></pre></section>
+<script src="./test.js?v=diagnostics-2"></script></body></html>
