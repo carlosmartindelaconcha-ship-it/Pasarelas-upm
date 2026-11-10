@@ -12,7 +12,7 @@ small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;ma
 #eventCount{color:#53647a;font-size:13px}#summary{height:180px}
 .note{font-size:13px;color:#53647a}
 </style></head><body>
-<h2>VWOMA · Laboratorio WebRTC</h2><p class="note"><strong>Versión de diagnóstico 2.1</strong> · incluye exportación íntegra y medición de RTT del canal.</p>
+<h2>VWOMA · Laboratorio WebRTC</h2><p class="note"><strong>Versión de diagnóstico 2.2 · mDNS</strong> · incluye exportación íntegra y medición de RTT del canal.</p>
 <p>Conexión entre dos móviles, sin STUN, TURN ni servidor de señalización. GitHub Pages solo aloja los archivos estáticos. Esta prueba es independiente de VWOMA.</p>
 <section><label>Este teléfono: <select id="role"><option value="host">Maestro (crea oferta)</option><option value="guest">Participante (responde)</option></select></label>
 <button id="start">1. Crear oferta / preparar participante</button><p id="status">Sin iniciar</p></section>
@@ -21,6 +21,19 @@ small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;ma
 <label>Texto local para enviar:</label><textarea id="out" readonly></textarea><button id="copy">Copiar descripción local</button>
 <label>Texto recibido del otro teléfono:</label><textarea id="incoming" placeholder="Pega aquí el JSON completo de oferta o respuesta"></textarea>
 <button id="apply">2. Aplicar descripción recibida</button></section>
+<section><h3>Prueba específica de mDNS</h3>
+<p class="note">La API de Safari <strong>no expone si un nombre .local se resuelve ni su dirección resultante</strong>. Este ensayo compara dos negociaciones nuevas: una sin cambios y otra sustituyendo los candidatos UDP host .local <em>remotos</em> por una IPv4 conocida. No modifica el candidato original, ni los puertos ni los parámetros ICE.</p>
+<label>Tratamiento del SDP remoto: <select id="mdnsMode">
+<option value="normal">Normal: conservar mDNS (prueba de control)</option>
+<option value="replace">Experimental: sustituir .local por IP conocida</option>
+</select></label>
+<label>IPv4 del dispositivo remoto (solo modo experimental):
+<input id="mdnsIP" inputmode="decimal" autocomplete="off" placeholder="Ej.: 172.20.10.1 (verifica el valor real)" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #a9b9ce;border-radius:6px">
+</label>
+<p class="note">En la prueba de hotspot, el <strong>participante</strong> puede comprobar la IP del iPhone anfitrión en Ajustes → Wi-Fi → ⓘ → Dirección IPv4 → Router. Solo en ese participante selecciona «Experimental» e introduce esa IP. En el maestro deja «Normal» si el candidato del participante ya contiene una IPv4. <strong>Selecciona el modo antes de pulsar «Crear oferta / preparar participante».</strong></p>
+<pre id="mdnsInfo">Todavía no hay candidatos.</pre>
+<p class="note">Se guardan los candidatos .local originales, las sustituciones realizadas y las estadísticas ICE. Si la versión normal falla y la experimental conecta, sería una pista sólida de un problema asociado al tratamiento mDNS; por sí solo, no identifica exactamente dónde falla la resolución.</p>
+</section>
 <section><h3>Canal de datos</h3><input id="msg" value="Hola desde VWOMA"><button id="send" disabled>Enviar mensaje</button><pre id="messages"></pre></section>
 <section><h3>Diagnóstico exhaustivo</h3>
 <p>El laboratorio registra automáticamente todos los cambios de estado, candidatos ICE, SDP, errores, eventos de visibilidad y muestras completas de <code>getStats()</code> cada 2 segundos. También guarda las estadísticas antes y después de los momentos críticos.</p>
@@ -32,4 +45,4 @@ small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;ma
 <p class="note"><strong>Importante:</strong> el informe completo incluye direcciones IP locales y credenciales temporales ICE presentes en el SDP. Compártelo solo con personas de confianza. No se envía a servidores mediante esta página. Exporta antes de reiniciar la prueba.</p>
 <textarea id="summary" hidden readonly aria-label="Texto de diagnóstico para copiar"></textarea>
 <pre id="log"></pre></section>
-<script src="./test.js?v=diagnostics-2-1"></script></body></html>
+<script src="./test.js?v=diagnostics-2-2-mdns"></script></body></html>
