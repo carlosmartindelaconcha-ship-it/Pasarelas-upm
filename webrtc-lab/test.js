@@ -1,7 +1,7 @@
 'use strict';
 /* VWOMA - isolated Safari/WebRTC diagnostic laboratory. No server signaling. */
 const $ = id => document.getElementById(id);
-const VERSION = 'webrtc-lab-diagnostics-2.4-camera-first';
+const VERSION = 'webrtc-lab-3.0-simple-qr';
 const MAX_SNAPSHOTS = 300;
 let pc = null, channel = null, role = null, report = null;
 let timer = null, pendingSnapshot = null, snapshotCount = 0;
@@ -9,6 +9,9 @@ let started = 0;
 let probeSerial = 0;
 let cameraStream = null;
 let cameraGeneration = 0;
+let qrPages = [], qrIndex = 0, qrTimer = null, qrStream = null, qrScanFrame = 0, qrScanFrameTime = 0, qrReadTransfer = null, qrReadPages = [];
+let qrRenderGeneration = 0;
+const QR_CHUNK_SIZE = 430, MAX_QR_PAGES = 30;
 const pendingProbes = new Map();
 const iso = () => new Date().toISOString();
 const elapsed = () => started ? Math.round(performance.now() - started) : 0;
@@ -66,6 +69,7 @@ function state() {
 function setStatus(message) {
   $('status').textContent = message;
   event('estado',message,state());
+  renderWizard();
 }
 function candidateList(sdp) {
   const result = []; let media = '(sin sección)';
@@ -144,6 +148,250 @@ function candidateTextToCopy() {
     '\n\nLos nombres .local no se convierten en IP mediante JavaScript.';
 }
 
+
+/* Minimal guided flow: the QR contains only the already gathered SDP.
+   A series of small QR pages is used because full SDP does not fit reliably
+   into a single code. No signaling or STUN/TURN server is contacted. */
+function stopQRCycle() {
+  clearInterval(qrTimer);qrTimer=null;qrPages=[];qrIndex=0;
+  const display=$('qrImage');if(display)display.replaceChildren();
+}
+function qrDraw(){
+  if(!qrPages.length || !$('qrImage'))return;
+  const el=$('qrImage');
+  el.replaceChildren();
+  if(typeof qrcode!=='function'){
+    el.textContent='No se pudo cargar el generador QR. Abre la alternativa de copiar y pegar.';
+    return;
+  }
+  try{
+    const qr=qrcode(0,'L');qr.addData(qrPages[qrIndex]);qr.make();
+    el.innerHTML=qr.createSvgTag({cellSize:4,margin:3,scalable:true});
+    $('qrPageStatus').textContent='QR '+(qrIndex+1)+' de '+qrPages.length+
+      (qrPages.length>1?' · las páginas cambian automáticamente':'');
+    $('qrNav').hidden=qrPages.length<=1;
+  }catch(error){
+    el.textContent='No se pudo generar el código QR. Usa la alternativa de copiar y pegar.';
+    event('error QR','Renderizado del QR',errorInfo(error));
+  }
+}
+function pageQR(delta){
+  if(!qrPages.length)return;
+  qrIndex=(qrIndex+delta+qrPages.length)%qrPages.length;
+  qrDraw();
+}
+function bytesToBase64Url(bytes){
+  let binary='';
+  for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function base64UrlToBytes(encoded){
+  let b64=encoded.replace(/-/g,'+').replace(/_/g,'/');
+  b64+='='.repeat((4-b64.length%4)%4);
+  const raw=atob(b64);
+  return Uint8Array.from(raw,c=>c.charCodeAt(0));
+}
+async function encodeQRDescription(raw){
+  const original=new TextEncoder().encode(raw);
+  let bytes=original, prefix='WL1.';
+  if(typeof CompressionStream!=='undefined' && typeof DecompressionStream!=='undefined'){
+    try{
+      const zipped=await new Response(new Blob([original]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer();
+      if(zipped.byteLength<original.byteLength){bytes=new Uint8Array(zipped);prefix='WL1z.';}
+    }catch(error){event('aviso QR','Sin compresión',errorInfo(error));}
+  }
+  return prefix+bytesToBase64Url(bytes);
+}
+async function decodeQRDescription(token){
+  const match=/^(WL1z|WL1)\.([\w-]+)$/.exec(token);
+  if(!match)throw Error('El QR no contiene una descripción de WebRTC reconocida.');
+  if(match[2].length>120000)throw Error('Código demasiado largo.');
+  const bytes=base64UrlToBytes(match[2]);
+  let decoded=bytes;
+  if(match[1]==='WL1z'){
+    if(typeof DecompressionStream==='undefined')throw Error('Este navegador no puede descomprimir el QR.');
+    const reader=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate')).getReader();
+    const parts=[];let total=0;
+    for(;;){
+      const {done,value}=await reader.read();if(done)break;
+      total+=value.length;
+      if(total>100000){await reader.cancel();throw Error('QR excesivamente grande.');}
+      parts.push(value);
+    }
+    decoded=new Uint8Array(total);let at=0;
+    for(const part of parts){decoded.set(part,at);at+=part.length;}
+  }
+  const decodedText=new TextDecoder().decode(decoded);
+  const obj=JSON.parse(decodedText);
+  if(!obj || !['offer','answer'].includes(obj.type) || typeof obj.sdp!=='string' || obj.sdp.length>60000)
+    throw Error('La oferta o respuesta del código QR es inválida.');
+  return JSON.stringify({type:obj.type,sdp:obj.sdp});
+}
+async function renderOutboundQR(){
+  const raw=$('out').value;
+  if(!raw)return;
+  const generation=++qrRenderGeneration;
+  try {
+    const encoded=await encodeQRDescription(raw);
+    if(generation!==qrRenderGeneration || $('out').value!==raw)return;
+    const transfer=(typeof crypto!=='undefined' && crypto.randomUUID) ?
+      crypto.randomUUID().replace(/-/g,'').slice(0,8) : Math.random().toString(16).slice(2,10).padEnd(8,'0');
+    const count=Math.ceil(encoded.length/QR_CHUNK_SIZE);
+    if(count<1 || count>MAX_QR_PAGES)throw Error('Demasiadas páginas QR. Prueba la alternativa de copiar y pegar.');
+    stopQRCycle();
+    qrPages=Array.from({length:count},(_,index)=>
+      'WQ1.'+transfer+'.'+(index+1)+'.'+count+'.'+encoded.slice(index*QR_CHUNK_SIZE,(index+1)*QR_CHUNK_SIZE)
+    );
+    $('qrOut').hidden=false;
+    $('qrOutTitle').textContent=role==='host'?'Invitación del iPhone A':'Respuesta del iPhone B';
+    qrDraw();
+    if(count>1)qrTimer=setInterval(()=>pageQR(1),2300);
+    event('QR','Mostrando '+count+' páginas QR · '+(role==='host'?'oferta':'respuesta'));
+    renderWizard();
+  }catch(error){
+    $('qrOut').hidden=false;
+    $('qrImage').textContent=error.message||String(error);
+    event('error QR','Error al preparar la imagen QR',errorInfo(error));
+  }
+}
+function stopQRScanner(){
+  if(qrScanFrame)cancelAnimationFrame(qrScanFrame);
+  qrScanFrame=0;
+  const old=qrStream;qrStream=null;
+  if(old)old.getTracks().forEach(track=>track.stop());
+  const v=$('qrVideo');
+  if(v){v.pause();v.srcObject=null;v.hidden=true;}
+  $('stopScan').hidden=true;
+  $('scanProgress').hidden=true;
+}
+function qrReceivePage(text){
+  const match=/^WQ1\.([a-z0-9]{8})\.(\d{1,2})\.(\d{1,2})\.([\w.-]+)$/i.exec(text.trim());
+  if(!match)return null;
+  const [,transfer,iText,countText,part]=match;
+  const index=Number(iText),count=Number(countText);
+  if(count<1 || count>MAX_QR_PAGES || index<1 || index>count || part.length>QR_CHUNK_SIZE)throw Error('Página QR incorrecta.');
+  if(qrReadTransfer!==transfer || qrReadPages.length!==count){
+    qrReadTransfer=transfer;qrReadPages=Array(count).fill(null);
+  }
+  qrReadPages[index-1]=part;
+  const read=qrReadPages.filter(Boolean).length;
+  $('scanProgress').textContent='Leyendo QR: '+read+' de '+count+' páginas';
+  if(read<count)return {complete:false};
+  const joined=qrReadPages.join('');
+  qrReadPages=[];qrReadTransfer=null;
+  return {complete:true,token:joined};
+}
+async function completeQRScan(token){
+  stopQRScanner();
+  const received=await decodeQRDescription(token);
+  $('incoming').value=received;
+  event('QR','Código remoto completo y validado · '+JSON.parse(received).type);
+  await apply();
+  renderWizard();
+}
+async function startQRScanner(){
+  if(!pc)throw Error('Pulsa antes el botón azul de preparar o crear la conexión.');
+  if(typeof jsQR!=='function')throw Error('El lector QR no se ha cargado. Usa copiar y pegar.');
+  if(!navigator.mediaDevices?.getUserMedia)throw Error('Este navegador no puede acceder a la cámara.');
+  stopQRScanner();
+  qrReadTransfer=null;qrReadPages=[];
+  $('scanProgress').hidden=false;
+  $('scanProgress').textContent='Permite la cámara y apunta al QR del otro teléfono.';
+  qrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  const v=$('qrVideo');
+  v.srcObject=qrStream;v.hidden=false;
+  $('stopScan').hidden=false;
+  await v.play();
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+  qrScanFrameTime=0;
+  const scan=async(time)=>{
+    if(!qrStream)return;
+    try{
+      if(time-qrScanFrameTime>125 && v.readyState>=2 && v.videoWidth>0){
+        qrScanFrameTime=time;
+        const factor=Math.min(1,760/v.videoWidth);
+        canvas.width=Math.max(1,Math.round(v.videoWidth*factor));
+        canvas.height=Math.max(1,Math.round(v.videoHeight*factor));
+        ctx.drawImage(v,0,0,canvas.width,canvas.height);
+        const pixels=ctx.getImageData(0,0,canvas.width,canvas.height);
+        const read=jsQR(pixels.data,pixels.width,pixels.height);
+        if(read && read.data){
+          const fragment=qrReceivePage(read.data);
+          if(fragment?.complete){await completeQRScan(fragment.token);return;}
+          if(!fragment){$('scanProgress').textContent='Ese QR no es del laboratorio. Apunta al otro iPhone.';}
+        }
+      }
+    }catch(error){
+      stopQRScanner();
+      handleError('leer QR',error);
+      return;
+    }
+    if(qrStream)qrScanFrame=requestAnimationFrame(scan);
+  };
+  qrScanFrame=requestAnimationFrame(scan);
+}
+function renderWizard(){
+  const selected=$('role').value,host=selected==='host';
+  $('roleHost').classList.toggle('active',host);
+  $('roleGuest').classList.toggle('active',!host);
+  $('roleHost').setAttribute('aria-pressed',String(host));
+  $('roleGuest').setAttribute('aria-pressed',String(!host));
+  $('mdnsControls').hidden=host;
+  $('mdnsIPWrap').hidden=host || $('mdnsMode').value!=='replace';
+  $('start').textContent=host?'Crear o reiniciar invitación':'Preparar o reiniciar participante';
+  $('scan').textContent=host?'Leer QR de respuesta del iPhone B':'Leer QR de invitación del iPhone A';
+  $('scan').disabled=!pc || (host&&!$('out').value) || (!host && !!$('out').value);
+  const live=channel?.readyState==='open';
+  const failed=pc && (pc.iceConnectionState==='failed'||pc.connectionState==='failed');
+  const result=$('connectionResult');
+  result.classList.toggle('connected',!!live);
+  result.classList.toggle('failed',!!failed);
+  if(live){
+    result.textContent='Conectados · canal de datos WebRTC abierto.';
+    $('guide').textContent='Prueba completada. Puedes copiar el diagnóstico y las direcciones.';
+  }else if(failed){
+    result.textContent='ICE failed · no se ha abierto la conexión. Copia el diagnóstico para analizarlo.';
+    $('guide').textContent='Registra el fallo y repite el ensayo con otra configuración (mDNS o IP directa).';
+  }else if(!pc){
+    result.textContent='Todavía no se ha intentado la conexión.';
+    $('guide').textContent=host ?
+      'Primero genera tu QR. Después el iPhone B leerá esa invitación y mostrará una respuesta para que la escanees aquí.' :
+      'En este iPhone, elige primero Normal o IP directa. Después pulsa Preparar y lee el QR del iPhone A.';
+  }else if(host){
+    result.textContent=pc.remoteDescription?'Respuesta recibida; comprobando conexión ICE…':'Oferta creada; pendiente de la respuesta del iPhone B.';
+    $('guide').textContent='Muestra el QR de invitación al iPhone B. Cuando el iPhone B muestre su respuesta, pulsa «Leer QR de respuesta» aquí.';
+  }else if($('out').value){
+    result.textContent='Respuesta preparada; esperando a que el iPhone A la lea.';
+    $('guide').textContent='Muestra el QR de respuesta al iPhone A. Después espera el resultado de ICE.';
+  }else{
+    result.textContent='Participante preparado; esperando la invitación.';
+    $('guide').textContent='Pulsa «Leer QR de invitación» y apunta al código del iPhone A. La respuesta se genera automáticamente.';
+  }
+}
+function chooseRole(next){
+  if(next!==$('role').value){
+    stopQRScanner();stopQRCycle();++qrRenderGeneration;
+    clearInterval(timer);timer=null;
+    if(pc){pc.close();pc=null;}
+    channel=null;report=null;role=null;
+    $('out').value='';$('incoming').value='';
+    $('qrOut').hidden=true;
+    $('liveLocalCandidates').textContent='Esperando candidatos ICE…';
+    $('liveRemoteCandidates').textContent='Esperando recibir su SDP…';
+    $('status').textContent='Pulsa el botón azul para comenzar.';
+  }
+  $('role').value=next;
+  renderWizard();
+}
+async function beginGuided(){
+  if($('role').value==='guest'&&$('mdnsMode').value==='replace'&&!validIPv4($('mdnsIP').value.trim()))
+    throw Error('Introduce la IP real del hotspot, la que figura como Router en el Wi-Fi del iPhone B.');
+  stopQRScanner();stopQRCycle();++qrRenderGeneration;
+  $('qrOut').hidden=true;
+  await init();
+  renderWizard();
+}
+
 function validIPv4(address) {
   const octets = address.split('.');
   return octets.length===4 && octets.every(x =>
@@ -208,6 +456,7 @@ function publishLocal() {
   if (!pc || !pc.localDescription) return;
   descriptionInfo(pc.localDescription,'local lista para enviar');
   $('out').value=JSON.stringify({type:pc.localDescription.type,sdp:pc.localDescription.sdp});
+  renderOutboundQR().catch(error=>handleError('mostrar QR',error));
 }
 function summaryFromStats(all) {
   const pairs = all.filter(s => s.type === 'candidate-pair');
@@ -261,6 +510,7 @@ async function capture(label='automática') {
         ' · pares '+pairs.length+' · comprobaciones '+sent+' · respuestas '+received+
         ' · canal '+snap.states.channelState;
       updateMdnsPanel(snap);
+      renderWizard();
       if(label!=='automática') event('muestra ICE',label+' · '+pairs.length+' pares · '+sent+' solicitudes / '+received+' respuestas');
     } catch(error) {
       snap.error=errorInfo(error);
@@ -392,6 +642,7 @@ async function init(){
     await capture('antes de reiniciar');
     pc.close();
   }
+  qrReadTransfer=null;qrReadPages=[];
   started=performance.now();
   probeSerial=0;pendingProbes.clear();
   report={
@@ -623,7 +874,14 @@ function setupEvents() {
   window.addEventListener('error',e=>event('ERROR JS',e.message,{filename:e.filename,lineno:e.lineno,colno:e.colno,error:errorInfo(e.error)}));
   window.addEventListener('unhandledrejection',e=>event('PROMESA RECHAZADA',str(e.reason),errorInfo(e.reason)));
 }
-$('start').onclick=()=>init().catch(e=>handleError('iniciar',e));
+$('start').onclick=()=>beginGuided().catch(e=>handleError('iniciar',e));
+$('roleHost').onclick=()=>chooseRole('host');
+$('roleGuest').onclick=()=>chooseRole('guest');
+$('mdnsMode').onchange=()=>{renderWizard();if(pc)$('status').textContent='Para cambiar de modo hay que pulsar de nuevo «Preparar participante».';};
+$('qrPrev').onclick=()=>pageQR(-1);
+$('qrNext').onclick=()=>pageQR(1);
+$('scan').onclick=()=>startQRScanner().catch(error=>handleError('escaneo QR',error));
+$('stopScan').onclick=()=>stopQRScanner();
 $('stopCamera').onclick=()=>stopCamera('detenida manualmente');
 $('apply').onclick=()=>apply().catch(e=>handleError('aplicar descripción',e));
 $('copy').onclick=()=>copyText($('out').value);
@@ -634,3 +892,4 @@ $('copySummary').onclick=()=>copyText(diagnosticSummary());
 $('copyFull').onclick=()=>copyText(JSON.stringify(fullReport(),null,2));
 $('copyCandidates').onclick=()=>copyText(candidateTextToCopy());
 setupEvents();
+renderWizard();
