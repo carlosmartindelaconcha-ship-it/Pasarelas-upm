@@ -1,68 +1,152 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VWOMA · Laboratorio WebRTC</title>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f5f7fb">
+<title>VWOMA · Prueba sencilla WebRTC</title>
 <style>
-body{font:16px system-ui,-apple-system,sans-serif;background:#f4f7fb;color:#14233b;max-width:730px;margin:auto;padding:18px;line-height:1.45}
-section{background:#fff;padding:16px;margin:14px 0;border-radius:12px;box-shadow:0 1px 8px #14233b12}
-button,select,textarea,input{font:inherit}button{padding:11px 13px;margin:6px 4px 6px 0;border:0;border-radius:8px;background:#1556ba;color:#fff;cursor:pointer}button:disabled{opacity:.45;cursor:default}
-textarea{box-sizing:border-box;width:100%;height:110px;font:12px ui-monospace,monospace;border:1px solid #a9b9ce;border-radius:6px;padding:8px}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eaf0f7;padding:12px;border-radius:8px;font:12px ui-monospace,monospace;max-height:350px;overflow:auto}
-small{color:#53647a}#status{font-weight:700;color:#1556ba}label{display:block;margin:8px 0}
-#liveStats{font:13px ui-monospace,monospace;background:#eaf0f7;padding:10px;border-radius:7px}
-#eventCount{color:#53647a;font-size:13px}#summary{height:180px}
-.note{font-size:13px;color:#53647a}
-</style></head><body>
-<h2>VWOMA · Laboratorio WebRTC</h2><p class="note"><strong>Versión de diagnóstico 2.4 · cámara previa y candidatos</strong> · incluye exportación íntegra y medición de RTT del canal.</p>
-<p>Conexión entre dos móviles, sin STUN, TURN ni servidor de señalización. GitHub Pages solo aloja los archivos estáticos. Esta prueba es independiente de VWOMA.</p>
-<section><label>Este teléfono: <select id="role"><option value="host">Maestro (crea oferta)</option><option value="guest">Participante (responde)</option></select></label>
-<label>Permiso de cámara antes de crear WebRTC:
-<select id="cameraMode">
-<option value="normal">Control: no solicitar cámara previamente</option>
-<option value="before">Prueba: pedir cámara ANTES de crear RTCPeerConnection</option>
-</select></label>
-<p class="note">En «Prueba», Safari pedirá permiso de cámara antes de crear la conexión. La cámara permanecerá activa durante la obtención de candidatos ICE y se detendrá al terminar. En el participante, se mantendrá activa mientras espera la oferta; si no vas a continuar, utiliza «Detener cámara».</p>
-<button id="start">1. Crear oferta / preparar participante</button>
-<button id="stopCamera" type="button" disabled style="background:#52677f">Detener cámara</button>
-<p id="cameraStatus" class="note">Cámara: sin solicitar.</p>
-<p id="status">Sin iniciar</p></section>
-<section id="candidatePanel"><h3>Direcciones ICE en tiempo real</h3>
-<p class="note">Las direcciones aparecen en cuanto Safari genera cada candidato, sin esperar a que se establezca la conexión. Las del otro móvil aparecen al pegar o aplicar su SDP. Un nombre <code>.local</code> no revela por sí mismo la dirección IP que representa.</p>
-<h4>Direcciones propias (este teléfono)</h4>
-<pre id="liveLocalCandidates" role="log" aria-live="polite">Aún no hay candidatos propios. Pulsa «Crear oferta / preparar participante».</pre>
-<h4>Direcciones del otro teléfono</h4>
-<pre id="liveRemoteCandidates" role="log" aria-live="polite">Aún no hay candidatos remotos. Pega la oferta o respuesta.</pre>
-<h4>Direcciones adicionales disponibles en las estadísticas de Safari</h4>
-<pre id="liveStatsCandidates">Esperando estadísticas ICE…</pre>
-<button id="copyCandidates">Copiar lista de direcciones</button>
-<p class="note">Se muestran dirección, puerto, protocolo, tipo ICE y momento de detección. Si Safari oculta una IP detrás de mDNS, esta página no puede resolverla automáticamente.</p>
+:root{color-scheme:light;--ink:#192e47;--muted:#5b6e83;--line:#dce5ef;--blue:#1657b9;--bg:#f5f7fb;--good:#13704b;--red:#a43c36}
+*{box-sizing:border-box}
+body{max-width:740px;margin:auto;padding:18px 14px 40px;font:16px/1.47 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+h1{font-size:1.65rem;letter-spacing:-.04em;margin:0}h2{font-size:1.1rem;margin:0 0 10px}h3{font-size:.95rem;margin:17px 0 7px}p{margin:8px 0}
+.header{padding:13px 5px 6px}.eyebrow{text-transform:uppercase;letter-spacing:.11em;color:var(--blue);font-size:.7rem;font-weight:800}.subtitle{font-size:.92rem;color:var(--muted)}
+section,details.panel{background:#fff;border:1px solid var(--line);border-radius:15px;margin:14px 0;padding:17px;box-shadow:0 2px 12px #152a4307}
+h2 .number{display:inline-grid;place-items:center;background:#e8f0ff;color:#1657b9;border-radius:100%;width:27px;height:27px;margin-right:8px;font-size:.92rem}
+button,input,select,textarea{font:inherit}
+button{appearance:none;min-height:43px;border:0;border-radius:10px;padding:11px 14px;font-weight:650;cursor:pointer}
+button:disabled{opacity:.48;cursor:default}
+.primary{color:#fff;background:var(--blue)}.secondary{color:var(--blue);background:#eaf1fe}.quiet{color:#40556e;background:#eef1f5}
+.full{width:100%;margin:10px 0 2px}
+.buttons{display:flex;gap:9px;flex-wrap:wrap;margin:9px 0}
+.buttons button{flex:1;min-width:135px}
+.role{flex:1;border:1.5px solid var(--line);border-radius:12px;background:#fff;text-align:left;padding:14px;min-width:145px;color:var(--ink)}
+.role strong,.role span{display:block}.role span{font-size:.79rem;line-height:1.4;color:var(--muted);font-weight:400;margin-top:4px}
+.role.active{background:#edf4ff;border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+label{display:block;margin:12px 0 5px;font-weight:600;font-size:.9rem}
+select,input,textarea{width:100%;border:1px solid #b6c6d7;border-radius:9px;padding:11px;background:#fff;color:var(--ink)}
+select:focus,input:focus,textarea:focus{outline:2px solid #89b5f6;outline-offset:1px}
+textarea{height:115px;font:12px/1.45 ui-monospace,SFMono-Regular,monospace}
+.muted,.note{font-size:.82rem;color:var(--muted)}.note{margin:8px 0}
+.status{background:#edf3fb;padding:12px;border-radius:9px;font-size:.91rem;font-weight:600}
+.status.connected{background:#e5f6ec;color:var(--good)}
+.status.failed{background:#fff0ee;color:var(--red)}
+.guide{font-size:.93rem;margin:8px 0 13px}
+#qrOut{text-align:center;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
+#qrImage{display:flex;justify-content:center;align-items:center;min-height:210px}
+#qrImage svg{width:min(100%,320px);height:auto;max-height:330px;display:block}
+#qrPageStatus{color:var(--muted);font-size:.79rem;margin:7px 0 0}
+#qrVideo{width:100%;max-height:360px;object-fit:cover;background:#101820;border-radius:10px;margin:8px 0}
+#scanProgress{padding:8px;font-size:.88rem;color:var(--blue)}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef3f9;border-radius:9px;padding:11px;font:12px/1.5 ui-monospace,SFMono-Regular,monospace;max-height:285px;overflow:auto}
+#liveLocalCandidates,#liveRemoteCandidates{max-height:175px}
+#liveStats{background:#eef3f9;border-radius:9px;padding:11px;font-size:.84rem}
+#mdnsInfo{font-size:12px}
+details summary{font-weight:700;cursor:pointer}
+details.internal{margin:13px 0;border-top:1px solid var(--line);padding-top:13px}
+hr{border:0;border-top:1px solid var(--line);margin:15px 0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="eyebrow">VWOMA · Laboratorio independiente</div>
+  <h1>Prueba de conexión entre iPhone</h1>
+  <p class="subtitle">Solo dos teléfonos y dos códigos QR. Sin servidor STUN, TURN ni de señalización. No modifica VWOMA.</p>
+  <p class="note">Versión 3.0 · Comparación mDNS / IP directa.</p>
+</header>
+
+<section>
+  <h2><span class="number">1</span>¿Qué iPhone estás utilizando?</h2>
+  <div class="buttons" role="group" aria-label="Papel de este teléfono">
+    <button type="button" id="roleHost" class="role active" aria-pressed="true"><strong>iPhone A · Maestro</strong><span>El que proporciona el hotspot y genera la invitación.</span></button>
+    <button type="button" id="roleGuest" class="role" aria-pressed="false"><strong>iPhone B · Participante</strong><span>El que se conecta al hotspot y recibe la invitación.</span></button>
+  </div>
+  <select id="role" hidden aria-label="Papel de la conexión"><option value="host">Maestro</option><option value="guest">Participante</option></select>
+  <div id="mdnsControls" hidden>
+    <label for="mdnsMode">¿Cómo quieres probar la dirección del maestro?</label>
+    <select id="mdnsMode">
+      <option value="normal">Prueba normal · conservar .local (mDNS)</option>
+      <option value="replace">Prueba con IP directa · sustituir .local</option>
+    </select>
+    <div id="mdnsIPWrap" hidden>
+      <label for="mdnsIP">IP del hotspot (iPhone A)</label>
+      <input id="mdnsIP" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="Ej. 172.20.10.1">
+      <p class="note">En el iPhone B: Ajustes → Wi-Fi → ⓘ → Router. Escribe esa dirección exactamente.</p>
+    </div>
+  </div>
+  <button id="start" type="button" class="primary full">Crear invitación en el iPhone A</button>
+  <p id="status" class="status" role="status" aria-live="polite">Elige un teléfono y pulsa el botón azul.</p>
 </section>
-<section><h3>Intercambio manual de SDP</h3>
-<p class="note">Genera la oferta en el maestro, envíala como texto al participante, aplícala allí y devuelve la respuesta al maestro. Mantén ambas páginas abiertas. La copia entre móviles es externa a WebRTC.</p>
-<label>Texto local para enviar:</label><textarea id="out" readonly></textarea><button id="copy">Copiar descripción local</button>
-<label>Texto recibido del otro teléfono:</label><textarea id="incoming" placeholder="Pega aquí el JSON completo de oferta o respuesta"></textarea>
-<button id="apply">2. Aplicar descripción recibida</button></section>
-<section><h3>Prueba específica de mDNS</h3>
-<p class="note">La API de Safari <strong>no expone si un nombre .local se resuelve ni su dirección resultante</strong>. Este ensayo compara dos negociaciones nuevas: una sin cambios y otra sustituyendo los candidatos UDP host .local <em>remotos</em> por una IPv4 conocida. No modifica el candidato original, ni los puertos ni los parámetros ICE.</p>
-<label>Tratamiento del SDP remoto: <select id="mdnsMode">
-<option value="normal">Normal: conservar mDNS (prueba de control)</option>
-<option value="replace">Experimental: sustituir .local por IP conocida</option>
-</select></label>
-<label>IPv4 del dispositivo remoto (solo modo experimental):
-<input id="mdnsIP" inputmode="decimal" autocomplete="off" placeholder="Ej.: 172.20.10.1 (verifica el valor real)" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #a9b9ce;border-radius:6px">
-</label>
-<p class="note">En la prueba de hotspot, el <strong>participante</strong> puede comprobar la IP del iPhone anfitrión en Ajustes → Wi-Fi → ⓘ → Dirección IPv4 → Router. Solo en ese participante selecciona «Experimental» e introduce esa IP. En el maestro deja «Normal» si el candidato del participante ya contiene una IPv4. <strong>Selecciona el modo antes de pulsar «Crear oferta / preparar participante».</strong></p>
-<pre id="mdnsInfo">Todavía no hay candidatos.</pre>
-<p class="note">Se guardan los candidatos .local originales, las sustituciones realizadas y las estadísticas ICE. Si la versión normal falla y la experimental conecta, sería una pista sólida de un problema asociado al tratamiento mDNS; por sí solo, no identifica exactamente dónde falla la resolución.</p>
+
+<section>
+  <h2><span class="number">2</span>Intercambia los códigos QR</h2>
+  <p id="guide" class="guide">En el iPhone A, pulsa «Crear invitación». Después, en el iPhone B, pulsa «Preparar participante» y escanea el QR del maestro.</p>
+  <div id="qrOut" hidden>
+    <h3 id="qrOutTitle">Código para el otro iPhone</h3>
+    <div id="qrImage" aria-label="Código QR generado"></div>
+    <p id="qrPageStatus"></p>
+    <div id="qrNav" class="buttons" hidden>
+      <button id="qrPrev" type="button" class="quiet">Anterior</button>
+      <button id="qrNext" type="button" class="quiet">Siguiente</button>
+    </div>
+  </div>
+  <button id="scan" type="button" class="secondary full" disabled>Leer QR del otro iPhone</button>
+  <video id="qrVideo" autoplay playsinline muted hidden></video>
+  <p id="scanProgress" role="status" aria-live="polite" hidden></p>
+  <button id="stopScan" type="button" class="quiet" hidden>Detener cámara</button>
+  <details class="internal">
+    <summary>Alternativa sin QR: copiar y pegar el código</summary>
+    <p class="note">Úsalo solo si la cámara no logra leer los QR. Es el intercambio SDP de siempre.</p>
+    <label for="out">Código generado en este móvil</label>
+    <textarea id="out" readonly></textarea>
+    <button id="copy" type="button" class="secondary">Copiar mi código</button>
+    <label for="incoming">Código recibido del otro móvil</label>
+    <textarea id="incoming" placeholder="Pega el código JSON completo aquí"></textarea>
+    <button id="apply" type="button" class="secondary">Aplicar código recibido</button>
+  </details>
 </section>
-<section><h3>Canal de datos</h3><input id="msg" value="Hola desde VWOMA"><button id="send" disabled>Enviar mensaje</button><pre id="messages"></pre></section>
-<section><h3>Diagnóstico exhaustivo</h3>
-<p>El laboratorio registra automáticamente todos los cambios de estado, candidatos ICE, SDP, errores, eventos de visibilidad y muestras completas de <code>getStats()</code> cada 2 segundos. También guarda las estadísticas antes y después de los momentos críticos.</p>
-<div id="liveStats">Aún no hay estadísticas.</div><p id="eventCount">0 eventos · 0 muestras</p>
-<button id="stats">Capturar estadísticas ahora</button>
-<button id="export">Descargar JSON completo</button>
-<button id="copySummary">Copiar resumen</button>
-<button id="copyFull">Copiar JSON completo</button>
-<p class="note"><strong>Importante:</strong> el informe completo incluye direcciones IP locales y credenciales temporales ICE presentes en el SDP. Compártelo solo con personas de confianza. No se envía a servidores mediante esta página. Exporta antes de reiniciar la prueba.</p>
-<textarea id="summary" hidden readonly aria-label="Texto de diagnóstico para copiar"></textarea>
-<pre id="log"></pre></section>
-<script src="./test.js?v=diagnostics-2-4-camera-first"></script></body></html>
+
+<section>
+  <h2><span class="number">3</span>Resultado</h2>
+  <p id="connectionResult" class="status" role="status" aria-live="polite">Todavía no se ha intentado la conexión.</p>
+  <div id="liveStats">Sin comprobaciones ICE.</div>
+  <p id="mdnsInfo" class="note">Todavía no hay candidatos.</p>
+  <div class="buttons">
+    <button id="copySummary" type="button" class="secondary">Copiar diagnóstico</button>
+    <button id="export" type="button" class="quiet">Guardar informe JSON</button>
+  </div>
+  <hr>
+  <h3>Direcciones de este iPhone</h3>
+  <pre id="liveLocalCandidates">Esperando candidatos ICE…</pre>
+  <h3>Direcciones del otro iPhone</h3>
+  <pre id="liveRemoteCandidates">Esperando recibir su SDP…</pre>
+  <button id="copyCandidates" type="button" class="quiet">Copiar direcciones</button>
+</section>
+
+<details class="panel">
+  <summary>Diagnóstico avanzado (opcional)</summary>
+  <p class="note">El resultado y las direcciones se muestran arriba. Esta sección conserva las estadísticas, los eventos y la prueba de envío de mensajes.</p>
+  <div id="eventCount">0 eventos · 0 muestras</div>
+  <h3>Direcciones internas de Safari (getStats)</h3><pre id="liveStatsCandidates">Esperando estadísticas…</pre>
+  <button id="stats" type="button" class="quiet">Actualizar estadísticas</button>
+  <button id="copyFull" type="button" class="quiet">Copiar JSON completo</button>
+  <h3>Probar el canal</h3>
+  <input id="msg" value="Hola desde VWOMA" aria-label="Mensaje de prueba">
+  <button id="send" type="button" class="secondary" disabled>Enviar mensaje</button>
+  <pre id="messages"></pre>
+  <h3>Eventos</h3><pre id="log"></pre>
+  <textarea id="summary" readonly hidden></textarea>
+  <p class="note"><strong>Privacidad:</strong> el informe completo incluye IP locales y credenciales ICE temporales del SDP. No se envía a ningún servidor por esta página.</p>
+</details>
+
+<!-- Compatibilidad con la instrumentación de cámara anterior; el ensayo principal ya no la solicita. -->
+<select id="cameraMode" hidden><option value="normal">Sin permiso previo</option></select>
+<button id="stopCamera" type="button" hidden disabled>Detener cámara previa</button>
+<p id="cameraStatus" hidden></p>
+
+<script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script defer src="./test.js?v=lab-3-0-simple-qr"></script>
+</body>
+</html>
