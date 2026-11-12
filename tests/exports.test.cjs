@@ -23,7 +23,7 @@ test('calcula el periodo mediano dentro de la ventana',()=>{
 test('interpola en malla común sin extrapolar y mantiene huecos',()=>{
  const samples=[{masterTimeMs:0,v:0},{masterTimeMs:10,v:10},{masterTimeMs:30,v:30}];
  const points=x.resampleAxis(samples,s=>s.v,[0,5,10,20,30,40]);
- assert.deepEqual(points,[{x:0,y:0},{x:5,y:5},{x:10,y:10},{x:20,y:20}]);
+ assert.deepEqual(points,[{x:0,y:0},{x:5,y:5},{x:10,y:10},{x:20,y:20},{x:30,y:30}]);
 });
 test('el detrend de puntos elimina la pendiente sin modificar la entrada',()=>{
  const p=[{x:0,y:3},{x:1,y:5},{x:2,y:7},{x:3,y:9}];

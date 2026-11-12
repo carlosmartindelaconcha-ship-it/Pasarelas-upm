@@ -34,7 +34,7 @@ test('maneja ACK de bloque y cancela su temporizador',async()=>{
  const t=fixture(),p={channel:{readyState:'open'},acks:new Map()};
  const timers=new Map();let id=0;
  const tx=createTransfer({s:{role:'guest',run:{finished:true,id:'run-1'},transfer:null},MAX_SAMPLES:100,
- finite:Number.isFinite,send:(peer,msg)=>{queueMicrotask(()=>peer.acks.get(msg.transferId+':'+0)?.());return true;},
+ finite:Number.isFinite,send:(peer,msg)=>{queueMicrotask(()=>{const key=msg.transferId+':'+0;const resolve=peer.acks.get(key);peer.acks.delete(key);resolve?.();});return true;},
  renderResults:()=>{},localRecord:()=>record,uid:()=> 'tx',tell:()=>{},crypto:webcrypto,
  TextEncoder,Uint8Array,setTimeout:(fn)=>{const n=++id;timers.set(n,fn);return n;},clearTimeout:n=>timers.delete(n)});
  await tx.acknowledged(p,{transferId:'tx'},0);
