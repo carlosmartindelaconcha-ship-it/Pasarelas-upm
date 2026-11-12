@@ -39,6 +39,8 @@ function setup(options={}) {
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/acquisition.js'),'utf8'),ctx);
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/calibration-math.js'),'utf8'),ctx);
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/calibration-controller.js'),'utf8'),ctx);
+ for(const name of ['exports.js','record-transfer.js','results-view.js'])
+  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/'+name),'utf8'),ctx);
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
