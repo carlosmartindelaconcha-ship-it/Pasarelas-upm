@@ -30,6 +30,9 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   const acquisition = find('src/joint/acquisition.js?');
   const calibrationMath = find('src/joint/calibration-math.js?');
   const calibration = find('src/joint/calibration-controller.js?');
+  const exportsIndex = find('src/joint/exports.js?');
+  const transfer = find('src/joint/record-transfer.js?');
+  const results = find('src/joint/results-view.js?');
   const joint = find('src/joint/joint-app.js?');
   const translations = find('vwoma-i18n.js?');
 
@@ -43,9 +46,12 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   assert.ok(acquisition > persistence && acquisition < joint, 'el controlador de adquisición debe cargarse antes de joint-app.js');
   assert.ok(calibrationMath > acquisition && calibrationMath < calibration, 'las matemáticas de calibración se cargan antes del controlador');
   assert.ok(calibration > acquisition && calibration < joint, 'el controlador de calibración se carga antes de la aplicación conjunta');
+  assert.ok(exportsIndex > calibration && exportsIndex < transfer, 'exports antes de transferencia');
+  assert.ok(transfer > exportsIndex && transfer < results, 'transferencia antes de resultados');
+  assert.ok(results > transfer && results < joint, 'resultados antes de joint-app.js');
   assert.ok(joint > legacy, 'la medida conjunta debe cargarse después de app.js');
   assert.ok(translations > joint, 'las traducciones se cargan al final');
-  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, persistence, acquisition, calibrationMath, calibration, joint]) {
+  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, persistence, acquisition, calibrationMath, calibration, exportsIndex, transfer, results, joint]) {
     assert.doesNotMatch(scripts[index][1], /\btype\s*=\s*["']module["']/);
     assert.match(scripts[index][1], /\bdefer\b/);
   }
@@ -151,4 +157,31 @@ test('la calibración científica y el controlador de gestos quedan separados', 
   }
   assert.match(joint,/VWOMACalibrationMath\.createMath\(/);
   assert.match(joint,/VWOMACalibration\.createController\(/);
+});
+
+test('resultados, exportaciones y transferencia tienen responsabilidades distintas',()=>{
+  const joint=read('src/joint/joint-app.js');
+  const exportSource=read('src/joint/exports.js');
+  const transferSource=read('src/joint/record-transfer.js');
+  const view=read('src/joint/results-view.js');
+  assert.match(joint,/VWOMAExports\.createExports\(/);
+  assert.match(joint,/VWOMARecordTransfer\.createTransfer\(/);
+  assert.match(joint,/VWOMAResultsView\.createResultsView\(/);
+  for (const name of ['exportSession','processedCommonExport','exportCsv','resampleAxis','detrendPoints']) {
+    assert.match(exportSource,new RegExp('function '+name+'\\('));
+    assert.doesNotMatch(joint,new RegExp('function '+name+'\\('));
+  }
+  for(const name of ['hashText','validateRecord','acknowledged','sendRecord','handleTransferMessage']) {
+    assert.match(transferSource,new RegExp('function '+name+'\\('));
+    assert.doesNotMatch(joint,new RegExp('function '+name+'\\('));
+  }
+  for(const name of ['renderResults','renderSyncResults','renderComparison']) {
+    assert.match(view,new RegExp('function '+name+'\\('));
+    assert.doesNotMatch(joint,new RegExp('function '+name+'\\('));
+  }
+  assert.doesNotMatch(exportSource,/RTCPeerConnection|indexedDB|onmessage/);
+  assert.doesNotMatch(view,/indexedDB|RTCPeerConnection/);
+  assert.match(transferSource,/crypto\.subtle\.digest\('SHA-256'/);
+  assert.match(transferSource,/m\.type==='TRANSFER_ACK'/);
+  assert.match(joint,/handleTransferMessage\(p,m\)/);
 });

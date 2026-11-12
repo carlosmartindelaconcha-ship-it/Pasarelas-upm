@@ -49,11 +49,6 @@
         if (s.run) s.run.incidents.push(item);
     }
     function guard(fn) { return async (...args) => {try {await fn(...args);} catch(e) {tell(e.message || String(e),true); $('jointPairStatus').textContent=e.message || String(e);}}; }
-    function download(name, value, mime='application/json') {
-        const blob=new Blob([typeof value==='string'?value:JSON.stringify(value,null,2)],{type:mime});
-        const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download=name;
-        document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
-    }
     function tab(name) {
         for (const n of ['Plan','Devices','Sync','Measure','Results','Compare']) {
             $('jointPanel'+n).hidden=n!==name; $('jointTab'+n).setAttribute('aria-selected',String(n===name));
@@ -211,26 +206,9 @@
             if(s.run?.id===m.runId&&running()&&finite(m.end)){s.run.end=Math.max(s.run.start,Math.min(s.run.end,m.end));incident('stop','Parada anticipada del maestro');}return;
         }
         if(m.type==='ABORT'&&s.role==='guest') {if(s.pending?.id===m.runId)s.pending=null;if(s.run?.id===m.runId&&running()){s.run.state='cancelled';incident('cancel',m.reason||'Ensayo cancelado');await finishRun(true);}return;}
-        if(m.type==='TRANSFER_BEGIN'&&s.role==='host') {
-            if(!s.run||s.run.id!==m.runId||!Number.isInteger(m.size)||m.size<1||m.size>80000000||!Number.isInteger(m.count)||m.count!==Math.ceil(m.size/12000)||typeof m.hash!=='string')throw Error('Transferencia no válida.');
-            p.incoming={id:m.transferId,runId:m.runId,size:m.size,count:m.count,hash:m.hash,parts:[],length:0,next:0};
-            send(p,{type:'TRANSFER_ACK',transferId:m.transferId,index:-1});return;
+        if(['TRANSFER_BEGIN','TRANSFER_CHUNK','TRANSFER_END','TRANSFER_ACK'].includes(m.type)){
+            await handleTransferMessage(p,m);return;
         }
-        if(m.type==='TRANSFER_CHUNK'&&s.role==='host') {
-            const t=p.incoming;if(!t||t.id!==m.transferId)return;
-            if(m.index<t.next){send(p,{type:'TRANSFER_ACK',transferId:t.id,index:m.index});return;}
-            if(m.index!==t.next||typeof m.data!=='string'||m.data.length>12000||t.length+m.data.length>t.size)throw Error('Bloque de datos no válido.');
-            t.parts.push(m.data);t.length+=m.data.length;t.next++;send(p,{type:'TRANSFER_ACK',transferId:t.id,index:m.index});return;
-        }
-        if(m.type==='TRANSFER_END'&&s.role==='host') {
-            const t=p.incoming;
-            if(!t||t.id!==m.transferId){if(p.completedTransfer?.id===m.transferId)send(p,{type:'TRANSFER_ACK',transferId:m.transferId,index:p.completedTransfer.count});return;}
-            if(t.length!==t.size||t.next!==t.count)throw Error('Registro incompleto. Solicita el reenvío.');
-            const text=t.parts.join('');if(await hashText(text)!==t.hash)throw Error('La comprobación de integridad no coincide. Reenvía el registro.');
-            const record=JSON.parse(text);validateRecord(record,p.id,t.runId);
-            s.results.set(p.id,record);p.completedTransfer={id:t.id,count:t.count};p.incoming=null;send(p,{type:'TRANSFER_ACK',transferId:t.id,index:t.count});renderResults();return;
-        }
-        if(m.type==='TRANSFER_ACK') {const key=m.transferId+':'+m.index,resolve=p.acks.get(key);if(resolve){p.acks.delete(key);resolve();}return;}
     }
     /* Browser storage and run recovery are delegated to the persistence layer.
        Database name is explicit so /pruebas/ can use a separate data store. */
@@ -354,242 +332,30 @@
         return {schema:'pasarelas-upm-joint-vwoma-preview-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,networkClock:run.networkClock||run.initialClock,finalClock:run.finalClock,syncModels:run.syncModels||{},synchronizationCalibration:run.synchronizationCalibration||null,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj robusto fijado al inicio del ensayo más la corrección física fija de la tablilla; los intercambios posteriores solo diagnostican su estabilidad.',userAgent:navigator.userAgent};
     }
     function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
-    async function hashText(text) {
-        const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(hash)].map(v=>v.toString(16).padStart(2,'0')).join('');
-    }
-    function validateRecord(r,id,runId) {
-        if(!r||r.schema!=='pasarelas-upm-joint-vwoma-preview-v1'||r.id!==runId||r.device?.id!==id||!Array.isArray(r.samples)||r.samples.length>MAX_SAMPLES)throw Error('Registro recibido incompatible.');
-        if(!Array.isArray(r.incidents)||!r.windowMasterMs||![r.windowMasterMs.start,r.windowMasterMs.end].every(finite))throw Error('Ventana temporal no válida.');
-        for(let i=0;i<r.samples.length;i++){const row=r.samples[i];if(!Array.isArray(row)||(row.length!==8&&row.length!==9)||row[0]!==i||![row[2],row[3],row[4],row[5],row[7]].every(finite)||(row.length===9&&!finite(row[8])))throw Error('Muestras recibidas no válidas.');}
-    }
-    async function acknowledged(p,message,index) {
-        for(let attempt=0;attempt<3;attempt++) {
-            if(p.channel?.readyState!=='open')throw Error('La conexión se ha cerrado. Reconecta y reenvía el registro.');
-            const key=message.transferId+':'+index;
-            try {
-                await new Promise((resolve,reject)=>{
-                    const timer=setTimeout(()=>{p.acks.delete(key);reject(Error('Sin confirmación del bloque.'));},4000);
-                    p.acks.set(key,()=>{clearTimeout(timer);resolve();});
-                    if(!send(p,message)){clearTimeout(timer);p.acks.delete(key);reject(Error('No se pudo enviar el bloque.'));}
-                });return;
-            }catch(e){if(attempt===2)throw e;}
-        }
-    }
-    async function sendRecord() {
-        if(s.role!=='guest')return;
-        if(!s.run?.finished)throw Error('Termina primero el ensayo.');
-        if(s.transfer)throw Error('Hay una transferencia en curso.');
-        const host=[...s.peers.values()][0];if(!host||host.channel?.readyState!=='open')throw Error('No hay conexión con el maestro. Descarga tus datos localmente.');
-        s.transfer={percent:0};renderResults();
-        try {
-            const text=JSON.stringify(localRecord()),hash=await hashText(text),transferId=uid(),count=Math.ceil(text.length/12000);
-            if(text.length>80000000)throw Error('Registro demasiado grande para transferir. Descárgalo localmente.');
-            await acknowledged(host,{type:'TRANSFER_BEGIN',transferId,runId:s.run.id,size:text.length,count,hash},-1);
-            for(let i=0;i<count;i++) {
-                await acknowledged(host,{type:'TRANSFER_CHUNK',transferId,index:i,data:text.slice(i*12000,(i+1)*12000)},i);
-                s.transfer.percent=Math.round(100*(i+1)/count);renderResults();
-            }
-            await acknowledged(host,{type:'TRANSFER_END',transferId},count);
-            s.run.transferred=true;tell('El maestro ha recibido el registro y verificado su integridad.');
-        }finally{s.transfer=null;renderResults();}
-    }
-    function renderResults() {
-        const r=s.run;
-        $('jointDownload').disabled=!r?.finished;$('jointCsv').disabled=!r?.finished;$('jointDownloadProcessed').disabled=!r?.finished;$('jointCsvProcessed').disabled=!r?.finished;
-        $('jointNewRun').disabled=!!running()||!!s.transfer||!!r?.finishing;
-        $('jointSendData').hidden=s.role!=='guest';$('jointSendData').disabled=!r?.finished||!!s.transfer;
-        if(!r){$('jointResultsList').textContent='Todavía no hay un ensayo registrado.';$('jointSyncResults').hidden=true;return;}
-        let html=`<p><strong>${r.state==='cancelled'?'Ensayo cancelado':r.finished?'Registro terminado':'Ensayo en curso'}</strong> · ${escape(r.plan.name)}</p>`;
-        const expected=[r.device,...(s.role==='host'?[...s.peers.values()].filter(p=>r.plan.points.some(q=>q.device===p.id)).map(p=>({id:p.id,name:p.name})):[])];
-        for(const d of expected) {
-            const data=s.results.get(d.id);
-            html+=`<article class="joint-device-card"><strong>${escape(d.name)}</strong><p>${data?data.samples.length+' muestras · '+data.incidents.length+' incidencias':d.id===s.id?r.samples.length+' muestras locales':'Registro pendiente de recibir'}</p></article>`;
-        }
-        if(s.transfer)html+=`<p>Enviando al maestro: ${s.transfer.percent}%</p>`;
-        if(r.transferred)html+='<p>Registro confirmado por el maestro.</p>';
-        if(s.storageFailed)html+='<p class="joint-warning">El guardado persistente ha fallado: descarga los datos antes de cerrar.</p>';
-        $('jointResultsList').innerHTML=html;
-        renderSyncResults(r);
-    }
-    function clearSyncCharts(){for(const chart of s.syncCharts)chart?.destroy();s.syncCharts=[];}
-    function jointTemporalOptions(duration,yTitle,tooltip,legend=true) {
-        return {responsive:true,maintainAspectRatio:false,animation:false,normalized:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:legend,position:'top',labels:{boxWidth:22,font:{size:11}}},tooltip:{callbacks:{title:items=>items.length?'t = '+items[0].parsed.x.toFixed(3)+' s':'',label:tooltip}},zoom:{pan:{enabled:true,mode:'xy'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},limits:{x:{min:0,max:duration},y:{min:'original',max:'original'}}}},scales:{x:{type:'linear',min:0,max:duration,title:{display:true,text:'Tiempo desde el inicio del ensayo (s)'},grid:{color:'rgba(0,0,0,.08)'}},y:{title:{display:true,text:yTitle},grid:{color:'rgba(0,0,0,.08)'}}}};
-    }
-    function histogramBins(values,count) {
-        let low=Math.min(...values),high=Math.max(...values);
-        if(low===high){const pad=Math.max(.05,Math.abs(low)*.05);low-=pad;high+=pad;}
-        const span=high-low, step=span/count, bins=Array.from({length:count},(_,index)=>({low:low+index*step,high:index===count-1?high:low+(index+1)*step,count:0}));
-        for(const value of values){const index=Math.min(count-1,Math.max(0,Math.floor((value-low)/span*count)));bins[index].count++;}
-        return bins;
-    }
-    function histogramMarkup(group,phase,metric,values) {
-        const key=`${group.key}:${phase}:${metric}`,focus=s.syncView.focus[key],raw=values.filter(finite),data=focus?raw.filter(value=>value>=focus.low&&value<=focus.high):raw;
-        const label=metric==='rtt'?'RTT':'Residuo de offset',phaseLabel=phase==='pre'?'Calibración — 200 intercambios a 20 Hz':'Durante el ensayo — 10/s';
-        if(!data.length)return `<figure class="joint-rtt-figure"><figcaption>${label} · ${phaseLabel} · sin intercambios en este rango</figcaption></figure>`;
-        const suffix=focus?` · zoom: ${focus.low.toFixed(2)} a ${focus.high.toFixed(2)} ms`:'';
-        const detail=metric==='offset'?' · respecto al modelo inicial robusto':'';
-        return `<figure class="joint-rtt-figure joint-sync-histogram"><figcaption><strong>${label}</strong> · ${phaseLabel}${detail}<br>${data.length} intercambios · mín. ${Math.min(...data).toFixed(2)} ms · mediana ${median(data).toFixed(2)} ms${suffix}</figcaption><div class="joint-histogram-controls"><label>Clases <select data-sync-bins><option value="8">8</option><option value="12">12</option><option value="20">20</option><option value="32">32</option><option value="48">48</option></select></label>${focus?`<button type="button" class="joint-secondary" data-sync-reset="${escape(key)}">Quitar zoom</button>`:'<span>Pulsa una barra para ampliar</span>'}</div><div class="joint-sync-canvas"><canvas id="syncHist-${escape(key)}" aria-label="Histograma de ${label} en ${phaseLabel}"></canvas></div></figure>`;
-    }
-    function timelineMarkup(group,metric) {
-        const label=metric==='rtt'?'RTT':'Residuo de offset';
-        return `<figure class="joint-rtt-figure joint-sync-timeline"><figcaption><strong>${label} durante el ensayo</strong> · rueda o pellizco para ampliar; arrastra en X e Y. La leyenda permite ocultar series.</figcaption><div class="joint-sync-canvas joint-sync-timeline-canvas"><canvas id="syncTimeline-${escape(group.key)}-${metric}" aria-label="${label} a lo largo del ensayo"></canvas></div><button type="button" class="joint-secondary" data-sync-chart-reset="${escape(group.key)}:${metric}">Restablecer zoom</button></figure>`;
-    }
-    function makeHistogramChart(canvas,values,key) {
-        const focus=s.syncView.focus[key],data=(focus?values.filter(value=>value>=focus.low&&value<=focus.high):values).filter(finite);if(!canvas||!data.length)return;
-        const bins=histogramBins(data,s.syncView.bins),labels=bins.map(bin=>`${bin.low.toFixed(2)}–${bin.high.toFixed(2)}`);
-        const chart=new Chart(canvas.getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Intercambios',data:bins.map(bin=>bin.count),backgroundColor:'#087cc3',borderColor:'#056aa8',borderWidth:1,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>labels[items[0].dataIndex]+' ms',label:item=>item.raw+' intercambios'}}},scales:{x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:5,font:{size:10}},title:{display:true,text:'ms'}},y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:'Número de intercambios'}}},onClick:(event,elements)=>{if(!elements.length)return;const bin=bins[elements[0].index];s.syncView.focus[key]={low:bin.low,high:bin.high};renderSyncResults(s.run);}}});
-        s.syncCharts.push(chart);
-    }
-    function makeTimelineChart(canvas,rows,run,metric,model) {
-        if(!canvas)return;const duration=Math.max(1,(run.end-run.start)/1000),points=rows.filter(row=>finite(syncMetric(row,metric,model))&&finite(row.t1)&&row.t1>=run.start&&row.t1<=run.end).map(row=>({x:(row.t1-run.start)/1000,y:syncMetric(row,metric,model),accepted:selectedForModel(row,model)})).sort((a,b)=>a.x-b.x);if(!points.length)return;
-        const accepted=points.filter(point=>point.accepted),rejected=points.filter(point=>!point.accepted),label=metric==='rtt'?'RTT (ms)':'Residuo de offset (ms)',color=metric==='rtt'?'#087cc3':'#8e24aa';
-        const datasets=[{label:'Intercambios aceptados',data:accepted,borderColor:color,backgroundColor:color,pointRadius:3,pointHoverRadius:5,borderWidth:1.6,tension:.12},{label:'RTT alto / descartados',data:rejected,borderColor:'#98a8b5',backgroundColor:'#98a8b5',pointRadius:3,pointHoverRadius:5,borderWidth:0,showLine:false}];
-        if(metric==='offset')datasets.push({label:'Modelo aplicado (0 ms)',data:[{x:0,y:0},{x:duration,y:0}],borderColor:'#263746',borderDash:[6,4],borderWidth:1.4,pointRadius:0,pointHoverRadius:0});
-        const options=jointTemporalOptions(duration,label,item=>item.dataset.label+': '+item.parsed.y.toFixed(3)+' ms',true);
-        const chart=new Chart(canvas.getContext('2d'),{type:'line',data:{datasets},options});s.syncCharts.push(chart);enableLegendToggling(chart);
-    }
-    function modelSummaryMarkup(model) {
-        if(!model||!finite(model.offset))return '<p class="joint-help">No se conservó el modelo inicial de este dispositivo.</p>';
-        const ppm=finite(model.drift)?model.drift*1e6:0;
-        return `<div class="joint-model-values"><span><b>Offset robusto</b>${model.offset.toFixed(3)} ms</span><span><b>Deriva</b>${model.drift.toExponential(3)} ms/ms · ${ppm.toFixed(3)} ppm</span><span><b>Referencia</b>${model.reference.toFixed(1)} ms</span><span><b>Intercambios</b>${model.selectedCount??'—'} / ${model.count??'—'} seleccionados</span><span><b>RTT seleccionado</b>mín. ${finite(model.rtt)?model.rtt.toFixed(2):'—'} ms · mediana ${finite(model.rttMedian)?model.rttMedian.toFixed(2):'—'} ms</span><span><b>Umbral RTT</b>${finite(model.rttCutoff)?model.rttCutoff.toFixed(2):'—'} ms</span></div>`;
-    }
-    function renderSyncResults(run) {
-        const target=$('jointRttHistograms'),groups=[];clearSyncCharts();
-        if(s.role==='host') {
-            for(const p of s.peers.values()) {
-                const rows=p.samples.filter(row=>row.runId===run.id);
-                const duringRows=rows.filter(row=>row.phase==='during');
-                const preRows=p.samples.filter(row=>row.phase==='precal'),model=run.syncModels?.[p.id]||p.startModel||p.model;groups.push({key:p.id,name:p.name||'Participante',preRows,duringRows,model});
-            }
-        } else {
-            const rows=s.syncLog.filter(row=>row.runId===run.id);
-            const duringRows=rows.filter(row=>row.phase==='during');
-            groups.push({key:'master',name:'Maestro',preRows:s.syncLog.filter(row=>row.phase==='precal'),duringRows,model:run.networkClock||run.initialClock});
-        }
-        const useful=groups.some(group=>group.preRows.length||group.duringRows.length);
-        $('jointSyncResults').hidden=!useful;
-        $('jointSyncFormula').innerHTML=`<div class="joint-sync-formula"><strong>Modelo aplicado a las marcas temporales</strong><div><i>t</i><sub>maestro</sub> = <i>t</i><sub>participante</sub> − [offset<sub>0</sub> + deriva · (<i>t</i><sub>participante</sub> − referencia)]</div><small>El offset<sub>0</sub> es la mediana del 30 % de intercambios con RTT menor. La deriva se estima con Theil–Sen si hay al menos 20 s de datos útiles. El modelo se fija antes del ensayo; los intercambios posteriores solo diagnostican su estabilidad.</small></div>`;
-        target.innerHTML=groups.map(group=>{const preRtt=group.preRows.map(row=>row.rtt),duringRtt=group.duringRows.map(row=>row.rtt),preOffset=group.preRows.map(row=>syncMetric(row,'offset',group.model)),duringOffset=group.duringRows.map(row=>syncMetric(row,'offset',group.model));return `<article class="joint-rtt-group"><h5>${escape(group.name)}</h5>${modelSummaryMarkup(group.model)}<div class="joint-rtt-grid">${histogramMarkup(group,'pre','rtt',preRtt)}${histogramMarkup(group,'pre','offset',preOffset)}${histogramMarkup(group,'during','rtt',duringRtt)}${histogramMarkup(group,'during','offset',duringOffset)}</div><div class="joint-sync-timeline-grid">${timelineMarkup(group,'rtt')}${timelineMarkup(group,'offset')}</div></article>`;}).join('');
-        target.querySelectorAll('[data-sync-bins]').forEach(select=>{select.value=String(s.syncView.bins);select.addEventListener('change',event=>{s.syncView.bins=Number(event.target.value);renderSyncResults(run);});});
-        target.querySelectorAll('[data-sync-reset]').forEach(button=>button.addEventListener('click',()=>{delete s.syncView.focus[button.dataset.syncReset];renderSyncResults(run);}));
-        target.querySelectorAll('[data-sync-chart-reset]').forEach(button=>button.addEventListener('click',()=>{const [groupKey,metric]=button.dataset.syncChartReset.split(':');const chart=s.syncCharts.find(item=>item.canvas.id===`syncTimeline-${groupKey}-${metric}`);chart?.resetZoom();}));
-        for(const group of groups){for(const [phase,rows] of [['pre',group.preRows],['during',group.duringRows]])for(const metric of ['rtt','offset'])makeHistogramChart($(`syncHist-${group.key}:${phase}:${metric}`),rows.map(row=>syncMetric(row,metric,group.model)),`${group.key}:${phase}:${metric}`);for(const metric of ['rtt','offset'])makeTimelineChart($(`syncTimeline-${group.key}-${metric}`),group.duringRows,run,metric,group.model);}
-    }
-    function exportSession() {
-        if(!s.run?.finished)throw Error('Termina primero el ensayo.');
-        const records=[...s.results.values()].map(r=>{
-            // Keep originals; use one final model per record to avoid time jumps.
-            const model=r.device.id===s.id?r.finalClock:(s.peers.get(r.device.id)?.model||r.finalClock);
-            const valid=validModel(model)||r.device.role==='host';
-            return {...r,exportClock:valid?model:r.initialClock,samples:r.samples.map(row=>({raw:row,masterTimeMs:finite(row[8])?row[8]:toMaster(row[7],valid?model:r.initialClock)}))};
+    /* Binary file download, validated exports and common-grid interpolation. */
+    const {download,exportSession,processedCommonExport,exportProcessedJson,exportProcessedCsv,exportCsv,comparisonExport,validComparisonExport,samplePeriodMs,structuralValue,resampleAxis,detrendPoints} =
+        globalThis.VWOMAExports.createExports({
+            s,finite,median,MAX_PEERS,toMaster,validModel,correctedVector,localRecord,
+            document,Blob:typeof Blob==='undefined'?null:Blob,
+            URL:typeof URL==='undefined'?null:URL,setTimeout
         });
-        const expected=s.run.plan.points.filter(p=>p.device).map(p=>p.device);
-        download('ensayo_conjunto_'+s.run.id+'.json',{schema:'pasarelas-upm-joint-export-v1',session:s.session,plan:s.run.plan,windowMasterMs:{start:s.run.start,end:s.run.end},complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,p.samples])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'});
-    }
-    function processedCommonExport() {
-        const data=comparisonExport();if(!data)throw Error('Termina primero el ensayo y recibe los registros disponibles.');
-        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,records=data.records.filter(record=>record.samples?.length),periods=records.map(record=>samplePeriodMs(record,start,end)).filter(finite);
-        if(!periods.length)throw Error('No hay suficientes marcas temporales para crear la malla común.');
-        const period=Math.max(...periods),grid=[];for(let t=start;t<=end+.1;t+=period)grid.push(t);
-        const processed=records.map(record=>{
-            const axes=[0,1,2].map(axis=>resampleAxis(record.samples,sample=>structuralValue(sample.raw,record,axis),grid));
-            axes[2]=detrendPoints(axes[2]);
-            const byTime=axes.map(series=>new Map(series.map(point=>[Math.round(point.x*1000),point.y])));
-            const samples=grid.map(t=>{const key=Math.round(t*1000);return {masterTimeMs:t,x:byTime[0].get(key)??null,y:byTime[1].get(key)??null,z:byTime[2].get(key)??null};});
-            return {device:record.device,calibration:record.device?.calibration||null,samples};
+    /* WebRTC file-transfer protocol is kept apart from signal acquisition. */
+    const {sendRecord,handleTransferMessage} = globalThis.VWOMARecordTransfer.createTransfer({
+        s,MAX_SAMPLES,finite,send:(...args)=>send(...args),
+        renderResults:(...args)=>renderResults(...args),
+        localRecord,uid,tell,crypto,TextEncoder,Uint8Array,setTimeout,clearTimeout
+    });
+
+    /* UI rendering of results, clock diagnostics, and cross-device charts. */
+    const {renderResults,clearSyncCharts,jointTemporalOptions,histogramBins,histogramMarkup,timelineMarkup,makeHistogramChart,makeTimelineChart,modelSummaryMarkup,renderSyncResults,renderComparison} =
+        globalThis.VWOMAResultsView.createResultsView({
+            s,$,escape,Chart:typeof Chart==='undefined'?undefined:Chart,
+            median,finite,running,syncMetric,selectedForModel,
+            enableLegendToggling:(...args)=>enableLegendToggling(...args),
+            comparisonExport,samplePeriodMs,structuralValue,
+            resampleAxis,detrendPoints
         });
-        return {schema:'pasarelas-upm-joint-processed-v1',source:'muestras brutas transformadas y remuestreadas',plan:data.plan,windowMasterMs:data.windowMasterMs,commonPeriodMs:period,commonRateHz:1000/period,zProcessing:'detrend lineal por móvil tras interpolación',records:processed};
-    }
-    function exportProcessedJson() {const data=processedCommonExport();download('ensayo_conjunto_procesado_'+s.run.id+'.json',data);}
-    function exportProcessedCsv() {
-        const data=processedCommonExport(),cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-        const lines=['master_time_s,device,point,x_structural_m_s2,y_structural_m_s2,z_structural_detrended_m_s2'];
-        data.records.forEach(record=>record.samples.forEach(sample=>lines.push([((sample.masterTimeMs-data.windowMasterMs.start)/1000).toFixed(6),record.device.name,record.device.point?.name,sample.x,sample.y,sample.z].map(cell).join(','))));
-        download('ensayo_conjunto_procesado_'+s.run.id+'.csv','\ufeff'+lines.join('\n'),'text/csv;charset=utf-8');
-    }
-    function exportCsv() {
-        const r=localRecord();if(!r||!s.run.finished)throw Error('No hay un registro terminado.');
-        const model=r.finalClock,point=r.device.point;
-        const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-        const columns=['device','point','point_x_m','point_y_m','axis','angle_deg','sequence','event_time_ms','receipt_time_ms','ax_m_s2','ay_m_s2','az_m_s2','reported_interval_ms','used_time_ms','master_time_at_capture_ms','master_time_estimated_ms','inside_window'];
-        const lines=r.samples.map(row=>{const t=finite(row[8])?row[8]:toMaster(row[7],model);return [r.device.name,point?.name,point?.x,point?.y,point?.axis,point?.angle,...row,t,t>=r.windowMasterMs.start&&t<=r.windowMasterMs.end?1:0].map(cell).join(',');});
-        download('aceleraciones_'+r.id+'_'+s.id+'.csv','\ufeff'+columns.join(',')+'\n'+lines.join('\n'),'text/csv;charset=utf-8');
-    }
-    function comparisonExport() {
-        if(s.compareExport) return s.compareExport;
-        if(!s.run?.finished) return null;
-        const records=[...s.results.values()].map(r=>{
-            const model=r.device.id===s.id?r.finalClock:(s.peers.get(r.device.id)?.model||r.finalClock);
-            const use=validModel(model)||r.device.role==='host'?model:r.initialClock;
-            return {...r,samples:r.samples.map(raw=>({raw,masterTimeMs:finite(raw[8])?raw[8]:toMaster(raw[7],use)}))};
-        });
-        return {plan:s.run.plan,windowMasterMs:{start:s.run.start,end:s.run.end},records};
-    }
-    function validComparisonExport(data) {
-        if(!data||!data.plan||!Array.isArray(data.records)||!data.windowMasterMs||!finite(data.windowMasterMs.start)||!finite(data.windowMasterMs.end)) throw Error('El archivo no es un ensayo conjunto válido.');
-        if(data.records.length<1||data.records.length>MAX_PEERS+1)throw Error('El archivo contiene un número no válido de registros.');
-        for(const record of data.records) {
-            if(!record?.device?.id||!Array.isArray(record.samples))throw Error('Falta un registro de móvil válido.');
-            for(const sample of record.samples) if(!sample||!Array.isArray(sample.raw)||sample.raw.length<8||!finite(sample.masterTimeMs))throw Error('El archivo contiene muestras incompatibles.');
-        }
-        return data;
-    }
-    function samplePeriodMs(record,start,end) {
-        const times=record.samples.map(s=>s.masterTimeMs).filter(t=>finite(t)&&t>=start-1000&&t<=end+1000).sort((a,b)=>a-b);
-        return median(times.slice(1).map((t,i)=>t-times[i]).filter(dt=>dt>=5&&dt<=250));
-    }
-    function structuralValue(raw,record,axis) {
-        return correctedVector([raw[3],raw[4],raw[5]],record.device?.calibration)[axis];
-    }
-    function resampleAxis(samples,getValue,grid) {
-        const source=samples.filter(s=>finite(s.masterTimeMs)&&finite(getValue(s))).sort((a,b)=>a.masterTimeMs-b.masterTimeMs),out=[];
-        let i=0;
-        for(const t of grid) {
-            while(i+1<source.length&&source[i+1].masterTimeMs<t)i++;
-            const a=source[i],b=source[i+1];
-            if(!a||!b||b.masterTimeMs===a.masterTimeMs||t<a.masterTimeMs||t>b.masterTimeMs)continue;
-            const r=(t-a.masterTimeMs)/(b.masterTimeMs-a.masterTimeMs);
-            out.push({x:t,y:getValue(a)+r*(getValue(b)-getValue(a))});
-        }
-        return out;
-    }
-    function detrendPoints(points) {
-        if(points.length<2)return points;
-        const n=points.length,sx=points.reduce((a,p)=>a+p.x,0),sy=points.reduce((a,p)=>a+p.y,0),sxx=points.reduce((a,p)=>a+p.x*p.x,0),sxy=points.reduce((a,p)=>a+p.x*p.y,0),d=n*sxx-sx*sx,m=Math.abs(d)>1e-12?(n*sxy-sx*sy)/d:0,b=(sy-m*sx)/n;
-        return points.map(p=>({x:p.x,y:p.y-(m*p.x+b)}));
-    }
-    function renderComparison() {
-        const status=$('jointCompareStatus'),data=comparisonExport();
-        for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
-        for(const chart of Object.values(s.jointCharts||{}))chart?.destroy();s.jointCharts={time:null,spectrum:null};
-        if(!data) {status.textContent='Termina un ensayo y recibe los registros de los participantes para compararlos aquí.';return;}
-        const records=data.records.filter(r=>r.samples?.length).sort((a,b)=>{
-            const ap=data.plan.points?.find(p=>p.device===a.device.id),bp=data.plan.points?.find(p=>p.device===b.device.id);
-            return (ap?.x??0)-(bp?.x??0);
-        });
-        if(!records.length) {status.textContent='El ensayo no contiene muestras para representar.';return;}
-        if(typeof Chart==='undefined') {status.textContent='No se ha cargado la librería de gráficas. Recarga la página con conexión.';return;}
-        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),axes=[['X',0,'#1565c0','jointCompareCanvasX'],['Y',1,'#c62828','jointCompareCanvasY'],['Z',2,'#2e7d32','jointCompareCanvasZ']],dashes=[[],[8,5],[3,4],[11,4,2,4]],view=$('jointCompareView').value;
-        const periods=records.map(r=>samplePeriodMs(r,start,end)).filter(finite),commonPeriod=periods.length?Math.max(...periods):null,grid=[];
-        if(view==='common'&&!finite(commonPeriod)){status.textContent='No hay suficientes marcas temporales válidas para construir la rejilla común.';return;}
-        if(view==='common'&&finite(commonPeriod))for(let t=start;t<=end+.1;t+=commonPeriod)grid.push(t);
-        status.textContent=view==='common'?`${records.length} móviles · rejilla común de ${commonPeriod.toFixed(2)} ms (${(1000/commonPeriod).toFixed(1)} Hz) · interpolación lineal a partir de las marcas temporales corregidas al reloj maestro.`:`${records.length} móviles · marcas temporales originales ya referidas al reloj del maestro; sin remuestreo.`;
-        for(const [axis,axisIndex,color,canvasId] of axes) {
-            const datasets=[];
-            records.forEach((record,deviceIndex)=>{
-                const point=data.plan.points?.find(p=>p.device===record.device.id),name=(record.device.name||'Móvil')+(point?' · '+point.name:'');
-                const getter=sample=>structuralValue(sample.raw,record,axisIndex);
-                const valid=record.samples.filter(sample=>finite(sample.masterTimeMs)&&finite(getter(sample))&&sample.masterTimeMs>=start&&sample.masterTimeMs<=end);
-                let points=view==='common'?resampleAxis(record.samples,getter,grid).map(p=>({x:(p.x-start)/1000,y:p.y})):valid.map(sample=>({x:(sample.masterTimeMs-start)/1000,y:getter(sample)}));
-                if(axis==='Z')points=detrendPoints(points);
-                const stride=Math.max(1,Math.ceil(points.length/4500));
-                datasets.push({label:name,data:points.filter((_,i)=>i%stride===0),borderColor:color,borderDash:dashes[deviceIndex%dashes.length],borderWidth:deviceIndex?1.35:2.15,pointRadius:0,tension:0,parsing:false});
-            });
-            const options=jointTemporalOptions(span/1000,axis==='Z'?'Aceleración Z con detrend (m/s²)':'Aceleración '+axis+' (m/s²)',item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²',true);options.scales.x.title.text='Tiempo en el reloj maestro (s)';
-            const chart=new Chart($(canvasId).getContext('2d'),{type:'line',data:{datasets},options});
-            s.compareCharts.push(chart);enableLegendToggling(chart);
-        }
-    }
+
     function ensureJointCharts() {
         if(typeof Chart==='undefined')return false;
         const common={responsive:true,maintainAspectRatio:false,animation:false,events:[],parsing:false,plugins:{legend:{position:'top',labels:{boxWidth:28,font:{size:12}}}},scales:{x:{type:'linear',grid:{color:'rgba(0,0,0,.08)'}},y:{grid:{color:'rgba(0,0,0,.08)'}}}};

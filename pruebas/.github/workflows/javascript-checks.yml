@@ -32,6 +32,9 @@ jobs:
           node --check src/joint/acquisition.js
           node --check src/joint/calibration-math.js
           node --check src/joint/calibration-controller.js
+          node --check src/joint/exports.js
+          node --check src/joint/record-transfer.js
+          node --check src/joint/results-view.js
           node --check src/joint/joint-app.js
           node --check vwoma-i18n.js
       - name: Run regression tests

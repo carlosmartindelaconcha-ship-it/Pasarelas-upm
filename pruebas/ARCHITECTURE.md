@@ -4,7 +4,7 @@ VWOMA es una aplicación web estática para registro de pasarelas, adquisición
 de aceleraciones y medidas conjuntas con varios teléfonos. Se publica en
 GitHub Pages, sin servidor de aplicación ni proceso de compilación.
 
-## Estructura actual (fase 8 de la refactorización)
+## Estructura actual (fase 9 de la refactorización)
 
 ```text
 index.html                 HTML y orden de carga
@@ -26,8 +26,12 @@ src/joint/calibration-math.js Filtrado, eliminación de tendencia, signos
                            y correlación de gestos (cálculos puros)
 src/joint/calibration-controller.js Calibración de ejes, coordinación
                            de gestos físicos, validación y presentación
-src/joint/joint-app.js     Orquestación: plano, WebRTC/SYNC,
-                           registro, resultados y exportación
+src/joint/exports.js       JSON/CSV, malla temporal común, transformaciones
+                           estructurales y validación de archivos importados
+src/joint/record-transfer.js Transferencia SHA-256 en bloques con ACK/reintentos
+src/joint/results-view.js  Presentación de resultados, sincronización y
+                           comparación multicanal en Chart.js
+src/joint/joint-app.js     Coordinación de pantallas, sensores y mensajes
 style.css                  Estilos generales
 vwoma-identity.css         Identidad visual
 vwoma-i18n.css             Selector de idiomas
@@ -40,6 +44,8 @@ tests/persistence.test.cjs Guardado por lotes, recuperación y fallos IndexedDB
 tests/acquisition.test.cjs Pruebas de ciclo de medida, abortos y confirmaciones
 tests/calibration-math.test.cjs Filtrado, signos y correlación de retardos
 tests/calibration-controller.test.cjs Estados y validación de calibraciones
+tests/exports.test.cjs     Esquemas exportados, CSV, mallas y validación
+tests/record-transfer.test.cjs Integridad, ACK y transferencia multipaquete
 tests/spectra.test.cjs     Pruebas numéricas de FFT, espectro y Welch
 tests/architecture.test.cjs Contrato de integración entre scripts
 ```
@@ -155,6 +161,9 @@ node --check src/joint/persistence.js
 node --check src/joint/acquisition.js
 node --check src/joint/calibration-math.js
 node --check src/joint/calibration-controller.js
+node --check src/joint/exports.js
+node --check src/joint/record-transfer.js
+node --check src/joint/results-view.js
 node --check src/joint/webrtc-transport.js
 node --check src/joint/joint-app.js
 node --check vwoma-i18n.js
@@ -181,10 +190,37 @@ en móvil (especialmente Safari iOS y Chrome Android):
 1. Cubrir con pruebas deterministas las funciones puras de procesamiento
    (interpolación, eliminación de tendencia, FFT y Welch).
 2. Ampliar pruebas numéricas y de integración para preprocesamiento y FFT.
-3. Separar resultados y transferencias; extender pruebas físicas y de
-   integración y diseñar setups automáticos sobre el plano existente.
+3. Validar resultados/exportación y transferencia con ensayos físicos;
+   después aislar los eventos de la interfaz y preparar setups multipunto.
 4. Introducir un único estado coordinador y ciclos de vida explícitos para
    dispositivos, adquisición, transferencias y almacenamiento.
 5. Completar pruebas de integración y compatibilidad antes de fusionar.
 
 En todas las fases, mantener `main` estable hasta terminar las comprobaciones.
+
+
+### Resultados, exportaciones y transferencia (fase 9)
+
+`src/joint/exports.js` encapsula los formatos JSON/CSV existentes,
+la creación de la malla temporal común y el procesamiento Z con detrend.
+Conserva los esquemas `pasarelas-upm-joint-export-v1` y
+`pasarelas-upm-joint-processed-v1`, los nombres de columnas y
+`commonPeriodMs` como el máximo período mediano de los participantes.
+No cambia la resolución ni la validación científica de las medidas.
+
+`src/joint/record-transfer.js` conserva exactamente los mensajes
+`TRANSFER_BEGIN`, `TRANSFER_CHUNK`, `TRANSFER_END` y `TRANSFER_ACK`.
+Mantiene trozos de 12000 caracteres, SHA-256, los límites originales,
+hasta tres intentos por bloque y confirmaciones por índice. El manejador de
+mensajes de `joint-app.js` delega en este controlador.
+
+`src/joint/results-view.js` concentra las pantallas de resultados, gráficos
+de RTT/offset y comparación entre teléfonos. Recibe por inyección el módulo
+de exportación y las funciones de representación; sigue utilizando Chart.js.
+El coordinador principal conserva el manejo de eventos de usuario y
+el registro en memoria; el formato, datos y tratamiento de señales
+permanecen estables.
+
+La separación por responsabilidades no equivale todavía a desacoplamiento
+total. Los controladores comparten el estado del ensayo mediante contratos
+explícitos y algunos callbacks diferidos hasta la inicialización completa.
