@@ -28,6 +28,8 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   const clock = find('src/joint/clock-model.js?');
   const persistence = find('src/joint/persistence.js?');
   const acquisition = find('src/joint/acquisition.js?');
+  const calibrationMath = find('src/joint/calibration-math.js?');
+  const calibration = find('src/joint/calibration-controller.js?');
   const joint = find('src/joint/joint-app.js?');
   const translations = find('vwoma-i18n.js?');
 
@@ -39,9 +41,11 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   assert.ok(clock > transport && clock < joint, 'el modelo de reloj debe cargarse después del transporte y antes de joint-app.js');
   assert.ok(persistence > clock && persistence < joint, 'el almacenamiento debe cargarse antes de joint-app.js');
   assert.ok(acquisition > persistence && acquisition < joint, 'el controlador de adquisición debe cargarse antes de joint-app.js');
+  assert.ok(calibrationMath > acquisition && calibrationMath < calibration, 'las matemáticas de calibración se cargan antes del controlador');
+  assert.ok(calibration > acquisition && calibration < joint, 'el controlador de calibración se carga antes de la aplicación conjunta');
   assert.ok(joint > legacy, 'la medida conjunta debe cargarse después de app.js');
   assert.ok(translations > joint, 'las traducciones se cargan al final');
-  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, persistence, acquisition, joint]) {
+  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, persistence, acquisition, calibrationMath, calibration, joint]) {
     assert.doesNotMatch(scripts[index][1], /\btype\s*=\s*["']module["']/);
     assert.match(scripts[index][1], /\bdefer\b/);
   }
@@ -125,4 +129,26 @@ test('el ciclo de adquisición está separado del DOM y de la señalización Web
   assert.match(joint, /VWOMAAcquisition\.createAcquisition\(/);
   assert.match(joint, /enterRecording:.*=>/);
   assert.match(joint, /readDuration:\(\)=>\$\('jointDuration'\)\.value/);
+});
+
+test('la calibración científica y el controlador de gestos quedan separados', () => {
+  const math = read('src/joint/calibration-math.js');
+  const controller = read('src/joint/calibration-controller.js');
+  const joint = read('src/joint/joint-app.js');
+  assert.match(math,/function createMath\(/);
+  for(const name of ['linearDetrend','lowPassCalibration','calibrationLobes',
+                      'correctedVector','filteredGestureSeries','interpolateGesture',
+                      'correlationAt','estimateGestureAxis']){
+    assert.match(math,new RegExp('function '+name+'\\('));
+    assert.doesNotMatch(joint,new RegExp('function '+name+'\\('));
+  }
+  assert.doesNotMatch(math,/document\.|localStorage|indexedDB|RTCPeerConnection|querySelector/);
+  assert.match(controller,/function createController\(/);
+  for(const name of ['finishCalibration','startCalibration',
+                    'startSyncCalibration','finalizeSyncGesture']){
+    assert.match(controller,new RegExp('function '+name+'\\('));
+    assert.doesNotMatch(joint,new RegExp('function '+name+'\\('));
+  }
+  assert.match(joint,/VWOMACalibrationMath\.createMath\(/);
+  assert.match(joint,/VWOMACalibration\.createController\(/);
 });
