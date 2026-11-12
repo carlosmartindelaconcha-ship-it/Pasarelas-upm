@@ -4,7 +4,7 @@ VWOMA es una aplicación web estática para registro de pasarelas, adquisición
 de aceleraciones y medidas conjuntas con varios teléfonos. Se publica en
 GitHub Pages, sin servidor de aplicación ni proceso de compilación.
 
-## Estructura actual (fase 7 de la refactorización)
+## Estructura actual (fase 8 de la refactorización)
 
 ```text
 index.html                 HTML y orden de carga
@@ -22,8 +22,12 @@ src/joint/persistence.js    IndexedDB: almacenes runs/chunks, guardado por lotes
                            recuperación de registros y cierre seguro
 src/joint/acquisition.js    Ciclo de medida: muestras, preparación, inicio,
                            parada/cancelación, wake lock y cierre persistente
-src/joint/joint-app.js     Orquestación: eventos del plano, WebRTC/SYNC,
-                           calibración, UI de medida, resultados y exportación
+src/joint/calibration-math.js Filtrado, eliminación de tendencia, signos
+                           y correlación de gestos (cálculos puros)
+src/joint/calibration-controller.js Calibración de ejes, coordinación
+                           de gestos físicos, validación y presentación
+src/joint/joint-app.js     Orquestación: plano, WebRTC/SYNC,
+                           registro, resultados y exportación
 style.css                  Estilos generales
 vwoma-identity.css         Identidad visual
 vwoma-i18n.css             Selector de idiomas
@@ -34,6 +38,8 @@ tests/plan-controller.test.cjs Pruebas del plano y gestión de puntos
 tests/clock-model.test.cjs Modelos de reloj y conversiones temporales
 tests/persistence.test.cjs Guardado por lotes, recuperación y fallos IndexedDB
 tests/acquisition.test.cjs Pruebas de ciclo de medida, abortos y confirmaciones
+tests/calibration-math.test.cjs Filtrado, signos y correlación de retardos
+tests/calibration-controller.test.cjs Estados y validación de calibraciones
 tests/spectra.test.cjs     Pruebas numéricas de FFT, espectro y Welch
 tests/architecture.test.cjs Contrato de integración entre scripts
 ```
@@ -94,6 +100,20 @@ metadatos del registro. Las transiciones `armed` → `recording` → `finished`,
 los mensajes PREPARE/READY/START_AT/STOP_AT/ABORT, las ventanas temporales y
 los márgenes de registro no se modifican. Las funciones de `ui` mantienen
 el orden de bloqueo/desbloqueo de la pantalla y actualización de resultados.
+
+La fase 8 aísla la calibración en dos módulos: `src/joint/calibration-math.js`
+expone `createMath({median,finite,sampleRate})` con los algoritmos numéricos
+de tendencia, filtrado RC bidireccional, detección de lóbulos, corrección de
+signos sin intercambio de ejes, interpolación y correlación entre gestos.
+`src/joint/calibration-controller.js` recibe ese módulo, el estado y los
+callbacks de comunicación/interfaz; mantiene las decisiones de aceptación,
+repetición por eje y la calibración física de X, Y y Z.
+
+**Límite científico:** el barrido de desfases se evalúa a incrementos de
+1 ms sobre señales interpoladas, pero esto **no garantiza precisión temporal
+de 1 ms** en el acelerómetro del navegador. Los umbrales, filtros y factores
+existentes permanecen sin alterar y requieren validación instrumental en
+móviles reales. Los datos originales y el formato exportado se conservan.
 Para evitar cambios de comportamiento, `app.js` y
 `src/joint/joint-app.js` son *scripts clásicos* (no ES modules) y se cargan
 en ese orden con `defer`. En el ámbito global de la página, un script
@@ -133,6 +153,8 @@ node --check src/joint/plan-controller.js
 node --check src/joint/clock-model.js
 node --check src/joint/persistence.js
 node --check src/joint/acquisition.js
+node --check src/joint/calibration-math.js
+node --check src/joint/calibration-controller.js
 node --check src/joint/webrtc-transport.js
 node --check src/joint/joint-app.js
 node --check vwoma-i18n.js
@@ -159,7 +181,7 @@ en móvil (especialmente Safari iOS y Chrome Android):
 1. Cubrir con pruebas deterministas las funciones puras de procesamiento
    (interpolación, eliminación de tendencia, FFT y Welch).
 2. Ampliar pruebas numéricas y de integración para preprocesamiento y FFT.
-3. Separar calibración, resultados y transferencias; extender pruebas de
+3. Separar resultados y transferencias; extender pruebas físicas y de
    integración y diseñar setups automáticos sobre el plano existente.
 4. Introducir un único estado coordinador y ciclos de vida explícitos para
    dispositivos, adquisición, transferencias y almacenamiento.
