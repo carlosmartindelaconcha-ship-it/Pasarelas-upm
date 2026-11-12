@@ -141,8 +141,8 @@ test('si un eje contradice a los demás, se repite el discrepante',()=>{
   f.s.syncCalibration.gesture={id:'sync1',axis:'z',start:4000,end:10000,
     samples:[[4000,1,0,0]]};
   f.s.syncCalibration.results={
-    host:{axes:{x:{axis:'x',lag:0},y:{axis:'y',lag:0}}},
-    guest:{axes:{x:{axis:'x',lag:0},y:{axis:'y',lag:2}},
+    host:{axes:{x:{axis:'x',lag:0,correlation:1},y:{axis:'y',lag:0,correlation:1}}},
+    guest:{axes:{x:{axis:'x',lag:0,correlation:.95},y:{axis:'y',lag:2,correlation:.95}},
       windows:{z:[[4000,1,0,0]]},calibration:{map:{}}}
   };
   f.ctl.finalizeSyncGesture('sync1','z');
