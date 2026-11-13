@@ -53,8 +53,8 @@ test('calibracion elegante: titulo ancho y acciones equilibradas para moviles',(
   const begin=html.indexOf('<section id="jointCalibration"');
   const end=html.indexOf('</section>',begin);
   const content=html.slice(begin,end);
-  const header=content.slice(content.indexOf('<header class="joint-calibration-head">'),
-    content.indexOf('</header>')+9);
+  const header=content.slice(content.indexOf('<div class="joint-calibration-head">'),
+    content.indexOf('</div>',content.indexOf('class="joint-calibration-head"'))+6);
   assert.match(header,/id="jointCalibrationTitle">Calibración de ejes/);
   assert.match(header,/id="jointCalibrationHelp"/);
   assert.doesNotMatch(header,/<button\b/);
@@ -72,4 +72,26 @@ test('calibracion elegante: titulo ancho y acciones equilibradas para moviles',(
   assert.match(css,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
   assert.match(css,/\.joint-calibration-controls\[hidden\] \{display:none !important;\}/);
   assert.match(css,/@media \(max-width:350px\)/);
+});
+
+test('ninguna cabecera secundaria hereda el fondo azul ni el relleno del encabezado principal',()=>{
+  const html=read('index.html');
+  const start=html.indexOf('<section id="jointCalibration"');
+  const end=html.indexOf('</section>',start);
+  const calibration=html.slice(start,end);
+  assert.match(calibration,/<div class="joint-calibration-head">/);
+  assert.doesNotMatch(calibration,/<header\b/,'un header anidado heredaba el fondo azul y el padding global');
+  assert.match(calibration,/id="jointCalibrationTitle"/);
+  assert.match(calibration,/id="jointCalibrationHelp"/);
+
+  const css=read('style.css');
+  // El encabezado general se aplica exclusivamente al header hijo directo del body.
+  assert.match(css,/^body > header \{\s*background-color:/m);
+  assert.match(css,/^body > header p \{/m);
+  assert.match(css,/^body\.recording-lock > header \{/m);
+  assert.doesNotMatch(css,/^header\s*\{/m);
+  assert.doesNotMatch(css,/^header p\s*\{/m);
+  assert.doesNotMatch(css,/^body\.recording-lock header/m);
+  assert.match(css,/\.joint-calibration-head\s*\{display:block;width:100%;min-width:0;/);
+  assert.equal((html.match(/id="jointSkipCalibration"/g)||[]).length,1);
 });

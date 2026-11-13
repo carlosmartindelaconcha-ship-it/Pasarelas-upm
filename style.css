@@ -40,7 +40,7 @@ body {
    CABECERA
    ========================================================= */
 
-header {
+body > header {
 
     background-color: var(--vwoma-action);
     background-image: var(--vwoma-action-gradient);
@@ -54,14 +54,14 @@ header {
 }
 
 
-header h1 {
+body > header h1 {
 
     margin: 0;
 
 }
 
 
-header p {
+body > header p {
 
     margin-top: 8px;
     margin-bottom: 0;
@@ -1095,14 +1095,14 @@ body.recording-lock {
    CABECERA COMPACTA
    ========================================================= */
 
-body.recording-lock header {
+body.recording-lock > header {
 
     padding: 7px 12px;
 
 }
 
 
-body.recording-lock header h1 {
+body.recording-lock > header h1 {
 
     font-size: 19px;
 
@@ -1111,7 +1111,7 @@ body.recording-lock header h1 {
 }
 
 
-body.recording-lock header p {
+body.recording-lock > header p {
 
     display: none;
 
@@ -1671,7 +1671,7 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
 
 /* Superficies y jerarquía */
 body { background-color: #edf3f9; }
-header p { color: #dceafa; }
+body > header p { color: #dceafa; }
 main .welcome-card,
 main .menu-card {
     background-color: #ffffff;
