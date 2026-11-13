@@ -79,6 +79,12 @@
     function attach(chart) {
       const canvas=chart?.canvas;
       if(!canvas?.addEventListener||attached.has(chart))return;
+      // Chart.js auto-processed synthetic clicks were resetting the indicator
+      // immediately after pointerup. Only this controller owns its lifecycle.
+      chart.options ||= {};
+      chart.options.plugins ||= {};
+      chart.options.plugins.tooltip ||= {};
+      chart.options.plugins.tooltip.events=[];
       const state={
         pointer:null,pointers:new Set(),touch:null,ignoreClick:false,
         hadPointer:false,gesture:false
@@ -90,7 +96,8 @@
         if(state.pointers.size>1){state.gesture=true;state.ignoreClick=true;clear();return;}
         state.pointer={id:e.pointerId,x:e.clientX,y:e.clientY,dragged:false};
         state.ignoreClick=false;
-        clear();
+        // Do not erase a value until a gesture actually drags/zooms,
+        // or a new, successful tap selects its replacement.
       }
       function onPointerMove(e) {
         const start=state.pointer;
@@ -107,7 +114,10 @@
         if(!start.dragged&&!state.gesture&&state.pointers.size===0) {
           const p=localPosition(chart,{native:e});
           if(p)showClickedValue({...p,vwomaLocal:true},[],chart);
-        } else state.ignoreClick=true;
+        }
+        // The synthetic click following pointerup must never re-process the
+        // selection or let Chart.js overwrite it.
+        state.ignoreClick=true;
         if(!state.pointers.size)state.gesture=false;
       }
       function onPointerCancel(e) {
@@ -119,7 +129,7 @@
         if(e.touches?.length!==1){state.gesture=true;state.ignoreClick=true;clear();return;}
         const touch=e.touches[0];
         state.touch={x:touch.clientX,y:touch.clientY,dragged:false};
-        clear();
+        // A stationary touch is not a dismissal gesture.
       }
       function onTouchMove(e) {
         const start=state.touch,touch=e.touches?.[0];
@@ -137,6 +147,7 @@
           const p=localPosition(chart,{native:e});
           if(p)showClickedValue({...p,vwomaLocal:true},[],chart);
         }
+        state.ignoreClick=true;
         if(!e.touches?.length)state.gesture=false;
       }
       function onTouchCancel(){state.touch=null;state.gesture=false;state.ignoreClick=true;clear();}
@@ -168,10 +179,17 @@
       Chart.defaults.plugins ||= {};
       Chart.defaults.plugins.tooltip ||= {};
       Chart.defaults.plugins.tooltip.enabled=true;
-      Chart.defaults.plugins.tooltip.events=['click'];
+      Chart.defaults.plugins.tooltip.events=[];
       Chart.register?.({id:'vwoma-gesture-values',afterInit:attach,beforeDestroy:detach});
-      document?.addEventListener?.('pointerdown',clearAll,{capture:true,passive:true});
-      document?.addEventListener?.('touchstart',clearAll,{capture:true,passive:true});
+      const outside=e=>{
+        const target=e?.target;
+        if(!target||!charts().some(chart=>
+          chart?.canvas===target||chart?.canvas?.contains?.(target)))clearAll();
+      };
+      // Only a tap outside chart canvases dismisses immediately. In-chart
+      // taps are handled on release so their value never flashes/disappears.
+      document?.addEventListener?.('pointerdown',outside,{capture:true,passive:true});
+      document?.addEventListener?.('touchstart',outside,{capture:true,passive:true});
       document?.addEventListener?.('keydown',e=>{
         if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape'].includes(e.key))
           clearAll();

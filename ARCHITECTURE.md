@@ -379,3 +379,16 @@ punto. Se construye un evento normalizado de Chart.js con `native:null` y
 coordenadas propias del canvas; la selección previa podía fallar porque Chart.js
 trataba las coordenadas como si fueran un evento del DOM. El gesto de pellizco,
 arrastre o rueda oculta la etiqueta sin interceptar la navegación.
+
+### Corrección de pulsaciones que ocultaban el valor (13-11-2026)
+
+Un mismo toque podía producir `pointerup` seguido de un `click` sintético
+que Chart.js procesaba por su cuenta, vaciando el tooltip recién seleccionado.
+Se desactivó la gestión automática de eventos del plugin tooltip en todas las
+gráficas, incluida Comparar, conservando su presentación mediante
+`setActiveElements`. El controlador compartido se ocupa exclusivamente de
+mostrar y retirar los valores. Comenzar una pulsación dentro de una gráfica
+ya no oculta el valor anterior: solo se sustituye tras una selección válida,
+o desaparece al arrastrar, pellizcar, hacer zoom o tocar fuera del canvas.
+Las pruebas reproducen la secuencia `pointerdown → pointerup → click` y los
+toques repetidos en iOS/Android.

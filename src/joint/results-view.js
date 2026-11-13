@@ -157,7 +157,7 @@
             options.plugins.zoom.pan.onPanComplete=constrain;
             options.plugins.zoom.zoom.onZoom=constrain;
             options.plugins.zoom.zoom.onZoomComplete=constrain;
-            options.plugins.tooltip.events=['click'];
+            options.plugins.tooltip.events=[];
             options.onClick=(event,elements,chart)=>globalThis.VWOMAChartTooltips?.showClickedValue(event,elements,chart);
             if(formatYAxisTick)options.scales.y.ticks={callback:formatYAxisTick};
             const chart=new Chart($(canvasId).getContext('2d'),{type:'line',data:{datasets},options});
