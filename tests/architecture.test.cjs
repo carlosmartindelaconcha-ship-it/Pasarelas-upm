@@ -33,6 +33,8 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   const exportsIndex = find('src/joint/exports.js?');
   const transfer = find('src/joint/record-transfer.js?');
   const results = find('src/joint/results-view.js?');
+  const state = find('src/joint/session-state.js?');
+  const uiEvents = find('src/joint/ui-events.js?');
   const joint = find('src/joint/joint-app.js?');
   const translations = find('vwoma-i18n.js?');
 
@@ -49,9 +51,11 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   assert.ok(exportsIndex > calibration && exportsIndex < transfer, 'exports antes de transferencia');
   assert.ok(transfer > exportsIndex && transfer < results, 'transferencia antes de resultados');
   assert.ok(results > transfer && results < joint, 'resultados antes de joint-app.js');
+  assert.ok(state > results && state < joint, 'estado antes del coordinador');
+  assert.ok(uiEvents > state && uiEvents < joint, 'eventos antes del coordinador');
   assert.ok(joint > legacy, 'la medida conjunta debe cargarse después de app.js');
   assert.ok(translations > joint, 'las traducciones se cargan al final');
-  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, persistence, acquisition, calibrationMath, calibration, exportsIndex, transfer, results, joint]) {
+  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, persistence, acquisition, calibrationMath, calibration, exportsIndex, transfer, results, state, uiEvents, joint]) {
     assert.doesNotMatch(scripts[index][1], /\btype\s*=\s*["']module["']/);
     assert.match(scripts[index][1], /\bdefer\b/);
   }
@@ -184,4 +188,20 @@ test('resultados, exportaciones y transferencia tienen responsabilidades distint
   assert.match(transferSource,/crypto\.subtle\.digest\('SHA-256'/);
   assert.match(transferSource,/m\.type==='TRANSFER_ACK'/);
   assert.match(joint,/handleTransferMessage\(p,m\)/);
+});
+
+test('la sesión y los eventos de interfaz están separados del coordinador',()=>{
+  const joint=read('src/joint/joint-app.js');
+  const state=read('src/joint/session-state.js');
+  const ui=read('src/joint/ui-events.js');
+  assert.match(state,/function createState\(/);
+  assert.match(joint,/VWOMAJointState\.createState\(uid\)/);
+  assert.match(ui,/function bindEvents\(/);
+  assert.match(joint,/VWOMAUIEvents\.bindEvents\(/);
+  assert.doesNotMatch(joint,/pointsTable\.addEventListener/);
+  assert.match(ui,/pointsTable\.addEventListener/);
+  assert.match(ui,/jointPlan'\)\.addEventListener\('pointerdown'/);
+  assert.doesNotMatch(state,/document\.|localStorage|indexedDB|RTCPeerConnection/);
+  assert.doesNotMatch(ui,/indexedDB\.open|RTCPeerConnection|function runMeta\(/);
+  assert.match(joint,/localStorage\.getItem\('upm-joint-plan-v1'\)/);
 });
