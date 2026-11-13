@@ -1209,6 +1209,7 @@ body.recording-lock main {
 
 #testForm.measurement-active .chart-card {
 
+    order:1;
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
@@ -1309,6 +1310,7 @@ body.recording-lock main {
 
 #testForm.measurement-active .test-info {
 
+    order:2;
     flex: 0 0 auto;
 
     margin-top: 6px;
@@ -1347,6 +1349,7 @@ body.recording-lock main {
 
 #testForm.measurement-active #recordButton {
 
+    order:3;
     flex: 0 0 auto;
 
     margin: 7px 0 0 0;
@@ -1637,9 +1640,9 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
 .joint-axis-compare { padding:12px; border:1px solid #dce7ef; border-radius:10px; background:#fcfdff; }
 .joint-axis-compare .chart-heading { flex-wrap:wrap; gap:8px; }
 .joint-axis-compare .chart-heading h4 { margin:0; }
-.chart-values-toolbar { display:flex; justify-content:flex-end; padding:6px 10px 10px; }
-.vwoma-tooltip-toggle { white-space:nowrap; }
-#testForm.measurement-active .chart-values-toolbar { display:none; }
+
+
+
 @media (max-width:600px) { .joint-axis-compare { padding:8px; } .joint-compare-chart-wrap { height:clamp(245px,46dvh,365px); padding:4px; } }
 .joint-app details { margin: 18px 0; padding: 12px; background: #f2f6fa; border-radius: 8px; }
 .joint-app summary { cursor: pointer; font-weight: 600; margin-bottom: 12px; }
@@ -1827,3 +1830,5 @@ main button:not(:where(
     background: var(--vwoma-action-gradient);
     color: #fff;
 }
+
+#testForm:not(.measurement-active) #recordButton {display:block;width:100%;min-height:54px;margin:0 0 18px;}

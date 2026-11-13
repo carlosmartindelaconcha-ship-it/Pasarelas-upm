@@ -33,6 +33,9 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   const exportsIndex = find('src/joint/exports.js?');
   const transfer = find('src/joint/record-transfer.js?');
   const results = find('src/joint/results-view.js?');
+  const navigation = find('src/joint/tab-navigation.js?');
+  const tooltips = find('src/ui/chart-tooltips.js?');
+  const testNames = find('src/ui/test-names.js?');
   const state = find('src/joint/session-state.js?');
   const uiEvents = find('src/joint/ui-events.js?');
   const joint = find('src/joint/joint-app.js?');
@@ -52,10 +55,13 @@ test('los scripts clásicos conservan el orden que exige la integración', () =>
   assert.ok(transfer > exportsIndex && transfer < results, 'transferencia antes de resultados');
   assert.ok(results > transfer && results < joint, 'resultados antes de joint-app.js');
   assert.ok(state > results && state < joint, 'estado antes del coordinador');
+  assert.ok(tooltips>=0 && tooltips<legacy, 'indicadores táctiles antes de gráficos');
+  assert.ok(testNames>tooltips&&testNames<legacy,'fechas antes del ensayo');
+  assert.ok(navigation>results && navigation<state, 'gestión de pestañas antes del coordinador');
   assert.ok(uiEvents > state && uiEvents < joint, 'eventos antes del coordinador');
   assert.ok(joint > legacy, 'la medida conjunta debe cargarse después de app.js');
   assert.ok(translations > joint, 'las traducciones se cargan al final');
-  for (const index of [preprocessing, spectra, legacy, plan, transport, clock, persistence, acquisition, calibrationMath, calibration, exportsIndex, transfer, results, state, uiEvents, joint]) {
+  for (const index of [tooltips, testNames, preprocessing, spectra, legacy, plan, transport, clock, persistence, acquisition, calibrationMath, calibration, exportsIndex, transfer, results, navigation, state, uiEvents, joint]) {
     assert.doesNotMatch(scripts[index][1], /\btype\s*=\s*["']module["']/);
     assert.match(scripts[index][1], /\bdefer\b/);
   }

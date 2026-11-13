@@ -32,10 +32,12 @@ test('solo aísla el nombre de IndexedDB, el plano y el idioma; no el protocolo'
   assert.match(preview.jointApp,/localStorage\.getItem\('upm-joint-plan-vwoma-preview-v1'\)/);
   assert.match(preview.jointApp,/databaseName:'upm-joint-vwoma-preview-v1'/);
   assert.match(preview.language,/vwoma\.language\.preview\.v1/);
-  assert.match(preview.indexHtml,/src\/joint\/joint-app\.js\?v=20261113-preview-ui-state-v10/);
+  assert.match(preview.indexHtml,/src\/joint\/joint-app\.js\?v=20261113-preview-unified-gestures-v13/);
   assert.match(preview.indexHtml,/VWOMA · PRUEBAS · Pasarelas UPM/);
   assert.match(preview.indexHtml,/src\/joint\/session-state\.js\?v=/);
   assert.match(preview.indexHtml,/src\/joint\/ui-events\.js\?v=/);
+  assert.match(preview.indexHtml,/src\/joint\/tab-navigation\.js\?v=/);
+  assert.match(preview.indexHtml,/src\/ui\/chart-tooltips\.js\?v=/);
   assert.equal(original.jointApp.includes("pasarelas-upm-joint-vwoma-preview-v1"),false);
   assert.equal(preview.jointApp.includes("schema:'"+BAD_PREVIEW_SCHEMA+"'"),false);
 });

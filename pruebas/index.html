@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261113-android-layout-v5">
+    <link rel="stylesheet" href="style.css?v=20261113-start-first-v6">
 
     <!-- MapLibre -->
     <link
@@ -461,6 +461,7 @@
              ================================================= -->
 
         <section id="testForm" class="menu-card">
+            <button id="recordButton" class="record-button" type="button" data-vwoma-icon="play">Iniciar ensayo</button>
 
             <h2>
                 Ensayo dinámico
@@ -477,14 +478,14 @@
                     for="testDescription"
                     class="field-label"
                 >
-                    Descripción del ensayo
+                    Nombre o descripción (opcional)
                 </label>
 
 
                 <textarea
                     id="testDescription"
                     rows="3"
-                    placeholder="Ej.: Heel drop en el centro del vano"
+                    placeholder="Si se deja vacío, se utiliza la fecha y la hora"
                 ></textarea>
 
 
@@ -522,7 +523,7 @@
                  ================================================= -->
 
             <div class="chart-card">
-                <div class="chart-values-toolbar"><button type="button" class="chart-control vwoma-tooltip-toggle" data-vwoma-tooltip-toggle aria-pressed="false">Valores: ocultos</button></div>
+                
 
                 <!-- Resultados: señal temporal, RMS, espectro y PSD. -->
 
@@ -657,18 +658,6 @@
 
 
             <!-- =================================================
-                 PLAY / STOP
-                 ================================================= -->
-
-            <button
-                id="recordButton"
-                class="record-button"
-             data-vwoma-icon="play">
-                Iniciar ensayo
-            </button>
-
-
-            <!-- =================================================
                  BOTONES POST-ENSAYO
                  ================================================= -->
 
@@ -740,7 +729,7 @@
                     <section class="joint-physical-sync" aria-labelledby="jointPhysicalSyncTitle"><h4 id="jointPhysicalSyncTitle">Validar sincronía física</h4><p>Fija los móviles paralelos sobre una tablilla rígida, separados 5–10 cm para evitar NFC. Se correlacionan exclusivamente X–X, Y–Y y Z–Z.</p><button id="jointSyncStart" type="button" data-vwoma-icon="sync" class="vwoma-action">Calibrar relojes</button><div id="jointSyncBurst" class="joint-sync-burst" hidden><strong>Ráfaga de reloj</strong><progress id="jointSyncBurstProgress" max="200" value="0"></progress><span id="jointSyncBurstCount">0 / 200 respuestas</span></div><p id="jointSyncHelp" class="joint-help">El maestro inicia una ráfaga de 200 intercambios a 20 Hz (10 s). Después guiará cada gesto con una cuenta atrás común. Mantén ambas pantallas visibles.</p><figure id="jointSyncAnimation" class="joint-calibration-animation joint-sync-animation"><img id="jointSyncImage" src="assets/calibration/telefono-eje-x.svg" alt="Gesto de sincronización"><div id="jointSyncCountdown" class="joint-calibration-countdown joint-countdown-overlay" hidden aria-live="assertive"></div><figcaption id="jointSyncInstruction">Primero calibra los relojes.</figcaption></figure><div id="jointSyncGestureActions" class="joint-calibration-actions" hidden><button id="jointSyncGestureX" type="button" class="joint-axis-x">Gesto X</button><button id="jointSyncGestureY" type="button" class="joint-axis-y">Gesto Y</button><button id="jointSyncGestureZ" type="button" class="joint-axis-z">Gesto Z</button></div><div id="jointSyncSummary" class="joint-sync-summary" aria-live="polite"></div></section>
                 </div>
                 <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
-                    <div class="joint-section-head"><h3>Adquisición coordinada</h3><button type="button" class="joint-secondary vwoma-tooltip-toggle joint-chart-values-control" data-vwoma-tooltip-toggle aria-pressed="false">Valores: ocultos</button></div><div class="joint-fields"><label>Duración (s)<input id="jointDuration" type="number" min="5" max="1800" step="1" value="60"></label></div>
+                    <h3>Adquisición coordinada</h3><div class="joint-fields"><label>Duración (s)<input id="jointDuration" type="number" min="5" max="1800" step="1" value="60"></label></div>
                     <div id="jointMeasureState" class="joint-measure-state" aria-live="polite">Preparando dispositivos</div><progress id="jointProgress" max="1" value="0" aria-label="Progreso del ensayo"></progress>
                     <div class="joint-live-values"><span class="joint-run-time">Tiempo <strong id="jointRunTime">00:00.0</strong></span><span>Muestras <strong id="jointSampleCount">0</strong></span><span class="joint-extra-info">Frecuencia observada <strong id="jointRate">—</strong></span><span class="joint-extra-info">Mi punto <strong id="jointMyPoint">Sin asignar</strong></span></div>
                     <div class="joint-measurement-chart"><canvas id="jointLive" width="800" height="230" aria-label="Previsualización de las aceleraciones locales"></canvas></div><p class="joint-help">Previsualización local: X azul · Y rojo · Z verde. Todas las muestras recibidas se guardan.</p>
@@ -749,7 +738,7 @@
                     <p class="joint-help">La medida usa la calibración física aceptada. Durante el ensayo se mantienen 10 intercambios/s solo para diagnóstico; no desplazan la malla temporal.</p>
                 </div>
                 <div id="jointPanelResults" role="tabpanel" aria-labelledby="jointTabResults" hidden>
-                    <div class="joint-section-head"><h3>Registros y resultados</h3><button type="button" class="joint-secondary vwoma-tooltip-toggle" data-vwoma-tooltip-toggle aria-pressed="false">Valores: ocultos</button></div><div id="jointResultsList"></div>
+                    <h3>Registros y resultados</h3><div id="jointResultsList"></div>
                     <section id="jointSyncResults" class="joint-sync-results" hidden aria-labelledby="jointSyncResultsTitle"><h4 id="jointSyncResultsTitle">Calidad de sincronización</h4><p class="joint-help">La preparación usa 200 intercambios a 20 Hz y durante el ensayo se realizan 10 intercambios por segundo. El offset estima la diferencia entre relojes; la prueba física valida el desfase residual entre acelerómetros.</p><div id="jointSyncFormula"></div><div id="jointRttHistograms"></div></section>
                     <div class="joint-actions"><button id="jointDownload" type="button" data-vwoma-icon="download" class="vwoma-action">JSON bruto</button><button id="jointCsv" type="button" class="joint-secondary" data-vwoma-icon="file">CSV bruto</button><button id="jointDownloadProcessed" type="button" data-vwoma-icon="download" class="vwoma-action">JSON procesado</button><button id="jointCsvProcessed" type="button" class="joint-secondary" data-vwoma-icon="file">CSV procesado</button><button id="jointSendData" type="button" class="joint-secondary" data-vwoma-icon="upload">Reenviar mi registro</button><button id="jointNewRun" type="button" class="joint-secondary" data-vwoma-icon="plus">Preparar otro ensayo</button></div>
                     <p class="joint-help">Bruto: muestras y marcas originales. Procesado: ejes calibrados, reloj maestro y malla temporal común; Z con detrend lineal.</p>
@@ -757,8 +746,8 @@
                 </div>
                 <div id="jointPanelCompare" role="tabpanel" aria-labelledby="jointTabCompare" hidden>
                     <h3>Señales sincronizadas</h3>
-                    <p class="joint-help">X azul, Y rojo y Z verde. La línea del maestro es continua; las de los participantes son discontinuas. Puedes ampliar con rueda o dos dedos, arrastrar en X e Y, ocultar series desde la leyenda y restablecer el zoom.</p>
-                    <div class="joint-actions"><label>Representación<select id="jointCompareView"><option value="common" selected>Rejilla temporal común</option><option value="raw">Marcas originales</option></select></label><button id="jointCompareResetZoom" type="button" class="joint-secondary" data-vwoma-icon="reset">Restablecer zoom</button><button type="button" class="joint-secondary vwoma-tooltip-toggle" data-vwoma-tooltip-toggle aria-pressed="false">Valores: ocultos</button><label class="joint-file">Abrir ensayo JSON del maestro<input id="jointImportSession" type="file" accept="application/json,.json"></label></div>
+                    <p class="joint-help">X azul, Y rojo y Z verde. La línea del maestro es continua; las de los participantes son discontinuas. Puedes ampliar con rueda o dos dedos, desplazarte con un dedo, ocultar series desde la leyenda y restablecer el zoom.</p>
+                    <div class="joint-actions"><label>Representación<select id="jointCompareView"><option value="common" selected>Rejilla temporal común</option><option value="raw">Marcas originales</option></select></label><button id="jointCompareResetZoom" type="button" class="joint-secondary" data-vwoma-icon="reset">Restablecer zoom</button><label class="joint-file">Abrir ensayo JSON del maestro<input id="jointImportSession" type="file" accept="application/json,.json"></label></div>
                     <p id="jointCompareStatus" class="joint-help">Termina un ensayo y recibe los registros de los participantes para compararlos aquí.</p>
                     <div class="joint-axis-compare"><div class="chart-heading"><h4>X estructural · longitudinal</h4><button type="button" class="chart-control" data-joint-compare-reset="X" data-vwoma-icon="reset">Restablecer zoom</button></div><div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvasX" aria-label="Aceleraciones X estructurales comparadas"></canvas></div></div>
                     <div class="joint-axis-compare"><div class="chart-heading"><h4>Y estructural · transversal</h4><button type="button" class="chart-control" data-joint-compare-reset="Y" data-vwoma-icon="reset">Restablecer zoom</button></div><div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvasY" aria-label="Aceleraciones Y estructurales comparadas"></canvas></div></div>
@@ -807,10 +796,11 @@
     <!-- Optional QR helpers. Pairing by copied code works if these fail to load. -->
     <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script defer src="src/ui/chart-tooltips.js?v=20261113-chart-values-v1"></script>
+    <script defer src="src/ui/chart-tooltips.js?v=20261113-gestures-ready-v3"></script>
+    <script defer src="src/ui/test-names.js?v=20261113-local-name-v1"></script>
     <script defer src="src/signal/preprocessing.js?v=20261109-modular-preprocessing-v1"></script>
     <script defer src="src/signal/spectra.js?v=20261109-modular-spectra-v1"></script>
-    <script defer src="app.js?v=20261113-chart-values-v3"></script>
+    <script defer src="app.js?v=20261113-start-first-v4"></script>
     <script defer src="src/joint/plan-controller.js?v=20261109-modular-plan-v1"></script>
     <script defer src="src/joint/webrtc-transport.js?v=20261109-modular-transport-v1"></script>
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
@@ -820,11 +810,11 @@
     <script defer src="src/joint/calibration-controller.js?v=20261112-calibration-controller-v1"></script>
     <script defer src="src/joint/exports.js?v=20261112-exports-v1"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
-    <script defer src="src/joint/results-view.js?v=20261113-compare-cache-v6"></script>
+    <script defer src="src/joint/results-view.js?v=20261113-touch-pan-v7"></script>
     <script defer src="src/joint/tab-navigation.js?v=20261113-android-tabs-v2"></script>
     <script defer src="src/joint/session-state.js?v=20261113-joint-state-v1"></script>
     <script defer src="src/joint/ui-events.js?v=20261113-joint-ui-events-v3"></script>
-    <script defer src="src/joint/joint-app.js?v=20261113-preview-mobile-charts-v12"></script>
+    <script defer src="src/joint/joint-app.js?v=20261113-preview-unified-gestures-v13"></script>
     <script defer src="vwoma-i18n.js?v=20261108-mobile-header-v9"></script>
 
 

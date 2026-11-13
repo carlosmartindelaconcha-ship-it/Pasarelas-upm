@@ -338,7 +338,8 @@
             median,finite,running,syncMetric,selectedForModel,
             enableLegendToggling:(...args)=>enableLegendToggling(...args),
             comparisonExport,samplePeriodMs,structuralValue,
-            resampleAxis,detrendPoints
+            resampleAxis,detrendPoints,
+            clampTemporalXAxis,keepTemporalYAxisCentered,formatYAxisTick
         });
 
     function ensureJointCharts() {

@@ -7,7 +7,7 @@
     function createResultsView({s,$,escape,Chart,median,finite,running,
                                 syncMetric,selectedForModel,enableLegendToggling,
                                 comparisonExport,samplePeriodMs,structuralValue,
-                                resampleAxis,detrendPoints}) {
+                                resampleAxis,detrendPoints,clampTemporalXAxis,keepTemporalYAxisCentered,formatYAxisTick}) {
     function renderResults(updateSyncCharts=true) {
         const r=s.run;
         $('jointDownload').disabled=!r?.finished;$('jointCsv').disabled=!r?.finished;$('jointDownloadProcessed').disabled=!r?.finished;$('jointCsvProcessed').disabled=!r?.finished;
@@ -148,10 +148,18 @@
             options.scales.y.min=-yLimit;
             options.scales.y.max=yLimit;
             options.plugins.zoom.limits.y={min:-yLimit,max:yLimit};
+            // Exact temporal navigation contract from Realizar ensayo.
+            options.events=['wheel','mousedown','mousemove','mouseup','touchstart','touchmove','touchend','click'];
             options.plugins.zoom.pan.mode='x';
-            // Do not trap single-finger scrolling over canvases on touchscreens.
-            if(typeof matchMedia==='function'&&matchMedia('(pointer: coarse)').matches)
-                options.plugins.zoom.pan.enabled=false;
+            options.plugins.zoom.pan.enabled=true;
+            const constrain=({chart})=>{clampTemporalXAxis?.(chart);keepTemporalYAxisCentered?.(chart);};
+            options.plugins.zoom.pan.onPan=constrain;
+            options.plugins.zoom.pan.onPanComplete=constrain;
+            options.plugins.zoom.zoom.onZoom=constrain;
+            options.plugins.zoom.zoom.onZoomComplete=constrain;
+            options.plugins.tooltip.events=['click'];
+            options.onClick=(event,elements,chart)=>globalThis.VWOMAChartTooltips?.showClickedValue(event,elements,chart);
+            if(formatYAxisTick)options.scales.y.ticks={callback:formatYAxisTick};
             const chart=new Chart($(canvasId).getContext('2d'),{type:'line',data:{datasets},options});
             s.compareCharts.push(chart);enableLegendToggling(chart);
         }
