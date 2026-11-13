@@ -119,6 +119,9 @@
             'Etapa: '+stage,
             'Navegador: '+browserLabel(),
             'Modo: '+(p?.network||$('jointNetworkMode').value),
+            'Alternativas hotspot: '+(p?.hotspotAlternativeStatus==='added'
+                ?p.hotspotAlternatives+' rutas 172.20.10.1 (puertos UDP originales)'
+                :p?.hotspotAlternativeStatus||'no evaluado'),
             'Permiso de cámara concedido en esta sesión: '+(s.capturePermission?'sí':'no o desconocido'),
             'Estado: '+(p?(p.failureDetails||pairingDetails(p)):'sin conexión creada'),
             ...(p?['Candidatos propios:',...candidateDetails(p.pc.localDescription).map(row=>'· '+row),'Candidatos del otro extremo:',...candidateDetails(p.pc.remoteDescription).map(row=>'· '+row)]:[]),
@@ -284,6 +287,29 @@
         if(p.opened||p.pairFailed||s.peers.get(p.id)!==p)return;
         p.pairTimer=setTimeout(()=>failPair(p,'No se ha abierto el canal en '+Math.round(timeout/1000)+' segundos'),timeout);
     }
+    async function setRemoteDescriptionWithHotspot(p,description) {
+        // Local-mode ICE only, and only in a browser running on iPhone/iPad.
+        // Let the browser choose between all originals and the extra gateway paths.
+        const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+        const enabled=isIOS && p.network==='local';
+        const result=root.VWOMAIceHotspot?.withHotspotCandidates(description,enabled)
+            || {description,added:0,status:'helper-unavailable'};
+        p.hotspotAlternativeStatus=result.status;
+        p.hotspotAlternatives=result.added;
+        if(result.added)diagnosticEvent(p,'alternativas ICE hotspot',
+            result.added+' candidatos 172.20.10.1 (puertos UDP remotos); originales conservados');
+        if(!result.added)return p.pc.setRemoteDescription(description);
+        try {
+            return await p.pc.setRemoteDescription(result.description);
+        } catch(error) {
+            // WebKit can reject an unexpected candidate; restore normal signaling.
+            diagnosticEvent(p,'hotspot no admitido',
+                'reintentando SDP original: '+String(error?.name||'error'));
+            p.hotspotAlternativeStatus='rejected';
+            p.hotspotAlternatives=0;
+            return p.pc.setRemoteDescription(description);
+        }
+    }
     function localDescription(p) {
         const description=p.pc.localDescription;
         const allowed=p.network==='local'?/^a=candidate:.* typ host(?: |\r?$)/m:/^a=candidate:.* typ (?:host|srflx|prflx)(?: |\r?$)/m;
@@ -436,7 +462,7 @@
         $('jointPairOutput').hidden=true;$('jointCopyCode').hidden=true;$('jointQr').replaceChildren();
         try {
             pairStatus(p,'Generando respuesta local completa…');
-            await p.pc.setRemoteDescription(t.sdp);
+            await setRemoteDescriptionWithHotspot(p,t.sdp);
             await p.pc.setLocalDescription(await p.pc.createAnswer());
             scheduleIceStats(p);
             p.gatherComplete=await gather(p.pc);
@@ -475,7 +501,7 @@
             if(t.network!==p.network)throw Error('La respuesta usa otro modo de conexión. Genera una invitación nueva.');
             s.currentInvite=p.id;p.answerAccepted=true;watchPair(p);
             try {
-                await p.pc.setRemoteDescription(t.sdp);
+                await setRemoteDescriptionWithHotspot(p,t.sdp);
                 scheduleIceStats(p);
                 if(!p.opened)pairStatus(p,'Respuesta aceptada. Estableciendo conexión… '+pairingDetails(p));
             }catch(e){failPair(p,'No se pudo aceptar la respuesta: '+e.message);throw e;}
