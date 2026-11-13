@@ -4,7 +4,7 @@ VWOMA es una aplicación web estática para registro de pasarelas, adquisición
 de aceleraciones y medidas conjuntas con varios teléfonos. Se publica en
 GitHub Pages, sin servidor de aplicación ni proceso de compilación.
 
-## Estructura actual (fase 9 de la refactorización)
+## Estructura actual (fase 10 de la refactorización)
 
 ```text
 index.html                 HTML y orden de carga
@@ -31,7 +31,9 @@ src/joint/exports.js       JSON/CSV, malla temporal común, transformaciones
 src/joint/record-transfer.js Transferencia SHA-256 en bloques con ACK/reintentos
 src/joint/results-view.js  Presentación de resultados, sincronización y
                            comparación multicanal en Chart.js
-src/joint/joint-app.js     Coordinación de pantallas, sensores y mensajes
+src/joint/session-state.js Estado inicial de sesión y estructuras por ensayo
+src/joint/ui-events.js     Enlaces DOM, tabla de puntos, gestos táctiles y SVG
+src/joint/joint-app.js     Orquestación de pantallas, sensores y mensajes
 style.css                  Estilos generales
 vwoma-identity.css         Identidad visual
 vwoma-i18n.css             Selector de idiomas
@@ -67,8 +69,8 @@ El plano está separado en `src/joint/plan-controller.js`. Su factoría
 `VWOMAPlan.createController({...})` recibe estado, límites, acceso DOM,
 comprobaciones y callbacks de persistencia/dispositivos; conserva la lógica
 existente de creación, validación, dibujo y borrado de puntos.
-`src/joint/joint-app.js` todavía contiene los listeners de gesto del plano,
-pero ya no contiene el controlador del plano. Se carga el controlador
+`src/joint/ui-events.js` contiene los listeners de gesto del plano, mientras
+que `joint-app.js` conserva las decisiones de negocio y orquestación. Se carga el controlador
 entre `app.js` y `src/joint/joint-app.js`.
 
 La comunicación WebRTC se traslada a `src/joint/webrtc-transport.js`.
@@ -191,10 +193,12 @@ en móvil (especialmente Safari iOS y Chrome Android):
    (interpolación, eliminación de tendencia, FFT y Welch).
 2. Ampliar pruebas numéricas y de integración para preprocesamiento y FFT.
 3. Validar resultados/exportación y transferencia con ensayos físicos;
-   después aislar los eventos de la interfaz y preparar setups multipunto.
-4. Introducir un único estado coordinador y ciclos de vida explícitos para
+   la transferencia incompatible se corrigió y su funcionamiento fue confirmado
+   por el usuario el 13 de noviembre de 2026.
+4. Preparar setups multipunto sobre módulos de estado y eventos aislados.
+5. Introducir un único estado coordinador y ciclos de vida explícitos para
    dispositivos, adquisición, transferencias y almacenamiento.
-5. Completar pruebas de integración y compatibilidad antes de fusionar.
+6. Completar pruebas de integración y compatibilidad antes de fusionar.
 
 En todas las fases, mantener `main` estable hasta terminar las comprobaciones.
 
@@ -307,3 +311,25 @@ No se altera silenciosamente el almacenamiento IndexedDB original.
 Este procedimiento no convierte archivos arbitrarios ni atribuye un
 registro a otro teléfono. La pantalla y el mecanismo de recuperación
 siguen requiriendo comprobación manual real en los móviles.
+
+### Extracción de estado y eventos de la interfaz (fase 10, 13-11-2026)
+
+La última corrección de transferencia fue probada por el usuario en móviles.
+Sobre ese punto estable se extrajeron dos módulos clásicos y sin dependencias:
+
+- `src/joint/session-state.js` construye un estado independiente por instancia,
+  con los mismos valores iniciales, Maps, arrays y colas de escritura.
+- `src/joint/ui-events.js` registra exactamente los mismos eventos de botones,
+  tabla con Scroll Snap y gestos de desplazamiento/pellizco del plano.
+  Recibe callbacks del coordinador, sin implementar WebRTC, adquisición,
+  almacenamiento ni esquemas de exportación.
+
+`joint-app.js` mantiene la creación de sesión y el acceso a la clave de plano
+para que la generación de `/pruebas/` siga aislando los datos sin sustituir
+accidentalmente el formato científico. Se conservan los mensajes WebRTC,
+identificadores, formato JSON/CSV, fórmulas y límites de adquisición.
+
+Los tests verifican estado por instancia, registro de eventos, orden de carga,
+syntax de nuevos scripts y compatibilidad de la generación experimental.
+La interfaz móvil real todavía requiere un recorrido manual por plano,
+papelera, zoom, adquisición, resultados y reintento de transferencia.
