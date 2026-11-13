@@ -97,6 +97,16 @@
         for(const group of groups){for(const [phase,rows] of [['pre',group.preRows],['during',group.duringRows]])for(const metric of ['rtt','offset'])makeHistogramChart($(`syncHist-${group.key}:${phase}:${metric}`),rows.map(row=>syncMetric(row,metric,group.model)),`${group.key}:${phase}:${metric}`);for(const metric of ['rtt','offset'])makeTimelineChart($(`syncTimeline-${group.key}-${metric}`),group.duringRows,run,metric,group.model);}
     }
 
+    // A detrend of order 0 removes only the DC component (arithmetic mean).
+    // Work on the full displayed interval before downsampling for rendering;
+    // keep original records and processed exports unchanged.
+    function removeDcOffset(points) {
+        let sum=0,count=0;
+        for(const point of points)if(finite(point.y)){sum+=point.y;count++;}
+        if(!count)return points.map(point=>({...point}));
+        const mean=sum/count;
+        return points.map(point=>({...point,y:finite(point.y)?point.y-mean:point.y}));
+    }
     function renderComparison() {
         const status=$('jointCompareStatus'),view=$('jointCompareView').value;
         // Avoid remapping all samples and reconstructing heavy charts every time
@@ -130,7 +140,7 @@
         const singleName=records[0]?.device?.name||'móvil';
         const label=single?'Un solo acelerómetro · '+singleName:records.length+' móviles';
         $('jointCompareTitle').textContent=single?'Señales de '+singleName:'Señales sincronizadas';
-        status.textContent=view==='common'?`${label} · rejilla temporal de ${commonPeriod.toFixed(2)} ms (${(1000/commonPeriod).toFixed(1)} Hz) · interpolación lineal a partir de las marcas temporales del reloj maestro.`:`${label} · marcas temporales originales referidas al reloj maestro; sin remuestreo.`;
+        status.textContent=(view==='common'?`${label} · rejilla temporal de ${commonPeriod.toFixed(2)} ms (${(1000/commonPeriod).toFixed(1)} Hz) · interpolación lineal a partir de las marcas temporales del reloj maestro.`:`${label} · marcas temporales originales referidas al reloj maestro; sin remuestreo.`)+' Continua eliminada en X, Y y Z (detrend de orden 0 por móvil).';
         for(const [axis,axisIndex,color,canvasId] of axes) {
             const datasets=[];
             records.forEach((record,deviceIndex)=>{
@@ -138,11 +148,11 @@
                 const getter=sample=>structuralValue(sample.raw,record,axisIndex);
                 const valid=record.samples.filter(sample=>finite(sample.masterTimeMs)&&finite(getter(sample))&&sample.masterTimeMs>=start&&sample.masterTimeMs<=end);
                 let points=view==='common'?resampleAxis(record.samples,getter,grid).map(p=>({x:(p.x-start)/1000,y:p.y})):valid.map(sample=>({x:(sample.masterTimeMs-start)/1000,y:getter(sample)}));
-                if(axis==='Z')points=detrendPoints(points);
+                points=removeDcOffset(points); // X, Y and Z for each accelerometer.
                 const stride=Math.max(1,Math.ceil(points.length/4500));
                 datasets.push({label:name,data:points.filter((_,i)=>i%stride===0),borderColor:color,borderDash:dashes[deviceIndex%dashes.length],borderWidth:deviceIndex?1.35:2.15,pointRadius:0,tension:0,parsing:false});
             });
-            const options=jointTemporalOptions(span/1000,axis==='Z'?'Aceleración Z con detrend (m/s²)':'Aceleración '+axis+' (m/s²)',item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²',true);options.scales.x.title.text='Tiempo en el reloj maestro (s)';
+            const options=jointTemporalOptions(span/1000,'Aceleración '+axis+' sin continua (m/s²)',item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²',true);options.scales.x.title.text='Tiempo en el reloj maestro (s)';
             // Consistent with Realizar medida: temporal X=0..duration and
             // symmetric Y around zero, rounded up by 20% for readable ticks.
             let peak=.000001;

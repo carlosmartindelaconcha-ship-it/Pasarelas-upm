@@ -412,3 +412,17 @@ sincronización física y se mantiene intacto el protocolo WebRTC.
 Comparar presenta el nombre del único acelerómetro (incluidos registros JSON
 importados), con una sola serie por componente X/Y/Z; no exige un segundo
 registro para mostrar las curvas.
+
+### Componente continua en comparación de señales (13-11-2026)
+
+La vista `Comparar` aplica **detrend de orden 0** de forma independiente
+a cada una de las componentes **X, Y y Z** de cada registro (maestro y
+participantes), restando su media aritmética dentro de la ventana de ensayo
+representada. Se realiza tras seleccionar las marcas originales o interpolar
+a la rejilla común, y **antes** del diezmado gráfico a 4500 puntos; la
+reducción de muestras no sesga la estimación de la media. No se resta
+ninguna recta ni se modifica la pendiente física de la señal.
+
+La modificación solo afecta a la visualización: no altera las muestras
+originales, el formato JSON, el CSV bruto ni el procesamiento de exportación
+ya existente (que conserva su detrend lineal de Z).
