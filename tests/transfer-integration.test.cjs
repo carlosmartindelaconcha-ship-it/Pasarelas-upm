@@ -17,6 +17,7 @@ function network({samples=2400,dropChunkAck=false,disconnectAfter=null}={}) {
   const hostState={role:'host',id:'master',session,run:{id:runId,finished:true},results:new Map(),transfer:null};
   const guestState={role:'guest',id,session,run:{id:runId,finished:true},results:new Map(),transfer:null};
   const messages=[],errors=[],notices=[],renderEvents=[];
+  let maxPendingChunks=0;
   const hostPeer={id,acks:new Map(),incoming:null,completedTransfer:null,channel:{readyState:'open'}};
   const guestPeer={id:'master',acks:new Map(),channel:{readyState:'open'}};
   guestState.peers=new Map([[guestPeer.id,guestPeer]]);
@@ -27,6 +28,7 @@ function network({samples=2400,dropChunkAck=false,disconnectAfter=null}={}) {
     const bytes=Buffer.byteLength(wire,'utf8');
     if(bytes>16384)throw Error('WebRTC Safari max-message-size exceeded: '+bytes);
     messages.push({from,type:msg.type,index:msg.index,bytes});
+    if(from==='guest'&&msg.type==='TRANSFER_CHUNK')maxPendingChunks=Math.max(maxPendingChunks,guestPeer.acks.size);
     if(disconnectAfter!==null&&messages.length>disconnectAfter) {
       guestPeer.channel.readyState='closed';hostPeer.channel.readyState='closed';
       return false;
@@ -45,13 +47,13 @@ function network({samples=2400,dropChunkAck=false,disconnectAfter=null}={}) {
   const args={MAX_SAMPLES:10000,finite:Number.isFinite,crypto:webcrypto,TextEncoder,Uint8Array};
   const create=(state,from)=>createTransfer({
     ...args,s:state,send:(_peer,msg)=>transmit(from,msg),
-    renderResults:()=>renderEvents.push(from),localRecord:()=>record,
+    renderResults:updateSyncCharts=>renderEvents.push({from,full:updateSyncCharts!==false}),localRecord:()=>record,
     uid:()=> 'transfer-123',tell:message=>notices.push(message),
     setTimeout,clearTimeout
   });
   host=create(hostState,'host');
   guest=create(guestState,'guest');
-  return{guest,host,guestState,hostState,hostPeer,guestPeer,record,errors,messages,notices,renderEvents};
+  return{guest,host,guestState,hostState,hostPeer,guestPeer,record,errors,messages,notices,renderEvents,getMaxPendingChunks:()=>maxPendingChunks};
 }
 
 test('entrega automática integral de muchos bloques desde participante al maestro',async()=>{
@@ -67,7 +69,12 @@ test('entrega automática integral de muchos bloques desde participante al maest
   assert.equal(n.hostPeer.incoming,null);
   assert.ok(n.hostPeer.completedTransfer);
   assert.ok(n.messages.some(m=>m.type==='TRANSFER_END'));
-  assert.ok(n.renderEvents.includes('host'));
+  assert.ok(n.renderEvents.some(event=>event.from==='host'&&event.full));
+  // On mobile, redraw heavyweight sync plots only at the end, not per ACK.
+  assert.equal(n.renderEvents.filter(event=>event.from==='guest'&&event.full).length,1);
+  assert.ok(n.renderEvents.filter(event=>event.from==='guest'&&!event.full).length>2);
+  assert.ok(n.getMaxPendingChunks()>1,'regresión: envío serie de 1 bloque por RTT');
+  assert.ok(n.getMaxPendingChunks()<=4,'la ventana de envío está acotada');
   assert.ok(n.messages.every(m=>m.bytes<=16384));
 });
 
@@ -90,5 +97,15 @@ test('rechaza muestras corrompidas sin registrar un archivo inválido',async()=>
     await n.host.handleTransferMessage(n.hostPeer,{type:'TRANSFER_CHUNK',transferId:'bad',index:i,data:text.slice(i*12000,(i+1)*12000)});
   }
   await assert.rejects(n.host.handleTransferMessage(n.hostPeer,{type:'TRANSFER_END',transferId:'bad'}),/integridad/);
+  assert.equal(n.hostState.results.size,0);
+});
+
+test('fallo de conexión deja registro local y permite reintentar manualmente',async()=>{
+  const n=network({samples:240,disconnectAfter:2});
+  await assert.rejects(n.guest.sendRecord(),/conexión|bloque|enviar/i);
+  assert.equal(n.guestState.transfer,null);
+  assert.ok(n.guestState.transferError,'fallo no visible en la interfaz');
+  assert.equal(n.guestState.run.transferred,undefined);
+  assert.equal(n.record.samples.length,240);
   assert.equal(n.hostState.results.size,0);
 });
