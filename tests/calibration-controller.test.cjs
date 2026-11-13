@@ -157,3 +157,16 @@ test('API controlador disponible en scripts clásicos de Safari/Chrome',()=>{
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../src/joint/calibration-controller.js'),'utf8'),context);
   assert.equal(typeof context.VWOMACalibration.createController,'function');
 });
+
+test('un único acelerómetro no requiere sincronización física entre relojes',()=>{
+  const f=fixture();
+  f.s.peers.clear();
+  f.s.calibration.complete=true;
+  f.s.syncCalibration.accepted=false;
+  f.ctl.renderSyncCalibration();
+  assert.equal(f.node('jointSyncStart').hidden,true);
+  assert.match(f.node('jointSyncState').textContent,/No necesaria/);
+  assert.match(f.node('jointSyncHelp').textContent,/Puedes pasar a Medir/);
+  assert.match(f.node('jointSyncSummary').innerHTML,/únicamente el maestro/);
+  assert.equal(f.s.syncCalibration.accepted,false);
+});

@@ -126,9 +126,10 @@
         const periods=records.map(r=>samplePeriodMs(r,start,end)).filter(finite),commonPeriod=periods.length?Math.max(...periods):null,grid=[];
         if(view==='common'&&!finite(commonPeriod)){status.textContent='No hay suficientes marcas temporales válidas para construir la rejilla común.';return;}
         if(view==='common'&&finite(commonPeriod))for(let t=start;t<=end+.1;t+=commonPeriod)grid.push(t);
-        const onlyMaster=records.length===1&&records[0].device.id===s.id&&s.role==='host';
-        const label=onlyMaster?'Solo maestro':records.length+' móviles';
-        $('jointCompareTitle').textContent=onlyMaster?'Señales del maestro':'Señales sincronizadas';
+        const single=records.length===1;
+        const singleName=records[0]?.device?.name||'móvil';
+        const label=single?'Un solo acelerómetro · '+singleName:records.length+' móviles';
+        $('jointCompareTitle').textContent=single?'Señales de '+singleName:'Señales sincronizadas';
         status.textContent=view==='common'?`${label} · rejilla temporal de ${commonPeriod.toFixed(2)} ms (${(1000/commonPeriod).toFixed(1)} Hz) · interpolación lineal a partir de las marcas temporales del reloj maestro.`:`${label} · marcas temporales originales referidas al reloj maestro; sin remuestreo.`;
         for(const [axis,axisIndex,color,canvasId] of axes) {
             const datasets=[];

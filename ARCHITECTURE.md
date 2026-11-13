@@ -408,3 +408,7 @@ editable conserva los puntos para ensayos posteriores. El resultado contiene
 un solo registro, y Comparar presenta las tres componentes del maestro con
 una única curva por eje. Con participantes conectados se sigue exigiendo
 sincronización física y se mantiene intacto el protocolo WebRTC.
+
+Comparar presenta el nombre del único acelerómetro (incluidos registros JSON
+importados), con una sola serie por componente X/Y/Z; no exige un segundo
+registro para mostrar las curvas.
