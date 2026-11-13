@@ -1832,3 +1832,23 @@ main button:not(:where(
 }
 
 #testForm:not(.measurement-active) #recordButton {display:block;width:100%;min-height:54px;margin:0 0 18px;}
+
+/* Calibración guiada: una sola animación por gesto, reposo permanente al terminar. */
+.joint-begin-calibration { width:100%; min-height:46px; margin:14px 0 4px; }
+.joint-calibration-example {
+    position:absolute; z-index:3; top:50%; left:50%;
+    transform:translate(-50%,-50%); width:min(88%,470px);
+    box-sizing:border-box; background:rgba(9,47,77,.93); color:#fff;
+    border:1px solid rgba(255,255,255,.65);
+    box-shadow:0 12px 35px rgba(10,35,60,.2);
+    padding:20px 18px; border-radius:14px;
+    text-align:center; line-height:1.45;
+    font-weight:800; font-size:clamp(1rem,3.8vw,1.22rem);
+    animation:jointCalibrationExampleFade 2.2s ease-in both;
+    pointer-events:none;
+}
+.joint-calibration-example[hidden] { display:none !important; }
+@keyframes jointCalibrationExampleFade {
+    0%,68% {opacity:1;}
+    100% {opacity:0;}
+}

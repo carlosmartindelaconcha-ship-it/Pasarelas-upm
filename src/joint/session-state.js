@@ -9,7 +9,7 @@
         id: uid(), name: 'Mi móvil', role: null, session: null, peers: new Map(),
         plan: {length:30, width:3, name:'Ensayo multipunto', points:[]}, selected:null,
         sensor:false, sensorEnabled:false, sensorSource:'', lastSample:0, recent:[], rateTimes:[],
-        calibration:{map:{},active:null,complete:false},
+        calibration:{map:{},active:null,complete:false,guidePhase:'idle'},
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
         scan:null, scanFrame:null, currentInvite:null, pairBusy:false, capturePermission:false,
         pendingOffer:null, qrPages:[], qrPageIndex:0, qrPageTimer:null, qrInbound:null,

@@ -236,7 +236,7 @@
     const calibrationMath=globalThis.VWOMACalibrationMath.createMath({
         median, finite, sampleRate
     });
-    const {renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture}=
+    const {renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture}=
         globalThis.VWOMACalibration.createController({
             s, $, escape, now, toMaster, finite, sampleRate, tell,
             renderDevices:(...args)=>renderDevices(...args),
@@ -377,9 +377,7 @@
         if(s.calibration.active) {
             const a=s.calibration.active,t=now();
             if(t>=a.end)finishCalibration();
-            else if(t<a.start)$('jointCalibrationHelp').textContent='Mantén el móvil quieto: calculando la continua de referencia.';
-            else $('jointCalibrationHelp').textContent='Registrando gesto: detrend y filtro paso bajo de 10 Hz…';
-            renderCalibrationCountdown();
+            else renderCalibrationCountdown();
         }
         const gesture=s.syncCalibration.gesture;
         // El cierre del gesto también debe usar el reloj del maestro en el participante.
@@ -429,7 +427,7 @@
         stopJointSensor();stopDuringSync();document.body.classList.remove('recording-lock');releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
         s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();
-        s.calibration={map:{},active:null,complete:false};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
+        s.calibration={map:{},active:null,complete:false,guidePhase:'idle'};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
         if(s.returnTo)s.returnTo.style.display='block';else $('mainMenu').style.display='block';
@@ -456,7 +454,7 @@
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
         resetPlanView, download, deletePlanPoint, updatePlanPoint, svgPosition, planViewport,
         geometry, zoomPlanAt, snapPlanPosition, renderPlan, localStatus, renderDevices,
-        broadcast, enableSensor, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
+        broadcast, enableSensor, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
         startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
         exportProcessedJson, exportProcessedCsv, sendRecord, recover, renderComparison, validComparisonExport,
         requestWake, incident, running
