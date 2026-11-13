@@ -74,13 +74,20 @@ test('los botones XYZ no se habilitan hasta terminar el mensaje y el ejemplo X',
   assert.equal(f.node('jointCalibrationExample').hidden,false);
   assert.equal(f.node('jointBeginCalibration').hidden,true);
   for(const axis of ['X','Y','Z'])assert.equal(f.node('jointCalibrate'+axis).disabled,true);
-  f.runTimer(2200);
+  f.runTimer(5000);
+  assert.equal(f.s.calibration.guidePhase,'observe');
+  assert.equal(f.node('jointCalibrationExample').hidden,false);
+  assert.equal(f.node('jointCalibrationExample').textContent,'OBSERVA');
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+  for(const axis of ['X','Y','Z'])assert.equal(f.node('jointCalibrate'+axis).disabled,true);
+  f.runTimer(1100);
   assert.equal(f.s.calibration.guidePhase,'demo');
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
-    'assets/calibration/telefono-eje-x-un-ciclo.svg');
+    'assets/calibration/telefono-eje-x-un-ciclo.svg?v=20261113-speed2');
   assert.equal(f.node('jointCalibrationExample').hidden,true);
   assert.equal(f.node('jointCalibrateX').disabled,true);
-  f.runTimer(3000);
+  f.runTimer(2800);
   assert.equal(f.s.calibration.guidePhase,'ready');
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
     'assets/calibration/telefono-ejes-reposo.svg');
@@ -107,7 +114,7 @@ test('cada gesto dispone de 3 s quieto y 3,6 s de captura, un solo ciclo por eje
   f.setTime(4000);f.ctl.renderCalibrationCountdown();
   assert.equal(f.node('jointCalibrationCountdown').textContent,'¡AHORA!');
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
-    'assets/calibration/telefono-eje-y-un-ciclo.svg');
+    'assets/calibration/telefono-eje-y-un-ciclo.svg?v=20261113-speed2');
   f.setTime(7000);f.ctl.renderCalibrationCountdown();
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
     'assets/calibration/telefono-ejes-reposo.svg');
@@ -120,7 +127,7 @@ test('salir de la sesión durante el ejemplo no habilita los gestos con temporiz
   const previous=f.s.calibration;
   f.ctl.beginCalibrationGuide();
   f.s.calibration={map:{},active:null,complete:false,guidePhase:'idle'};
-  f.runTimer(2200);
+  f.runTimer(5000);
   assert.equal(previous.guidePhase,'message');
   assert.equal(f.s.calibration.guidePhase,'idle');
 });
@@ -238,11 +245,11 @@ test('el ciclo SVG conserva los tres segundos completos si la pantalla se actual
   f.setTime(4270);f.ctl.renderCalibrationCountdown();
   assert.equal(f.s.calibration.active.svgStartedAt,4270);
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
-    'assets/calibration/telefono-eje-z-un-ciclo.svg');
-  f.setTime(7150);f.ctl.renderCalibrationCountdown();
+    'assets/calibration/telefono-eje-z-un-ciclo.svg?v=20261113-speed2');
+  f.setTime(7000);f.ctl.renderCalibrationCountdown();
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
-    'assets/calibration/telefono-eje-z-un-ciclo.svg');
-  f.setTime(7280);f.ctl.renderCalibrationCountdown();
+    'assets/calibration/telefono-eje-z-un-ciclo.svg?v=20261113-speed2');
+  f.setTime(7080);f.ctl.renderCalibrationCountdown();
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
     'assets/calibration/telefono-ejes-reposo.svg');
 });
@@ -253,8 +260,31 @@ test('la calibración manual cancela la demostración pendiente',()=>{
   f.ctl.chooseManualCalibration();
   f.ctl.setManualCalibration(1);
   assert.equal(f.s.calibration.complete,true);
-  f.runTimer(2200);
+  f.runTimer(5000);
   assert.equal(f.s.calibration.guidePhase,'ready');
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
     'assets/calibration/telefono-ejes-reposo.svg');
+});
+
+test('el aviso de lectura y OBSERVA mantienen el SVG en reposo hasta la demostración',()=>{
+  const f=fixture();
+  f.ctl.beginCalibrationGuide();
+  assert.equal(f.s.calibration.guidePhase,'message');
+  assert.equal(f.node('jointCalibrationExample').textContent,
+    'EJEMPLO: haz un SOLO movimiento de ida y vuelta con el móvil en CADA EJE.');
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+  f.runTimer(5000);
+  assert.equal(f.s.calibration.guidePhase,'observe');
+  assert.equal(f.node('jointCalibrationExample').textContent,'OBSERVA');
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+  f.runTimer(1100);
+  assert.equal(f.s.calibration.guidePhase,'demo');
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-eje-x-un-ciclo.svg?v=20261113-speed2');
+  f.runTimer(2800);
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+  assert.equal(f.s.calibration.guidePhase,'ready');
 });

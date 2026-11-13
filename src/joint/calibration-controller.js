@@ -11,9 +11,9 @@
                estimateGestureAxis}=math;
         const correctedVector=(values,calibration=s.calibration)=>
             math.correctedVector(values,calibration);
-        const CAL_CYCLE_MS=3000, CAL_GESTURE_MS=3600, CAL_INTRO_MS=2200;
+        const CAL_CYCLE_MS=2800, CAL_GESTURE_MS=3600, CAL_INTRO_MS=5000, CAL_OBSERVE_MS=1100;
         const CAL_REST='assets/calibration/telefono-ejes-reposo.svg';
-        const cycleSrc=axis=>'assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg';
+        const cycleSrc=axis=>'assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg?v=20261113-speed2';
         function updateCalibrationIllustration() {
             const c=s.calibration,active=c.active,t=now();
             // Bind the *visual* cycle to the actual SVG load, not a coarse 250 ms
@@ -34,11 +34,15 @@
             c.guidePhase='message';c.feedback=null;renderCalibration();
             setTimeout(()=>{
                 if(s.calibration!==c||c.guidePhase!=='message'||c.complete||c.manualChoosing)return;
-                c.guidePhase='demo';renderCalibration();
+                c.guidePhase='observe';renderCalibration();
                 setTimeout(()=>{
-                    if(s.calibration!==c||c.guidePhase!=='demo'||c.complete||c.manualChoosing)return;
-                    c.guidePhase='ready';renderCalibration();
-                },CAL_CYCLE_MS);
+                    if(s.calibration!==c||c.guidePhase!=='observe'||c.complete||c.manualChoosing)return;
+                    c.guidePhase='demo';renderCalibration();
+                    setTimeout(()=>{
+                        if(s.calibration!==c||c.guidePhase!=='demo'||c.complete||c.manualChoosing)return;
+                        c.guidePhase='ready';renderCalibration();
+                    },CAL_CYCLE_MS);
+                },CAL_OBSERVE_MS);
             },CAL_INTRO_MS);
         }
 
@@ -113,18 +117,22 @@
         const c=s.calibration,active=c.active,done=c.complete;
         const guide=c.guidePhase||'idle',ready=guide==='ready'||done;
         const state=$('jointCalibrationState');
-        state.textContent=done?'Sentidos corregidos':active?'En curso':guide==='demo'?'Ejemplo':guide==='message'?'Instrucciones':ready?'Elige un eje':'Pendiente';
+        state.textContent=done?'Sentidos corregidos':active?'En curso':guide==='demo'?'Ejemplo':guide==='observe'?'Observa':guide==='message'?'Instrucciones':ready?'Elige un eje':'Pendiente';
         state.classList.toggle('done',done);
         $('jointCalibration').classList.toggle('complete',done);
         const begin=$('jointBeginCalibration');
         begin.hidden=done||guide!=='idle';begin.disabled=!!active||!s.sensorEnabled;
-        $('jointCalibrationExample').hidden=guide!=='message'||done;
+        const hint=$('jointCalibrationExample');
+        hint.hidden=done||(guide!=='message'&&guide!=='observe');
+        hint.textContent=guide==='observe'?'OBSERVA':'EJEMPLO: haz un SOLO movimiento de ida y vuelta con el móvil en CADA EJE.';
+        hint.classList.toggle('observe',guide==='observe');
         updateCalibrationIllustration();
         $('jointCalibrationAnimation').classList.toggle('complete',done);
         const axis=active?.axis||['x','y','z'].find(key=>!c.map[key])||'x';
         $('jointCalibrationInstruction').textContent=done?'Teléfono quieto en el origen.':
             active?'Eje '+axis.toUpperCase()+' · una sola ida y vuelta.':
-            guide==='demo'?'EJEMPLO · X: observa una sola ida y vuelta.':
+            guide==='demo'?'EJEMPLO · X: una sola ida y vuelta.':
+            guide==='observe'?'OBSERVA: comenzará la demostración del eje X.':
             ready?'Teléfono quieto. Elige X, Y o Z para realizar el gesto.':
             'Pulsa «Calibrar ejes» para ver cómo se realiza el movimiento.';
         for(const key of ['x','y','z']) {
@@ -138,8 +146,9 @@
         override.hidden=done;manual.hidden=done||!c.manualChoosing;
         skip.disabled=!!active||!s.sensorEnabled||!!c.manualChoosing;
         $('jointCalibrationHelp').textContent=active?'Quieto durante la cuenta atrás. Al aparecer «¡AHORA!», haz una sola ida y vuelta.':
-            guide==='message'?'Observa el ejemplo antes de elegir un eje.':
-            guide==='demo'?'Eje X: un ciclo completo de 3 segundos, regreso al origen.':
+            guide==='message'?'Lee el ejemplo. Después aparecerá «OBSERVA» antes del movimiento.':
+            guide==='observe'?'Observa cómo el teléfono se desplaza por el eje X y regresa al origen.':
+            guide==='demo'?'Eje X: una ida y vuelta de 2,8 segundos, regreso al origen.':
             c.feedback||(done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':
             ready?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z». Cada prueba dura 3,6 s y corrige solo el signo del eje seleccionado.':
             'Pulsa «Calibrar ejes». Primero verás un único ejemplo en X; después se activarán los tres gestos.');
@@ -164,7 +173,7 @@
         if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
         if(s.calibration.guidePhase!=='ready')throw Error('Pulsa primero «Calibrar ejes» y observa el ejemplo.');
         if(s.calibration.active||s.calibration.map[axis])return;
-        // Three seconds of baseline including gravity, one 3s cycle and .6s margin.
+        // Three seconds of baseline including gravity; one 2.8s SVG cycle and .8s margin.
         const start=now()+3000;
         s.calibration.feedback=null;
         s.calibration.active={axis,start,end:start+CAL_GESTURE_MS,baseline:[],samples:[]};
