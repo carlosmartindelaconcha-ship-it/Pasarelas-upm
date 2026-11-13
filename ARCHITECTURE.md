@@ -369,3 +369,13 @@ de ejes, formato de ticks y callback para mantener Y centrada.
 
 Se elimina el interruptor de valores: la lectura se muestra al pulsar y
 se descarta al iniciar otro gesto de arrastre, zoom, toque o rueda.
+
+### Lectura de valores en gráficas móviles (13-11-2026)
+
+Las pulsaciones breves se procesan directamente como Pointer Events (con
+alternativa touchend en navegadores anteriores), con una tolerancia de 15 píxeles
+para distinguirlas de un arrastre. La selección no requiere pulsar encima del
+punto. Se construye un evento normalizado de Chart.js con `native:null` y
+coordenadas propias del canvas; la selección previa podía fallar porque Chart.js
+trataba las coordenadas como si fueran un evento del DOM. El gesto de pellizco,
+arrastre o rueda oculta la etiqueta sin interceptar la navegación.

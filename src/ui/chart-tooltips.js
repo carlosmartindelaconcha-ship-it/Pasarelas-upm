@@ -52,7 +52,10 @@
       // plot must work, even well away from a line or spectral peak.
       if(area&&(p.x<area.left||p.x>area.right||p.y<area.top||p.y>area.bottom))
         return false;
-      const request={x:p.x,y:p.y};
+      // Chart.js expects a normalized ChartEvent. Without its native field
+      // getRelativePosition interprets this object as a raw DOM event and
+      // loses the coordinates (especially visible on spectrum charts).
+      const request={type:'click',x:p.x,y:p.y,native:null};
       let active=chart.getElementsAtEventForMode?.(request,'nearest',
         {intersect:false,axis:'xy'},true)||[];
       if(!active.length) {
