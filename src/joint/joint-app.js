@@ -452,7 +452,7 @@
         broadcast, enableSensor, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
         startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
         exportProcessedJson, exportProcessedCsv, sendRecord, recover, renderComparison, validComparisonExport,
-        requestWake, incident
+        requestWake, incident, running
     });
     setInterval(tick,250);
     if(location.hash.startsWith('#joint=')) {

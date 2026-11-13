@@ -35,7 +35,8 @@ test('el módulo enlaza acciones, sensores, plano y transferencia al DOM',()=>{
     const callbacks={open:()=>calls.push('open'),openStandaloneTest:()=>calls.push('standalone'),
       resetSession:()=>calls.push('exit'),createJointSession:()=>calls.push('create'),
       startRun:()=>calls.push('start'),sendRecord:()=>calls.push('send'),
-      enableSensor:()=>calls.push('sensor'),recover:()=>calls.push('recover')};
+      enableSensor:()=>calls.push('sensor'),recover:()=>calls.push('recover'),
+      running:()=>false,svgPosition:()=>null};
     const deps=new Proxy({s:createState(()=> 'a'),$,guard:fn=>fn,...callbacks},
       {get:(target,key)=>Object.hasOwn(target,key)?target[key]:()=>calls.push(String(key))});
     bindEvents(deps);
@@ -54,6 +55,10 @@ test('el módulo enlaza acciones, sensores, plano y transferencia al DOM',()=>{
     $('jointSendData').onclick();
     $('jointEnableSensor').onclick();
     $('jointRecover').onclick();
+    // Exercise a real host-only gesture: it must resolve running() via DI,
+    // not from the old coordinator's closed-over lexical scope.
+    deps.s.role='host';
+    assert.doesNotThrow(()=>$('jointPlan').listeners.wheel({preventDefault(){},deltaY:1}));
     assert.deepEqual(calls,['open','standalone','exit','create','start','send','sensor','recover']);
   } finally {
     if(oldDocument===undefined)delete globalThis.document;else globalThis.document=oldDocument;

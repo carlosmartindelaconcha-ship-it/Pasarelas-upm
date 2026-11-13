@@ -14,7 +14,7 @@
         broadcast, enableSensor, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
         startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
         exportProcessedJson, exportProcessedCsv, sendRecord, recover, renderComparison, validComparisonExport,
-        requestWake, incident
+        requestWake, incident, running
     }) {
     // UI bindings. All generated text is escaped before entering markup.
     $('openJointButton').addEventListener('click',guard(open));
