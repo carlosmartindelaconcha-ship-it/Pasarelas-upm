@@ -61,8 +61,8 @@ function preparePreview({indexHtml,jointApp,language,recordTransfer}) {
     '<title>VWOMA · Pasarelas UPM</title>',
     '<title>VWOMA · PRUEBAS · Pasarelas UPM</title>','preview title');
   html=replaceOne(html,
-    'src/joint/joint-app.js?v=20261113-modular-ui-v10',
-    'src/joint/joint-app.js?v=20261113-preview-ui-state-v10','joint cache version');
+    'src/joint/joint-app.js?v=20261113-mobile-compare-v12',
+    'src/joint/joint-app.js?v=20261113-preview-mobile-charts-v12','joint cache version');
 
   const i18n=replaceOne(language,
     "'vwoma.language.v1'","'vwoma.language.preview.v1'",'preview language');
