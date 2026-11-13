@@ -43,7 +43,7 @@
       const canvas=chart?.canvas;
       if(!canvas?.addEventListener||listeners.has(chart))return;
       let start=null;
-      const onDown=e=>{start={pointerId:e.pointerId,x:e.clientX,y:e.clientY};};
+      const onDown=e=>{lastGestureTime=-Infinity;start={pointerId:e.pointerId,x:e.clientX,y:e.clientY};};
       const onMove=e=>{
         if(start&&e.pointerId===start.pointerId&&
           Math.hypot(e.clientX-start.x,e.clientY-start.y)>7){

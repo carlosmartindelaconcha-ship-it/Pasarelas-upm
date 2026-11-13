@@ -67,6 +67,9 @@ test('mostrar valor al tocar y borrarlo al iniciar desplazamiento, zoom u otro t
   assert.equal(chart.tooltip.items.length,0);
   ctl.showClickedValue({x:55,y:70},[],chart);
   assert.equal(chart.tooltip.items.length,0); // dragged gestures cannot fake a click
+  canvasHandlers.pointerdown({pointerId:2,clientX:55,clientY:70});
+  ctl.showClickedValue({x:55,y:70},[],chart);
+  assert.equal(chart.tooltip.items.length,1); // a new deliberate tap works immediately
   canvasHandlers.wheel();
   assert.equal(chart.tooltip.items.length,0);
   docHandlers.pointerdown();
