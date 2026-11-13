@@ -230,3 +230,31 @@ test('un único acelerómetro no requiere sincronización física entre relojes'
   assert.match(f.node('jointSyncSummary').innerHTML,/únicamente el maestro/);
   assert.equal(f.s.syncCalibration.accepted,false);
 });
+
+test('el ciclo SVG conserva los tres segundos completos si la pantalla se actualiza con retraso',()=>{
+  const f=fixture();
+  f.s.calibration.guidePhase='ready';
+  f.ctl.startCalibration('z');
+  f.setTime(4270);f.ctl.renderCalibrationCountdown();
+  assert.equal(f.s.calibration.active.svgStartedAt,4270);
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-eje-z-un-ciclo.svg');
+  f.setTime(7150);f.ctl.renderCalibrationCountdown();
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-eje-z-un-ciclo.svg');
+  f.setTime(7280);f.ctl.renderCalibrationCountdown();
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+});
+
+test('la calibración manual cancela la demostración pendiente',()=>{
+  const f=fixture();
+  f.ctl.beginCalibrationGuide();
+  f.ctl.chooseManualCalibration();
+  f.ctl.setManualCalibration(1);
+  assert.equal(f.s.calibration.complete,true);
+  f.runTimer(2200);
+  assert.equal(f.s.calibration.guidePhase,'ready');
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+});
