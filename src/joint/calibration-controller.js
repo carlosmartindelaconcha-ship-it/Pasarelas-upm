@@ -16,8 +16,11 @@
         const cycleSrc=axis=>'assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg';
         function updateCalibrationIllustration() {
             const c=s.calibration,active=c.active,t=now();
-            const playing=!!active&&t>=active.start&&t<active.start+CAL_CYCLE_MS;
-            const example=!active&&c.guidePhase==='demo';
+            // Bind the *visual* cycle to the actual SVG load, not a coarse 250 ms
+            // timer. A delayed refresh must never cut the SVG off mid-cycle.
+            if(active&&t>=active.start&&!finite(active.svgStartedAt))active.svgStartedAt=t;
+            const playing=!!active&&finite(active.svgStartedAt)&&t<active.svgStartedAt+CAL_CYCLE_MS;
+            const example=!active&&!c.complete&&c.guidePhase==='demo';
             const axis=example?'x':active?.axis||'x';
             const image=$('jointCalibrationImage'),src=playing||example?cycleSrc(axis):CAL_REST;
             // Reassign only on a real state transition: reloading a SVG restarts it.
@@ -30,10 +33,10 @@
             if(c.complete||c.active||(c.guidePhase&&c.guidePhase!=='idle'))return;
             c.guidePhase='message';c.feedback=null;renderCalibration();
             setTimeout(()=>{
-                if(s.calibration!==c||c.guidePhase!=='message')return;
+                if(s.calibration!==c||c.guidePhase!=='message'||c.complete||c.manualChoosing)return;
                 c.guidePhase='demo';renderCalibration();
                 setTimeout(()=>{
-                    if(s.calibration!==c||c.guidePhase!=='demo')return;
+                    if(s.calibration!==c||c.guidePhase!=='demo'||c.complete||c.manualChoosing)return;
                     c.guidePhase='ready';renderCalibration();
                 },CAL_CYCLE_MS);
             },CAL_INTRO_MS);
@@ -178,7 +181,7 @@
         if(sign!==1&&sign!==-1)throw Error('Factor manual no válido.');
         if(s.calibration.active||!s.calibration.manualChoosing)return;
         for(const [axis,raw] of Object.entries({x:0,y:1,z:2}))s.calibration.map[axis]={raw,sign,manual:true,method:'manual'};
-        s.calibration.manualChoosing=false;s.calibration.complete=true;
+        s.calibration.manualChoosing=false;s.calibration.complete=true;s.calibration.guidePhase='ready';
         tell('Calibración omitida: se aplica × '+(sign>0?'+1':'−1')+' a X, Y y Z.');renderCalibration();renderDevices();
     }
     function finishCalibration() {
