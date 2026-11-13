@@ -77,6 +77,7 @@
         const target=$('jointRttHistograms'),groups=[];clearSyncCharts();
         if(s.role==='host') {
             for(const p of s.peers.values()) {
+                if(!run.plan?.points?.some(point=>point.device===p.id))continue;
                 const rows=p.samples.filter(row=>row.runId===run.id);
                 const duringRows=rows.filter(row=>row.phase==='during');
                 const preRows=p.samples.filter(row=>row.phase==='precal'),model=run.syncModels?.[p.id]||p.startModel||p.model;groups.push({key:p.id,name:p.name||'Participante',preRows,duringRows,model});
@@ -114,7 +115,7 @@
         }
         const data=comparisonExport();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
-        if(!data) {status.textContent='Termina un ensayo y recibe los registros de los participantes para compararlos aquí.';return;}
+        if(!data) {status.textContent='Termina un ensayo para visualizar las señales de los móviles que hayan medido.';return;}
         const records=data.records.filter(r=>r.samples?.length).sort((a,b)=>{
             const ap=data.plan.points?.find(p=>p.device===a.device.id),bp=data.plan.points?.find(p=>p.device===b.device.id);
             return (ap?.x??0)-(bp?.x??0);
@@ -125,7 +126,10 @@
         const periods=records.map(r=>samplePeriodMs(r,start,end)).filter(finite),commonPeriod=periods.length?Math.max(...periods):null,grid=[];
         if(view==='common'&&!finite(commonPeriod)){status.textContent='No hay suficientes marcas temporales válidas para construir la rejilla común.';return;}
         if(view==='common'&&finite(commonPeriod))for(let t=start;t<=end+.1;t+=commonPeriod)grid.push(t);
-        status.textContent=view==='common'?`${records.length} móviles · rejilla común de ${commonPeriod.toFixed(2)} ms (${(1000/commonPeriod).toFixed(1)} Hz) · interpolación lineal a partir de las marcas temporales corregidas al reloj maestro.`:`${records.length} móviles · marcas temporales originales ya referidas al reloj del maestro; sin remuestreo.`;
+        const onlyMaster=records.length===1&&records[0].device.id===s.id&&s.role==='host';
+        const label=onlyMaster?'Solo maestro':records.length+' móviles';
+        $('jointCompareTitle').textContent=onlyMaster?'Señales del maestro':'Señales sincronizadas';
+        status.textContent=view==='common'?`${label} · rejilla temporal de ${commonPeriod.toFixed(2)} ms (${(1000/commonPeriod).toFixed(1)} Hz) · interpolación lineal a partir de las marcas temporales del reloj maestro.`:`${label} · marcas temporales originales referidas al reloj maestro; sin remuestreo.`;
         for(const [axis,axisIndex,color,canvasId] of axes) {
             const datasets=[];
             records.forEach((record,deviceIndex)=>{

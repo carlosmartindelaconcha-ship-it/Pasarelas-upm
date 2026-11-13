@@ -12,7 +12,7 @@
     }
     function startDuringSync() {
         clearInterval(s.duringSyncTimer);s.duringSyncTimer=null;
-        if(s.role!=='host')return;
+        if(s.role!=='host'||![...s.peers.values()].some(p=>p.channel?.readyState==='open'))return;
         s.duringSyncTimer=setInterval(()=>{
             if(!running()||s.role!=='host')return;
             for(const p of s.peers.values())if(p.channel?.readyState==='open')syncOnce(p,'during',s.run.id);
@@ -28,8 +28,14 @@
         const model={...networkModel,offset:networkModel.offset+physicalCorrection,physicalCorrectionMs:physicalCorrection};
         const quiet=s.recent.filter(sample=>sample[2]>=now()-1000).map(sample=>correctedVector(sample.slice(3,6)));
         const previewBaseline=['x','y','z'].map((_,index)=>quiet.length?quiet.reduce((sum,row)=>sum+row[index],0)/quiet.length:0);
-        const syncModels=s.role==='host'?Object.fromEntries([...s.peers.values()].map(p=>[p.id,structuredClone(p.startModel||p.model||{})])):{[s.id]:structuredClone(model)};
-        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:structuredClone(s.plan),initialClock:model,networkClock:structuredClone(networkModel),finalClock:model,syncModels,synchronizationCalibration:structuredClone(s.syncCalibration),samples:[],incidents:[],persisted:0,chunkIndex:0,previewBaseline,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
+        const solo=s.role==='host'&&![...s.peers.values()].some(p=>p.channel?.readyState==='open');
+        // The historical plan is kept for later trials. Only this run's
+        // snapshot removes assignments to devices that are not recording.
+        const runPlan=structuredClone(s.plan);
+        if(solo)for(const point of runPlan.points)if(point.device&&point.device!==s.id)point.device=null;
+        const syncModels=s.role==='host'?(solo?{}:Object.fromEntries([...s.peers.values()].filter(p=>p.channel?.readyState==='open').map(p=>[p.id,structuredClone(p.startModel||p.model||{})]))):{[s.id]:structuredClone(model)};
+        const synchronizationCalibration=solo?{phase:'not-required',accepted:false,gesture:null,results:{},models:{},correctionMs:0}:structuredClone(s.syncCalibration);
+        s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:runPlan,initialClock:model,networkClock:structuredClone(networkModel),finalClock:model,syncModels,synchronizationCalibration,samples:[],incidents:[],persisted:0,chunkIndex:0,previewBaseline,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
         for(const sample of s.recent){const t=finite(sample[8])?sample[8]:toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
         ui.enterRecording();requestWake();startDuringSync();persist();ui.runArmed();
     }
@@ -37,17 +43,26 @@
         requireHostEdit();
         if(!localStatus().sensor||pageHidden())throw Error('Activa el acelerómetro del maestro y mantén la página visible.');
         const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
-        if(!peers.length)throw Error('Conecta al menos otro móvil para realizar una medida conjunta.');
+        const solo=peers.length===0;
         if(!pointFor())throw Error('Asigna el maestro a un punto del plano.');
-        if(s.plan.points.some(q=>q.device&&q.device!==s.id&&!peers.some(p=>p.id===q.device)))throw Error('Hay un punto asignado a un móvil desconectado. Conéctalo o elimina su asignación.');
+        if(!solo&&s.plan.points.some(q=>q.device&&q.device!==s.id&&!peers.some(p=>p.id===q.device)))throw Error('Hay un punto asignado a un móvil desconectado. Conéctalo o elimina su asignación.');
         for(const p of peers) {
             if(!pointFor(p.id))throw Error('Asigna '+p.name+' a un punto del plano.');
             if(!p.status?.sensor||!p.status.visible||now()-p.lastSeen>6000)throw Error(p.name+' no tiene el sensor preparado o la página visible.');
             if(!p.status?.calibrated)throw Error(p.name+' debe completar la calibración de ejes.');
         }
         if(!s.calibration.complete)throw Error('Completa la calibración X, Y y Z del maestro antes de medir.');
-        if(!s.syncCalibration.accepted)throw Error('Completa primero la pestaña Calibrar y sincronizar.');
+        if(!solo&&!s.syncCalibration.accepted)throw Error('Completa primero la pestaña Calibrar y sincronizar.');
         const duration=Number(readDuration());if(!finite(duration)||duration<5||duration>1800||!Number.isInteger(duration))throw Error('Introduce una duración entera entre 5 y 1800 segundos.');
+        if(solo) {
+            // No PREPARE / READY / START_ACK or physical clock calibration.
+            // The local record is otherwise identical to a joint host record.
+            const start=now()+4000,end=start+duration*1000;
+            beginRun(uid(),start,end,duration);
+            tell('Ensayo solo con el maestro. Comenzará en unos segundos.');
+            ui.refresh();
+            return;
+        }
         const id=uid(),tx={id,ready:new Map(),acks:new Set(),error:null,phase:'ready',peers};
         s.transaction=tx;ui.preparing();
         try {
@@ -77,10 +92,11 @@
             return;
         }
         if(s.transaction||s.run?.state==='armed') {
-            const id=s.transaction?.id||s.run.id;s.transaction=null;broadcast({type:'ABORT',runId:id,reason});
+            const id=s.transaction?.id||s.run.id;s.transaction=null;
+            if(s.run?.plan.points.some(p=>p.device&&p.device!==s.id)||!s.run)broadcast({type:'ABORT',runId:id,reason});
             if(running()){s.run.state='cancelled';incident('cancel',reason);finishRun(true);}return;
         }
-        if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,now()));incident('stop',reason);broadcast({type:'STOP_AT',runId:s.run.id,end:s.run.end});}
+        if(running()){s.run.end=Math.max(s.run.start,Math.min(s.run.end,now()));incident('stop',reason);if(s.run.plan.points.some(p=>p.device&&p.device!==s.id))broadcast({type:'STOP_AT',runId:s.run.id,end:s.run.end});}
     }
     async function finishRun(cancelled=false) {
         const run=s.run;if(!run||run.finishing||run.finished)return;run.finishing=true;
