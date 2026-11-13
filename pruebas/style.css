@@ -1913,3 +1913,31 @@ main button:not(:where(
         font-size:clamp(.88rem,3.7vw,1.02rem);
     }
 }
+
+/* Calibración: única acción secundaria al lado del título; sin badge de estado. */
+.joint-calibration-head {
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    flex-wrap:nowrap;
+    gap:12px;
+}
+.joint-calibration-heading { flex:1 1 auto; min-width:0; }
+.joint-calibration-heading p { margin:5px 0 0; }
+.joint-app .joint-calibration-skip {
+    flex:0 0 auto;
+    align-self:flex-start;
+    min-height:38px;
+    padding:8px 11px;
+    font-size:.83rem;
+    line-height:1.25;
+    white-space:nowrap;
+}
+.joint-calibration-override { margin:8px 0 0; }
+@media (max-width:420px) {
+    .joint-calibration-head { gap:8px; }
+    .joint-app .joint-calibration-skip {
+        padding:8px 9px;
+        font-size:.78rem;
+    }
+}

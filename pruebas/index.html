@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261113-calibration-guide-v9">
+    <link rel="stylesheet" href="style.css?v=20261113-calibration-layout-v10">
 
     <!-- MapLibre -->
     <link
@@ -728,10 +728,22 @@
                 <div id="jointPanelSync" role="tabpanel" aria-labelledby="jointTabSync" hidden>
                     <div class="joint-section-head"><div><h3>Calibración y sincronización</h3><p>Primero corrige el signo de los ejes de cada móvil. Después se ajustan los relojes y se valida el desfase físico con los móviles fijados a una misma tablilla.</p></div><span id="jointSyncState" class="joint-calibration-state">Pendiente</span></div>
                     <section id="jointCalibration" class="joint-calibration" hidden aria-labelledby="jointCalibrationTitle">
-  <div class="joint-section-head"><div>
-    <h4 id="jointCalibrationTitle">Corregir el sentido de los ejes</h4>
-    <p id="jointCalibrationHelp">Pulsa «Calibrar ejes» para ver el ejemplo de un solo movimiento de ida y vuelta.</p>
-  </div><span id="jointCalibrationState" class="joint-calibration-state">Pendiente</span></div>
+  <div class="joint-section-head joint-calibration-head">
+    <div class="joint-calibration-heading">
+      <h4 id="jointCalibrationTitle">Corregir el sentido de los ejes</h4>
+      <p id="jointCalibrationHelp">Pulsa «Calibrar ejes» para ver el ejemplo de un solo movimiento de ida y vuelta.</p>
+    </div>
+    <button id="jointSkipCalibration" type="button" class="joint-secondary joint-calibration-skip" data-vwoma-icon="arrow">Omitir calibración</button>
+  </div>
+  <div id="jointCalibrationOverride" class="joint-calibration-override" hidden>
+    <div id="jointManualCalibration" class="joint-manual-calibration" hidden>
+      <p>Para omitir la calibración automática, elige el signo que se aplicará a los tres ejes:</p>
+      <div>
+        <button id="jointManualPlus" type="button">Usar × +1 en X, Y y Z</button>
+        <button id="jointManualMinus" type="button" class="joint-secondary">Usar × −1 en X, Y y Z</button>
+      </div>
+    </div>
+  </div>
   <button id="jointBeginCalibration" type="button" class="vwoma-action joint-begin-calibration" data-vwoma-icon="calibration">Calibrar ejes</button>
   <figure class="joint-calibration-animation" id="jointCalibrationAnimation">
     <div class="joint-calibration-visual">
@@ -753,7 +765,6 @@
   </div>
   <p class="joint-help">Cada gesto: 3 s quieto y 2,6 s de registro (una ida y vuelta y un pequeño margen). No gires el móvil; desplázalo en línea recta siguiendo el eje.</p>
 </section>
-<div id="jointCalibrationOverride" class="joint-calibration-override" hidden><button id="jointSkipCalibration" type="button" class="joint-secondary" data-vwoma-icon="arrow">Omitir calibración</button><div id="jointManualCalibration" class="joint-manual-calibration" hidden><p>Elige un único factor manual para los tres registros del sensor:</p><div><button id="jointManualPlus" type="button">Usar × +1 en X, Y y Z</button><button id="jointManualMinus" type="button" class="joint-secondary">Usar × −1 en X, Y y Z</button></div></div></div>
                     <section class="joint-physical-sync" aria-labelledby="jointPhysicalSyncTitle"><h4 id="jointPhysicalSyncTitle">Validar sincronía física</h4><p>Fija los móviles paralelos sobre una tablilla rígida, separados 5–10 cm para evitar NFC. Se correlacionan exclusivamente X–X, Y–Y y Z–Z.</p><button id="jointSyncStart" type="button" data-vwoma-icon="sync" class="vwoma-action">Calibrar relojes</button><div id="jointSyncBurst" class="joint-sync-burst" hidden><strong>Ráfaga de reloj</strong><progress id="jointSyncBurstProgress" max="200" value="0"></progress><span id="jointSyncBurstCount">0 / 200 respuestas</span></div><p id="jointSyncHelp" class="joint-help">El maestro inicia una ráfaga de 200 intercambios a 20 Hz (10 s). Después guiará cada gesto con una cuenta atrás común. Mantén ambas pantallas visibles.</p><figure id="jointSyncAnimation" class="joint-calibration-animation joint-sync-animation"><img id="jointSyncImage" src="assets/calibration/telefono-eje-x.svg" alt="Gesto de sincronización"><div id="jointSyncCountdown" class="joint-calibration-countdown joint-countdown-overlay" hidden aria-live="assertive"></div><figcaption id="jointSyncInstruction">Primero calibra los relojes.</figcaption></figure><div id="jointSyncGestureActions" class="joint-calibration-actions" hidden><button id="jointSyncGestureX" type="button" class="joint-axis-x">Gesto X</button><button id="jointSyncGestureY" type="button" class="joint-axis-y">Gesto Y</button><button id="jointSyncGestureZ" type="button" class="joint-axis-z">Gesto Z</button></div><div id="jointSyncSummary" class="joint-sync-summary" aria-live="polite"></div></section>
                 </div>
                 <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
@@ -835,7 +846,7 @@
     <script defer src="src/joint/persistence.js?v=20261109-modular-persistence-v1"></script>
     <script defer src="src/joint/acquisition.js?v=20261113-acquisition-solo-v3"></script>
     <script defer src="src/joint/calibration-math.js?v=20261112-calibration-math-v1"></script>
-    <script defer src="src/joint/calibration-controller.js?v=20261113-calibration-guide-v6"></script>
+    <script defer src="src/joint/calibration-controller.js?v=20261113-calibration-layout-v7"></script>
     <script defer src="src/joint/exports.js?v=20261112-exports-v1"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>

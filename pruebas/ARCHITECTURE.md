@@ -468,3 +468,15 @@ y «OBSERVA» de 1,1 s.
 derecha del propio dibujo**, con márgenes, tamaño compacto y animación
 de escala anclada a esa esquina; dejan de tapar el teléfono central.
 Los SVG originales y el mecanismo de sincronización entre móviles no cambian.
+
+### Cabecera simplificada de calibración (13-11-2026)
+
+El distintivo «Pendiente» junto a «Corregir el sentido de los ejes»
+se sustituye por un único botón secundario «Omitir calibración»,
+alineado a la derecha del título. «Calibrar ejes» sigue siendo la acción
+principal inmediatamente debajo de la cabecera. El botón de omisión
+reutiliza el procedimiento manual existente: muestra bajo la cabecera la
+elección explícita de factor +1 o −1 para los tres ejes, sin omitir la
+asignación de signos. No se duplican botones ni se altera el formato de
+los registros. Si la omisión se elige durante la demostración, esta se
+cancela; el botón principal se oculta hasta que se elija el factor.

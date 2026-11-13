@@ -116,12 +116,10 @@
     function renderCalibration() {
         const c=s.calibration,active=c.active,done=c.complete;
         const guide=c.guidePhase||'idle',ready=guide==='ready'||done;
-        const state=$('jointCalibrationState');
-        state.textContent=done?'Sentidos corregidos':active?'En curso':guide==='demo'?'Ejemplo':guide==='observe'?'Observa':guide==='message'?'Instrucciones':ready?'Elige un eje':'Pendiente';
-        state.classList.toggle('done',done);
         $('jointCalibration').classList.toggle('complete',done);
         const begin=$('jointBeginCalibration');
-        begin.hidden=done||guide!=='idle';begin.disabled=!!active||!s.sensorEnabled;
+        begin.hidden=done||guide!=='idle'||!!c.manualChoosing;
+        begin.disabled=!!active||!s.sensorEnabled;
         const hint=$('jointCalibrationExample');
         hint.hidden=done||(guide!=='message'&&guide!=='observe');
         hint.textContent=guide==='observe'?'OBSERVA':'EJEMPLO: haz un SOLO movimiento de ida y vuelta con el móvil en CADA EJE.';
@@ -143,12 +141,15 @@
             card.classList.toggle('ready',!!calibration);
         }
         const override=$('jointCalibrationOverride'),manual=$('jointManualCalibration'),skip=$('jointSkipCalibration');
-        override.hidden=done;manual.hidden=done||!c.manualChoosing;
-        skip.disabled=!!active||!s.sensorEnabled||!!c.manualChoosing;
+        override.hidden=done||!c.manualChoosing;
+        manual.hidden=done||!c.manualChoosing;
+        skip.hidden=done||!!c.manualChoosing;
+        skip.disabled=!!active||!s.sensorEnabled;
         $('jointCalibrationHelp').textContent=active?'Quieto durante la cuenta atrás. Al aparecer «¡AHORA!», haz una sola ida y vuelta.':
             guide==='message'?'Lee el ejemplo. Después aparecerá «OBSERVA» antes del movimiento.':
             guide==='observe'?'Observa cómo el teléfono se desplaza por el eje X y regresa al origen.':
             guide==='demo'?'Eje X: una ida y vuelta de 2 segundos, regreso al origen.':
+            c.manualChoosing?'Elige el signo que se aplicará por igual a X, Y y Z.':
             c.feedback||(done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':
             ready?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z». Cada prueba dura 2,6 s y corrige solo el signo del eje seleccionado.':
             'Pulsa «Calibrar ejes». Primero verás un único ejemplo en X; después se activarán los tres gestos.');
@@ -183,7 +184,9 @@
     function chooseManualCalibration() {
         if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
         if(s.calibration.active||s.calibration.complete)return;
-        s.calibration.manualChoosing=true;renderCalibration();
+        s.calibration.manualChoosing=true;
+        s.calibration.guidePhase='idle'; // Cancela una demostración pendiente.
+        renderCalibration();
         tell('Elige si quieres conservar los tres ejes o invertir los tres ejes.');
     }
     function setManualCalibration(sign) {
