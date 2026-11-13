@@ -84,23 +84,23 @@ test('los botones XYZ no se habilitan hasta terminar el mensaje y el ejemplo X',
   f.runTimer(1100);
   assert.equal(f.s.calibration.guidePhase,'demo');
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
-    'assets/calibration/telefono-eje-x-un-ciclo.svg?v=20261113-speed2');
+    'assets/calibration/telefono-eje-x-un-ciclo.svg?v=20261113-speed3');
   assert.equal(f.node('jointCalibrationExample').hidden,true);
   assert.equal(f.node('jointCalibrateX').disabled,true);
-  f.runTimer(2800);
+  f.runTimer(2000);
   assert.equal(f.s.calibration.guidePhase,'ready');
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
     'assets/calibration/telefono-ejes-reposo.svg');
   for(const axis of ['X','Y','Z'])assert.equal(f.node('jointCalibrate'+axis).disabled,false);
 });
 
-test('cada gesto dispone de 3 s quieto y 3,6 s de captura, un solo ciclo por eje',()=>{
+test('cada gesto dispone de 3 s quieto y 2,6 s de captura, un solo ciclo por eje',()=>{
   const f=fixture();
   f.s.calibration.guidePhase='ready';
   f.ctl.startCalibration('y');
   const active=f.s.calibration.active;
   assert.equal(active.start,4000);
-  assert.equal(active.end,7600);
+  assert.equal(active.end,6600);
   assert.equal(active.axis,'y');
   assert.equal(active.samples.length,0);
   assert.equal(f.node('jointCalibrateX').disabled,true);
@@ -114,8 +114,8 @@ test('cada gesto dispone de 3 s quieto y 3,6 s de captura, un solo ciclo por eje
   f.setTime(4000);f.ctl.renderCalibrationCountdown();
   assert.equal(f.node('jointCalibrationCountdown').textContent,'¡AHORA!');
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
-    'assets/calibration/telefono-eje-y-un-ciclo.svg?v=20261113-speed2');
-  f.setTime(7000);f.ctl.renderCalibrationCountdown();
+    'assets/calibration/telefono-eje-y-un-ciclo.svg?v=20261113-speed3');
+  f.setTime(6200);f.ctl.renderCalibrationCountdown();
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
     'assets/calibration/telefono-ejes-reposo.svg');
   assert.equal(f.node('jointCalibrationCountdown').hidden,true);
@@ -238,18 +238,18 @@ test('un único acelerómetro no requiere sincronización física entre relojes'
   assert.equal(f.s.syncCalibration.accepted,false);
 });
 
-test('el ciclo SVG conserva los tres segundos completos si la pantalla se actualiza con retraso',()=>{
+test('el ciclo SVG conserva los dos segundos completos si la pantalla se actualiza con retraso',()=>{
   const f=fixture();
   f.s.calibration.guidePhase='ready';
   f.ctl.startCalibration('z');
   f.setTime(4270);f.ctl.renderCalibrationCountdown();
   assert.equal(f.s.calibration.active.svgStartedAt,4270);
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
-    'assets/calibration/telefono-eje-z-un-ciclo.svg?v=20261113-speed2');
-  f.setTime(7000);f.ctl.renderCalibrationCountdown();
+    'assets/calibration/telefono-eje-z-un-ciclo.svg?v=20261113-speed3');
+  f.setTime(6200);f.ctl.renderCalibrationCountdown();
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
-    'assets/calibration/telefono-eje-z-un-ciclo.svg?v=20261113-speed2');
-  f.setTime(7080);f.ctl.renderCalibrationCountdown();
+    'assets/calibration/telefono-eje-z-un-ciclo.svg?v=20261113-speed3');
+  f.setTime(6300);f.ctl.renderCalibrationCountdown();
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
     'assets/calibration/telefono-ejes-reposo.svg');
 });
@@ -282,8 +282,8 @@ test('el aviso de lectura y OBSERVA mantienen el SVG en reposo hasta la demostra
   f.runTimer(1100);
   assert.equal(f.s.calibration.guidePhase,'demo');
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
-    'assets/calibration/telefono-eje-x-un-ciclo.svg?v=20261113-speed2');
-  f.runTimer(2800);
+    'assets/calibration/telefono-eje-x-un-ciclo.svg?v=20261113-speed3');
+  f.runTimer(2000);
   assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
     'assets/calibration/telefono-ejes-reposo.svg');
   assert.equal(f.s.calibration.guidePhase,'ready');

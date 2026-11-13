@@ -11,9 +11,9 @@
                estimateGestureAxis}=math;
         const correctedVector=(values,calibration=s.calibration)=>
             math.correctedVector(values,calibration);
-        const CAL_CYCLE_MS=2800, CAL_GESTURE_MS=3600, CAL_INTRO_MS=5000, CAL_OBSERVE_MS=1100;
+        const CAL_CYCLE_MS=2000, CAL_GESTURE_MS=2600, CAL_INTRO_MS=5000, CAL_OBSERVE_MS=1100;
         const CAL_REST='assets/calibration/telefono-ejes-reposo.svg';
-        const cycleSrc=axis=>'assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg?v=20261113-speed2';
+        const cycleSrc=axis=>'assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg?v=20261113-speed3';
         function updateCalibrationIllustration() {
             const c=s.calibration,active=c.active,t=now();
             // Bind the *visual* cycle to the actual SVG load, not a coarse 250 ms
@@ -148,9 +148,9 @@
         $('jointCalibrationHelp').textContent=active?'Quieto durante la cuenta atrás. Al aparecer «¡AHORA!», haz una sola ida y vuelta.':
             guide==='message'?'Lee el ejemplo. Después aparecerá «OBSERVA» antes del movimiento.':
             guide==='observe'?'Observa cómo el teléfono se desplaza por el eje X y regresa al origen.':
-            guide==='demo'?'Eje X: una ida y vuelta de 2,8 segundos, regreso al origen.':
+            guide==='demo'?'Eje X: una ida y vuelta de 2 segundos, regreso al origen.':
             c.feedback||(done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':
-            ready?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z». Cada prueba dura 3,6 s y corrige solo el signo del eje seleccionado.':
+            ready?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z». Cada prueba dura 2,6 s y corrige solo el signo del eje seleccionado.':
             'Pulsa «Calibrar ejes». Primero verás un único ejemplo en X; después se activarán los tres gestos.');
         renderCalibrationCountdown();
     }
@@ -173,7 +173,7 @@
         if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
         if(s.calibration.guidePhase!=='ready')throw Error('Pulsa primero «Calibrar ejes» y observa el ejemplo.');
         if(s.calibration.active||s.calibration.map[axis])return;
-        // Three seconds of baseline including gravity; one 2.8s SVG cycle and .8s margin.
+        // Three seconds of baseline including gravity; one 2s SVG cycle and .6s margin.
         const start=now()+3000;
         s.calibration.feedback=null;
         s.calibration.active={axis,start,end:start+CAL_GESTURE_MS,baseline:[],samples:[]};
