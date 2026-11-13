@@ -14,7 +14,7 @@
     <title>VWOMA · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261113-calibration-layout-v10">
+    <link rel="stylesheet" href="style.css?v=20261113-calibration-polish-v11">
 
     <!-- MapLibre -->
     <link
@@ -726,25 +726,25 @@
                     <p class="joint-warning">El RTT mide la ida y vuelta de los mensajes. El desfase estimado corresponde a los relojes de las páginas, no al desfase físico entre sensores. Una conexión directa no certifica el SSID.</p>
                 </div>
                 <div id="jointPanelSync" role="tabpanel" aria-labelledby="jointTabSync" hidden>
-                    <div class="joint-section-head"><div><h3>Calibración y sincronización</h3><p>Primero corrige el signo de los ejes de cada móvil. Después se ajustan los relojes y se valida el desfase físico con los móviles fijados a una misma tablilla.</p></div><span id="jointSyncState" class="joint-calibration-state">Pendiente</span></div>
+                    <div class="joint-section-head"><div><h3>Calibración y sincronización</h3><p>Calibra los ejes de cada móvil. Si utilizas varios, comprueba después su sincronización.</p></div><span id="jointSyncState" class="joint-calibration-state">Pendiente</span></div>
                     <section id="jointCalibration" class="joint-calibration" hidden aria-labelledby="jointCalibrationTitle">
-  <div class="joint-section-head joint-calibration-head">
-    <div class="joint-calibration-heading">
-      <h4 id="jointCalibrationTitle">Corregir el sentido de los ejes</h4>
-      <p id="jointCalibrationHelp">Pulsa «Calibrar ejes» para ver el ejemplo de un solo movimiento de ida y vuelta.</p>
-    </div>
-    <button id="jointSkipCalibration" type="button" class="joint-secondary joint-calibration-skip" data-vwoma-icon="arrow">Omitir calibración</button>
+  <header class="joint-calibration-head">
+    <h4 id="jointCalibrationTitle">Calibración de ejes</h4>
+    <p id="jointCalibrationHelp">Te mostraremos una ida y vuelta antes de calibrar cada eje.</p>
+  </header>
+  <div id="jointCalibrationControls" class="joint-calibration-controls">
+    <button id="jointBeginCalibration" type="button" class="vwoma-action joint-begin-calibration" data-vwoma-icon="calibration">Calibrar ejes</button>
+    <button id="jointSkipCalibration" type="button" class="joint-secondary joint-calibration-skip">Omitir calibración</button>
   </div>
   <div id="jointCalibrationOverride" class="joint-calibration-override" hidden>
     <div id="jointManualCalibration" class="joint-manual-calibration" hidden>
-      <p>Para omitir la calibración automática, elige el signo que se aplicará a los tres ejes:</p>
+      <p>Selecciona el signo que se aplicará a los tres ejes:</p>
       <div>
-        <button id="jointManualPlus" type="button">Usar × +1 en X, Y y Z</button>
-        <button id="jointManualMinus" type="button" class="joint-secondary">Usar × −1 en X, Y y Z</button>
+        <button id="jointManualPlus" type="button">Conservar signo (+1)</button>
+        <button id="jointManualMinus" type="button" class="joint-secondary">Invertir signo (−1)</button>
       </div>
     </div>
   </div>
-  <button id="jointBeginCalibration" type="button" class="vwoma-action joint-begin-calibration" data-vwoma-icon="calibration">Calibrar ejes</button>
   <figure class="joint-calibration-animation" id="jointCalibrationAnimation">
     <div class="joint-calibration-visual">
       <img id="jointCalibrationImage" src="assets/calibration/telefono-ejes-reposo.svg" alt="Teléfono quieto en el origen">
@@ -846,7 +846,7 @@
     <script defer src="src/joint/persistence.js?v=20261109-modular-persistence-v1"></script>
     <script defer src="src/joint/acquisition.js?v=20261113-acquisition-solo-v3"></script>
     <script defer src="src/joint/calibration-math.js?v=20261112-calibration-math-v1"></script>
-    <script defer src="src/joint/calibration-controller.js?v=20261113-calibration-layout-v7"></script>
+    <script defer src="src/joint/calibration-controller.js?v=20261113-calibration-polish-v8"></script>
     <script defer src="src/joint/exports.js?v=20261112-exports-v1"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>

@@ -1914,30 +1914,56 @@ main button:not(:where(
     }
 }
 
-/* Calibración: única acción secundaria al lado del título; sin badge de estado. */
-.joint-calibration-head {
-    display:flex;
-    align-items:flex-start;
-    justify-content:space-between;
-    flex-wrap:nowrap;
-    gap:12px;
+/* Calibración: título a todo el ancho y acciones equilibradas. */
+.joint-calibration-head {display:block;width:100%;min-width:0;}
+.joint-calibration-head h4 {
+    margin:0;
+    font-size:clamp(1.08rem,4vw,1.23rem);
+    line-height:1.3;
+    letter-spacing:-.012em;
 }
-.joint-calibration-heading { flex:1 1 auto; min-width:0; }
-.joint-calibration-heading p { margin:5px 0 0; }
-.joint-app .joint-calibration-skip {
-    flex:0 0 auto;
-    align-self:flex-start;
-    min-height:38px;
-    padding:8px 11px;
-    font-size:.83rem;
-    line-height:1.25;
-    white-space:nowrap;
+.joint-calibration-head p {
+    margin:7px 0 0;
+    width:100%;
+    max-width:62ch;
+    font-size:.86rem;
+    line-height:1.45;
 }
-.joint-calibration-override { margin:8px 0 0; }
-@media (max-width:420px) {
-    .joint-calibration-head { gap:8px; }
-    .joint-app .joint-calibration-skip {
-        padding:8px 9px;
-        font-size:.78rem;
-    }
+.joint-calibration-controls {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:9px;
+    align-items:stretch;
+    margin:16px 0 12px;
+}
+.joint-calibration-controls[hidden] {display:none !important;}
+.joint-app .joint-calibration-controls > button {
+    box-sizing:border-box;
+    width:100%;
+    min-width:0;
+    min-height:46px;
+    margin:0;
+    border-radius:10px;
+    padding:9px 10px;
+    line-height:1.22;
+    font-size:.86rem;
+    white-space:normal;
+    text-align:center;
+}
+.joint-app .joint-calibration-controls .joint-calibration-skip {
+    background:#edf4fa;
+    color:#315773;
+    border:1px solid #cddfea;
+    font-weight:600;
+}
+.joint-app .joint-calibration-controls .joint-calibration-skip:hover {background:#e1edf7;}
+.joint-calibration-controls > button[hidden] {display:none !important;}
+#jointBeginCalibration[hidden] + #jointSkipCalibration:not([hidden]) {
+    grid-column:2;
+    justify-self:stretch;
+}
+.joint-calibration-override {margin:0 0 14px;}
+@media (max-width:350px) {
+    .joint-calibration-controls {grid-template-columns:minmax(0,1fr);}
+    #jointBeginCalibration[hidden] + #jointSkipCalibration:not([hidden]) {grid-column:1;}
 }
