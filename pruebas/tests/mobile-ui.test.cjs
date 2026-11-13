@@ -47,7 +47,7 @@ function mockChart({onMode}={}) {
     addEventListener(name,fn){handlers[name]=fn;},
     removeEventListener(name){delete handlers[name];}};
   const point={datasetIndex:0,index:19,element:{x:225,y:100}};
-  const chart={canvas,width:600,height:300,
+  const chart={canvas,width:600,height:300,options:{plugins:{tooltip:{events:['click']}}},
     chartArea:{left:0,right:600,top:0,bottom:300},active:[],
     tooltip:{active:[],getActiveElements(){return this.active;},
       setActiveElements(value){this.active=value;}},
@@ -87,9 +87,19 @@ test('selecciona valores de espectro aunque el dedo no toque exactamente la curv
   assert.equal(received.mode,'nearest');
   assert.equal(chart.tooltip.active.length,1);
   assert.equal(chart.tooltip.active[0].index,19);
+  // A real tap must not be undone by a synthetic follow-up click.
+  assert.deepEqual(mock.Chart.defaults.plugins.tooltip.events,[]);
+  assert.deepEqual(chart.options.plugins.tooltip.events,[]);
+  assert.equal(api.showClickedValue({type:'click',x:180,y:140,native:{}},[],chart),false);
+  assert.equal(chart.tooltip.active.length,1);
   // A second ordinary press still shows values without a delay.
   handlers.pointerdown({pointerId:2,clientX:240,clientY:100});
   handlers.pointerup({pointerId:2,clientX:240,clientY:100});
+  assert.equal(chart.tooltip.active.length,1);
+  // Starting a second tap must not hide the first value.
+  handlers.pointerdown({pointerId:3,clientX:230,clientY:100});
+  assert.equal(chart.tooltip.active.length,1);
+  handlers.pointerup({pointerId:3,clientX:230,clientY:100});
   assert.equal(chart.tooltip.active.length,1);
   api.detach(chart);
   assert.equal(Object.keys(handlers).length,0);
@@ -102,6 +112,7 @@ test('gestos de arrastre, pellizco y rueda ocultan el valor pero no impiden un n
   handlers.pointerup({pointerId:1,clientX:100,clientY:90});
   assert.equal(chart.tooltip.active.length,1);
   handlers.pointerdown({pointerId:2,clientX:100,clientY:90});
+  assert.equal(chart.tooltip.active.length,1,'the old value stays until a real drag');
   handlers.pointermove({pointerId:2,clientX:140,clientY:90});
   handlers.pointerup({pointerId:2,clientX:140,clientY:90});
   assert.equal(chart.tooltip.active.length,0);
@@ -113,8 +124,12 @@ test('gestos de arrastre, pellizco y rueda ocultan el valor pero no impiden un n
   handlers.pointerdown({pointerId:4,clientX:100,clientY:90});
   handlers.pointerup({pointerId:4,clientX:100,clientY:90});
   assert.equal(chart.tooltip.active.length,1);
-  docHandlers.find(([name])=>name==='pointerdown')[1]();
-  assert.equal(chart.tooltip.active.length,0);
+  const docDown=docHandlers.find(([name])=>name==='pointerdown')[1];
+  docDown({target:chart.canvas});
+  assert.equal(chart.tooltip.active.length,1,'touching inside a chart must not clear early');
+  docDown({target:{}});
+  assert.equal(chart.tooltip.active.length,0,'a tap outside charts dismisses');
+  
   // Multiple simultaneous pointers must not select a sample.
   handlers.pointerdown({pointerId:5,clientX:100,clientY:90});
   handlers.pointerdown({pointerId:6,clientX:140,clientY:90});
@@ -128,6 +143,10 @@ test('Safari antiguo sin Pointer Events puede consultar una curva mediante touch
   const {handlers,chart,api}=mockChart();
   const tap={clientX:110,clientY:100};
   handlers.touchstart({touches:[tap]});
+  handlers.touchend({changedTouches:[tap],touches:[]});
+  assert.equal(chart.tooltip.active.length,1);
+  handlers.touchstart({touches:[tap]});
+  assert.equal(chart.tooltip.active.length,1,'Safari touchstart cannot dismiss a value');
   handlers.touchend({changedTouches:[tap],touches:[]});
   assert.equal(chart.tooltip.active.length,1);
   // A touch with actual displacement is pan, not inspection.
