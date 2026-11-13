@@ -39,35 +39,46 @@ test('una pestaña no se vuelve a montar si ya está activa; y se preserva la ca
   assert.equal(scrollCount,2);
 });
 
-test('el puntero global parte oculto, se activa bajo demanda y limpia selecciones al apagarse',()=>{
-  const chart={canvas:{id:'chart-1'},
-    options:{plugins:{tooltip:{enabled:true}}},
-    active:[{index:1}],
-    setActiveElements(items){this.active=items;},
-    tooltip:{setActiveElements(items){this.active=items;}},
-    update(mode){this.mode=mode;}
-  };
-  const Chart={instances:new Map([[1,chart]]),defaults:{plugins:{tooltip:{enabled:true}}}};
-  const buttons=Array.from({length:2},()=>({
-    attributes:{},addEventListener(type,fn){this[type]=fn;},
-    setAttribute(k,v){this.attributes[k]=v;}
-  }));
-  let saved=null;
-  const storage={getItem:()=>saved,setItem:(k,v)=>saved=v};
-  const ctl=createController({Chart,document:{querySelectorAll:()=>buttons},storage});
-  ctl.mount();
-  assert.equal(ctl.isEnabled(),false);
-  assert.equal(chart.options.plugins.tooltip.enabled,false);
-  assert.equal(Chart.defaults.plugins.tooltip.enabled,false);
-  assert.equal(buttons[0].attributes['aria-pressed'],'false');
-  buttons[0].click();
-  assert.equal(ctl.isEnabled(),true);
-  assert.equal(saved,'on');
-  assert.equal(buttons[1].attributes['aria-pressed'],'true');
-  assert.equal(chart.options.plugins.tooltip.enabled,true);
-  buttons[1].click();
-  assert.equal(chart.options.plugins.tooltip.enabled,false);
-  assert.deepEqual(chart.active,[]);
-  assert.deepEqual(chart.tooltip.active,[]);
-  assert.equal(saved,'off');
+test('mostrar valor al tocar y borrarlo al iniciar desplazamiento, zoom u otro toque',()=>{
+  const canvasHandlers={},docHandlers={},registered=[];
+  const canvas={addEventListener(type,fn){canvasHandlers[type]=fn;},
+                removeEventListener(type){delete canvasHandlers[type];}};
+  const point={datasetIndex:0,index:3,element:{x:55,y:70}};
+  const chart={canvas,chartArea:{left:0,right:300,top:0,bottom:200},
+    selected:[],getActiveElements(){return this.selected;},
+    setActiveElements(items){this.selected=items;},
+    getElementsAtEventForMode(){return [point];},
+    tooltip:{items:[],getActiveElements(){return this.items;},
+             setActiveElements(items){this.items=items;}},
+    update(mode){this.lastUpdate=mode;}};
+  const Chart={instances:new Map([[1,chart]]),defaults:{plugins:{tooltip:{enabled:false}}},
+    register(plugin){registered.push(plugin);}};
+  const document={addEventListener(type,fn){docHandlers[type]=fn;}};
+  const ctl=createController({Chart,document});
+  ctl.install();
+  assert.deepEqual(Chart.defaults.plugins.tooltip.events,['click']);
+  assert.equal(Chart.defaults.plugins.tooltip.enabled,true);
+  registered[0].afterInit(chart);
+  ctl.showClickedValue({x:55,y:70},[],chart);
+  assert.equal(chart.tooltip.items.length,1);
+  canvasHandlers.pointerdown({pointerId:1,clientX:5,clientY:5});
+  canvasHandlers.pointermove({pointerId:1,clientX:25,clientY:5});
+  assert.equal(chart.tooltip.items.length,0);
+  ctl.showClickedValue({x:55,y:70},[],chart);
+  assert.equal(chart.tooltip.items.length,0); // dragged gestures cannot fake a click
+  canvasHandlers.wheel();
+  assert.equal(chart.tooltip.items.length,0);
+  docHandlers.pointerdown();
+  ctl.showClickedValue({x:55,y:70},[],chart);
+  assert.equal(chart.tooltip.items.length,0); // suppressed briefly after gestures
+  registered[0].beforeDestroy(chart);
+  assert.equal(Object.keys(canvasHandlers).length,0);
+});
+
+test('la interacción de comparación permite pan con un dedo, igual que el ensayo',()=>{
+  const results=fs.readFileSync(require('node:path').join(__dirname,'../src/joint/results-view.js'),'utf8');
+  assert.match(results,/options\.plugins\.zoom\.pan\.enabled=true/);
+  assert.match(results,/options\.plugins\.zoom\.pan\.mode='x'/);
+  assert.match(results,/options\.plugins\.zoom\.zoom\.onZoom=constrain/);
+  assert.doesNotMatch(results,/matchMedia\('\(pointer: coarse\)'\)/);
 });
