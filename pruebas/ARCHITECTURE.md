@@ -491,3 +491,15 @@ anchos iguales, «Calibrar ejes» (principal) y «Omitir calibración»
 si solo queda visible Omitir se alinea a la derecha. Al elegir omitir,
 se oculta la fila y aparece el selector manual de signos, sin huecos.
 No cambia la adquisición, la física de calibración ni el protocolo.
+
+### Corrección de colisión con el encabezado global (13-11-2026)
+
+La tarjeta de calibración usaba un elemento HTML `<header>` interno
+que heredaba erróneamente las reglas globales `header` y `header p`.
+Esto generaba el gran panel azul en Safari y hacía que el contenido
+desbordara el ancho del móvil, especialmente al elegir «Omitir».
+Se sustituye por un `<div class="joint-calibration-head">`, semánticamente
+suficiente porque la sección conserva su `aria-labelledby`. Además, todos
+los estilos del encabezado principal se limitan a `body > header` y
+`body.recording-lock > header`, para impedir regresiones similares.
+No cambian la lógica manual de signos, la animación ni el protocolo.
