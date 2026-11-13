@@ -9,7 +9,7 @@ const {createMath}=require('../src/joint/calibration-math.js');
 const finite=Number.isFinite;
 const median=v=>{const a=v.filter(finite).sort((x,y)=>x-y),n=a.length;return n?(n%2?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2):null};
 function fixture(overrides={}) {
-  const notices=[],sent=[],tabs=[],elements=new Map();let time=1000,rendered=0;
+  const notices=[],sent=[],tabs=[],elements=new Map(),timers=[];let time=1000,rendered=0;
   const node=id=>{
     if(!elements.has(id))elements.set(id,{
       id,hidden:false,disabled:false,textContent:'',innerHTML:'',value:0,alt:'',
@@ -38,10 +38,17 @@ function fixture(overrides={}) {
     requireHostEdit:()=>{},localStatus:()=>({sensor:true}),
     startSync:async()=>{},pause:async()=>{},clockFit:()=>null,
     send:(p,msg)=>sent.push([p.id,msg]),broadcast:msg=>sent.push(['all',msg]),
-    uid:()=> 'sync1',structuredClone,setTimeout:()=>0,median,
+    uid:()=> 'sync1',structuredClone,setTimeout:(fn,delay)=>{timers.push({fn,delay});return timers.length;},median,
     math:controlledMath
   });
-  return {ctl,s,peer,node,notices,sent,tabs,getRendered:()=>rendered,setTime:t=>time=t};
+  return {ctl,s,peer,node,notices,sent,tabs,getRendered:()=>rendered,setTime:t=>time=t,
+    runTimer:delay=>{
+      const index=timers.findIndex(t=>t.delay===delay);
+      assert.ok(index>=0,'temporizador esperado: '+delay);
+      const [timer]=timers.splice(index,1);
+      timer.fn();
+    }
+  };
 }
 
 test('calibración manual invierte cada eje sin permutar canales',()=>{
@@ -55,14 +62,67 @@ test('calibración manual invierte cada eje sin permutar canales',()=>{
   assert.ok(f.getRendered()>0);
 });
 
-test('la calibración automática prepara tres segundos de reposo y seis de gesto',()=>{
+test('los botones XYZ no se habilitan hasta terminar el mensaje y el ejemplo X',()=>{
   const f=fixture();
-  f.ctl.startCalibration('x');
-  assert.equal(f.s.calibration.active.start,4000);
-  assert.equal(f.s.calibration.active.end,10000);
-  assert.equal(f.s.calibration.active.axis,'x');
-  assert.equal(f.s.calibration.active.samples.length,0);
-  assert.ok(f.notices.some(x=>/Calibración X/.test(x[0])));
+  f.ctl.showCalibration();
+  for(const axis of ['X','Y','Z'])assert.equal(f.node('jointCalibrate'+axis).disabled,true);
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+  assert.throws(()=>f.ctl.startCalibration('x'),/Pulsa primero/);
+  f.ctl.beginCalibrationGuide();
+  assert.equal(f.s.calibration.guidePhase,'message');
+  assert.equal(f.node('jointCalibrationExample').hidden,false);
+  assert.equal(f.node('jointBeginCalibration').hidden,true);
+  for(const axis of ['X','Y','Z'])assert.equal(f.node('jointCalibrate'+axis).disabled,true);
+  f.runTimer(2200);
+  assert.equal(f.s.calibration.guidePhase,'demo');
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-eje-x-un-ciclo.svg');
+  assert.equal(f.node('jointCalibrationExample').hidden,true);
+  assert.equal(f.node('jointCalibrateX').disabled,true);
+  f.runTimer(3000);
+  assert.equal(f.s.calibration.guidePhase,'ready');
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+  for(const axis of ['X','Y','Z'])assert.equal(f.node('jointCalibrate'+axis).disabled,false);
+});
+
+test('cada gesto dispone de 3 s quieto y 3,6 s de captura, un solo ciclo por eje',()=>{
+  const f=fixture();
+  f.s.calibration.guidePhase='ready';
+  f.ctl.startCalibration('y');
+  const active=f.s.calibration.active;
+  assert.equal(active.start,4000);
+  assert.equal(active.end,7600);
+  assert.equal(active.axis,'y');
+  assert.equal(active.samples.length,0);
+  assert.equal(f.node('jointCalibrateX').disabled,true);
+  assert.equal(f.node('jointCalibrateY').disabled,true);
+  f.setTime(1000);f.ctl.renderCalibrationCountdown();
+  assert.match(f.node('jointCalibrationCountdown').textContent,/QUIETO · 3/);
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+  f.setTime(3001);f.ctl.renderCalibrationCountdown();
+  assert.match(f.node('jointCalibrationCountdown').textContent,/QUIETO · 1/);
+  f.setTime(4000);f.ctl.renderCalibrationCountdown();
+  assert.equal(f.node('jointCalibrationCountdown').textContent,'¡AHORA!');
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-eje-y-un-ciclo.svg');
+  f.setTime(7000);f.ctl.renderCalibrationCountdown();
+  assert.equal(f.node('jointCalibrationImage').getAttribute('src'),
+    'assets/calibration/telefono-ejes-reposo.svg');
+  assert.equal(f.node('jointCalibrationCountdown').hidden,true);
+  assert.ok(f.notices.some(x=>/quieto 3, 2, 1/.test(x[0])));
+});
+
+test('salir de la sesión durante el ejemplo no habilita los gestos con temporizadores atrasados',()=>{
+  const f=fixture();
+  const previous=f.s.calibration;
+  f.ctl.beginCalibrationGuide();
+  f.s.calibration={map:{},active:null,complete:false,guidePhase:'idle'};
+  f.runTimer(2200);
+  assert.equal(previous.guidePhase,'message');
+  assert.equal(f.s.calibration.guidePhase,'idle');
 });
 
 test('rechaza una ventana de calibración con pocas muestras',()=>{
