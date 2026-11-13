@@ -13,6 +13,7 @@ small{color:#bdd0e3}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#
 <h1>Diagnóstico del acelerómetro</h1>
 <p>Comparación de <code>devicemotion</code> y API de sensores directos. Se solicita una frecuencia de 60 Hz y se mide la frecuencia efectiva durante 15 segundos. Los datos permanecen en el móvil.</p>
 <section class="panel"><h2>Compatibilidad</h2><pre id="support"></pre></section>
+<section class="panel"><h2>Prueba directa de la API</h2><p id="apiStatus" aria-live="polite">Comprobando disponibilidad...</p><div id="apiReadings" class="grid"></div><p class="muted">Si la API está disponible, aquí se muestran las lecturas X, Y y Z en m/s² y la frecuencia efectiva. La solicitud de 60 Hz no garantiza que se alcance.</p></section>
 <section class="panel"><h2>Medición</h2><p>Mantén la pantalla encendida y esta pestaña en primer plano.</p>
 <button id="start">Iniciar prueba</button><button id="stop" class="secondary" disabled>Detener</button>
 <p id="progress" aria-live="polite">Sin iniciar</p></section>
@@ -25,9 +26,10 @@ small{color:#bdd0e3}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#
 const el=id=>document.getElementById(id), names=['Accelerometer','LinearAccelerationSensor'];
 const support=['User agent: '+navigator.userAgent,'Contexto seguro: '+isSecureContext,'DeviceMotionEvent: '+(typeof DeviceMotionEvent!=='undefined'),...names.map(n=>n+': '+(typeof window[n]==='function'?'disponible':'NO disponible'))].join('\n');
 el('support').textContent=support;
+el('apiStatus').textContent=names.map(n=>n+': '+(typeof window[n]==='function'?'API disponible; pulsa Iniciar prueba':'NO disponible en este navegador')).join(' | ');
 let running=false, timeout=null, streams=[], listener=null, buckets={}, errors=[], started=0, saved='';
-function bucket(){return {t:[],valid:0,reported:[]}}
-function record(b,valid,reported){b.t.push(performance.now());if(valid)b.valid++;if(Number.isFinite(reported))b.reported.push(reported)}
+function bucket(){return {t:[],valid:0,reported:[],last:null}}
+function record(b,valid,reported,xyz){b.t.push(performance.now());if(valid)b.valid++;if(Number.isFinite(reported))b.reported.push(reported);if(xyz)b.last=xyz; }
 function calc(b){
  const ts=b.t, diffs=[];for(let i=1;i<ts.length;i++)diffs.push(ts[i]-ts[i-1]);diffs.sort((a,b)=>a-b);
  const hz=ts.length>1?1000*(ts.length-1)/(ts[ts.length-1]-ts[0]):NaN;
@@ -38,13 +40,14 @@ function calc(b){
 }
 function num(n){return Number.isFinite(n)?n.toFixed(2):'N/D'}
 function render(){
- el('results').replaceChildren();
+ el('results').replaceChildren();el('apiReadings').replaceChildren();
  for(const [name,b] of Object.entries(buckets)){
   const s=calc(b),box=document.createElement('div');box.className='tile';
   const title=document.createElement('small');title.textContent=name;
   const value=document.createElement('strong');value.textContent=num(s.hz)+' Hz';
   const more=document.createElement('small');more.textContent=s.count+' eventos; '+s.valid+' válidos; mediana '+num(s.median)+' ms; p95 '+num(s.p95)+' ms';
-  box.append(title,value,more);el('results').append(box)
+  box.append(title,value,more);el('results').append(box);
+  if(name.includes('(solicitado 60 Hz)')){const direct=document.createElement('div');direct.className='tile';const vals=b.last;direct.textContent=name+'\nFrecuencia real: '+num(s.hz)+' Hz\n'+(vals?'X: '+num(vals[0])+' m/s² | Y: '+num(vals[1])+' m/s² | Z: '+num(vals[2])+' m/s²':'Sin lecturas directas todavía');direct.style.whiteSpace='pre-line';el('apiReadings').append(direct)}
  }
 }
 async function start(){
@@ -71,11 +74,12 @@ async function start(){
   const b=bucket();buckets[name+' (solicitado 60 Hz)']=b;
   try{
    const sensor=new window[name]({frequency:60});
-   sensor.addEventListener('reading',()=>record(b,[sensor.x,sensor.y,sensor.z].every(Number.isFinite)));
+   sensor.addEventListener('reading',()=>{const xyz=[sensor.x,sensor.y,sensor.z];record(b,xyz.every(Number.isFinite),undefined,xyz)});
    sensor.addEventListener('error',e=>errors.push(name+': '+(e.error?.name||'error')+': '+(e.error?.message||'')));
    sensor.start();streams.push(sensor)
   }catch(e){errors.push(name+': '+e.name+': '+e.message)}
  }
+ el('apiStatus').textContent=names.map(n=>n+': '+(typeof window[n]==='function'?'constructor disponible':'no implementada')).join(' | ');if(!names.some(n=>typeof window[n]==='function'))el('apiReadings').textContent='Firefox no expone estas API; no se pueden obtener lecturas directas con ellas.';
  started=performance.now();
  const tick=()=>{
   if(!running)return;
