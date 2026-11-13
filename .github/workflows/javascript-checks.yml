@@ -23,6 +23,7 @@ jobs:
       - name: Check source syntax
         run: |
           node --check src/ui/chart-tooltips.js
+          node --check src/ui/test-names.js
           node --check src/joint/tab-navigation.js
           node --check src/signal/preprocessing.js
           node --check src/signal/spectra.js

@@ -2354,35 +2354,7 @@ recordButton.addEventListener(
 
 async function startRecording() {
 
-    /*
-       La descripción es obligatoria.
-    */
-    if (
-        testDescription
-            .value
-            .trim() === ""
-    ) {
-
-        alert(
-            "Escribe una descripción del ensayo antes de comenzar."
-        );
-
-        return;
-
-    }
-
-
-    /*
-       =====================================================
-       IPHONE / IPAD
-
-       Pedimos primero el permiso de movimiento.
-
-       Debe hacerse directamente después
-       de pulsar el botón.
-       =====================================================
-    */
-
+    // iOS debe pedir permiso directamente desde el gesto del usuario.
     const permissionOK =
         await requestIOSMotionPermissionIfNeeded();
 
@@ -2521,6 +2493,10 @@ async function startRecording() {
        AQUÍ COMIENZA OFICIALMENTE EL ENSAYO
        =====================================================
     */
+
+    if (!testDescription.value.trim()) {
+        testDescription.value = globalThis.VWOMATestNames.defaultTestName(new Date());
+    }
 
     recordingStartTime =
         performance.now();
@@ -3748,7 +3724,10 @@ function getLegendTouch(chart, touch) {
 
 function showClickedValue(event, elements, chart) {
 
-    if (!globalThis.VWOMAChartTooltips?.isEnabled()) return;
+    if (globalThis.VWOMAChartTooltips?.showClickedValue) {
+        globalThis.VWOMAChartTooltips.showClickedValue(event,elements,chart);
+        return;
+    }
 
     let activeElements = elements || [];
 
@@ -4271,7 +4250,7 @@ newTestButton.addEventListener(
             "none";
 
 
-        testDescription.focus();
+        // No abrir teclado automáticamente al iniciar otro ensayo.
 
     }
 );

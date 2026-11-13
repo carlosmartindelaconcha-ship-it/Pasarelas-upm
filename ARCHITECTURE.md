@@ -356,3 +356,16 @@ se mantiene únicamente en el almacenamiento local de la versión experimental.
 La vista Comparar reutiliza gráficas existentes cuando no han cambiado el ensayo,
 los dispositivos, las muestras ni el modo de representación. Conserva el zoom
 y evita recalcular y volver a dibujar grandes series en cada cambio de pestaña.
+
+### Fecha automática y gestos idénticos en Comparar (13-11-2026)
+
+El ensayo individual empieza por el botón Iniciar; la descripción es opcional.
+Si se deja vacía, después de obtener el sensor se asigna una fecha/hora local
+YYYY-MM-DD HH:mm:ss. En captura, Detener sigue siendo el último control.
+
+Las gráficas de Comparar tienen el pan horizontal con un dedo habilitado en
+Android y Safari como el ensayo individual, con el mismo zoom XY, acotación
+de ejes, formato de ticks y callback para mantener Y centrada.
+
+Se elimina el interruptor de valores: la lectura se muestra al pulsar y
+se descarta al iniciar otro gesto de arrastre, zoom, toque o rueda.
