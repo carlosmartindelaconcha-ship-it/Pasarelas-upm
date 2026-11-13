@@ -1844,11 +1844,24 @@ main button:not(:where(
     padding:20px 18px; border-radius:14px;
     text-align:center; line-height:1.45;
     font-weight:800; font-size:clamp(1rem,3.8vw,1.22rem);
-    animation:jointCalibrationExampleFade 2.2s ease-in both;
+    animation:jointCalibrationExampleFade 5s ease-in both;
     pointer-events:none;
 }
 .joint-calibration-example[hidden] { display:none !important; }
 @keyframes jointCalibrationExampleFade {
-    0%,68% {opacity:1;}
+    0%,88% {opacity:1;}
     100% {opacity:0;}
+}
+.joint-calibration-example.observe {
+    font-size:clamp(1.7rem,7vw,2.5rem);
+    letter-spacing:.06em;
+    animation:jointCalibrationObserveFade 1.1s ease-out both;
+}
+@keyframes jointCalibrationObserveFade {
+    0%,70% {opacity:1;}
+    100% {opacity:0;}
+}
+@media (prefers-reduced-motion:reduce) {
+    .joint-calibration-example,
+    .joint-calibration-example.observe {animation:none;}
 }

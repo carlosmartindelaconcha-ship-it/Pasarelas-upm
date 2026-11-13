@@ -10,11 +10,12 @@ test('los SVG X Y Z animados son exactamente un ciclo y mantienen el teléfono o
     const cycle=read('assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg');
     assert.equal((original.match(/<animateTransform\b/g)||[]).length,1);
     assert.equal((cycle.match(/<animateTransform\b/g)||[]).length,1);
-    assert.match(cycle,/dur="3s"/);
+    assert.match(cycle,/dur="2.8s"/);
     assert.match(cycle,/repeatCount="1" fill="freeze"/);
     assert.doesNotMatch(cycle,/repeatCount="indefinite"/);
-    assert.equal(cycle.replace('repeatCount="1" fill="freeze"','repeatCount="indefinite"'),
-      original,'solo se debe modificar la repetición del SVG del eje '+axis);
+    assert.equal(cycle.replace('repeatCount="1" fill="freeze"','repeatCount="indefinite"')
+      .replace('dur="2.8s"','dur="3s"'),
+      original,'solo deben cambiar la duración y la repetición del SVG del eje '+axis);
   }
   assert.doesNotMatch(read('assets/calibration/telefono-ejes-reposo.svg'),/<animateTransform\b/);
 });

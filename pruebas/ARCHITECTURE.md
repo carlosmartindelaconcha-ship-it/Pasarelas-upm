@@ -442,3 +442,16 @@ un ciclo se generan a partir de los SVG originales cambiando únicamente
 `repeatCount` y `fill`; los gráficos SVG de sincronización entre
 móviles no se modifican. El filtrado y la detección de lóbulos permanecen
 intactos.
+
+### Lectura y velocidad de la demostración (13-11-2026)
+
+La instrucción de calibración se muestra **5 segundos**. Después se ve
+«OBSERVA» durante **1,1 segundos**, todavía con el móvil inmóvil.
+A continuación, un solo movimiento de ida y vuelta en X dura **2,8 segundos**
+(ligeramente más rápido que los 3 s anteriores) y el dibujo queda en reposo.
+El mismo ciclo de 2,8 segundos se usa para los gestos X/Y/Z.
+La adquisición sigue capturando 3,6 s después de la referencia en reposo
+de 3 s: 0,8 s de margen después del ejemplo animado.
+Solo se cambian duración, repetición y atributos de animación; no se alteran
+la geometría del teléfono, los ejes ni los SVG de sincronización.
+Se versionan las URL de los SVG para invalidar caché en Safari y Chrome.
