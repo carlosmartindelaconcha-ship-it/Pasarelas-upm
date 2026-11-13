@@ -76,3 +76,52 @@ test('el maestro recibe un diagnóstico específico sin ofrecer el botón del pa
   assert.match(x.byId('jointResultsList').innerHTML,/identificador del móvil distinto/);
   assert.doesNotMatch(x.byId('jointResultsList').innerHTML,/Puedes volver a pulsar «Enviar datos»/);
 });
+
+
+test('cambiar de pestaña conserva gráficos de comparación y no reprocesa muestras',()=>{
+  const nodes=new Map(),newCharts=[];
+  class MockChart {
+    constructor(ctx,config){
+      this.canvas=ctx.canvas;
+      this.options=config.options;
+      this.destroyed=false;
+      this.resized=0;
+      newCharts.push(this);
+    }
+    destroy(){this.destroyed=true;}
+    resize(){this.resized++;}
+  }
+  const get=id=>{
+    if(!nodes.has(id))nodes.set(id,{id,textContent:'',value:'raw',
+      getContext(){return {canvas:this}},
+      querySelectorAll:()=>[],addEventListener(){}});
+    return nodes.get(id);
+  };
+  let compute=0;
+  const s={
+    run:{finished:true,id:'run-1'},compareCharts:[],results:new Map(),peers:new Map(),jointCharts:{time:null,spectrum:null}
+  };
+  const record={device:{id:'dev-1',name:'Android'},samples:[
+    {masterTimeMs:1000,raw:[1,2,3]}, {masterTimeMs:2000,raw:[3,4,5]}
+  ]};
+  const api=createResultsView({s,$:get,escape:String,Chart:MockChart,median:()=>1,finite:Number.isFinite,
+    running:()=>false,syncMetric:()=>0,selectedForModel:()=>false,enableLegendToggling:()=>{},
+    comparisonExport:()=>{compute++;return {plan:{points:[]},windowMasterMs:{start:1000,end:2000},records:[record]};},
+    samplePeriodMs:()=>100,structuralValue:(raw,_record,axis)=>raw[axis],
+    resampleAxis:()=>[],detrendPoints:v=>v});
+  api.renderComparison();
+  assert.equal(newCharts.length,3);
+  assert.equal(compute,1);
+  assert.equal(s.compareCharts[0].options.scales.y.min, -s.compareCharts[0].options.scales.y.max);
+  assert.equal(s.compareCharts[0].options.scales.x.min,0);
+  assert.equal(s.compareCharts[0].options.scales.x.max,1);
+  api.renderComparison();
+  assert.equal(compute,1);
+  assert.equal(newCharts.length,3);
+  assert.equal(newCharts[0].resized,1);
+  get('jointCompareView').value='common';
+  api.renderComparison();
+  assert.equal(compute,2);
+  assert.equal(newCharts.length,6);
+  assert.equal(newCharts[0].destroyed,true);
+});

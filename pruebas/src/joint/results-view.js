@@ -97,7 +97,22 @@
     }
 
     function renderComparison() {
-        const status=$('jointCompareStatus'),data=comparisonExport();
+        const status=$('jointCompareStatus'),view=$('jointCompareView').value;
+        // Avoid remapping all samples and reconstructing heavy charts every time
+        // someone changes tabs on Android. Rebuild when a run, file, view or
+        // received record actually changes.
+        const recordsNow=[...s.results.entries()].map(([id,r])=>[id,r,r.samples?.length||0]);
+        const previous=s.compareRenderCache;
+        const same=previous&&previous.run===s.run&&
+            previous.imported===s.compareExport&&previous.view===view&&
+            previous.records.length===recordsNow.length&&
+            recordsNow.every(([id,r,n],i)=>previous.records[i][0]===id&&
+                previous.records[i][1]===r&&previous.records[i][2]===n);
+        if(same&&s.compareCharts?.length===3){
+            for(const chart of s.compareCharts)chart.resize?.();
+            return;
+        }
+        const data=comparisonExport();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
         if(!data) {status.textContent='Termina un ensayo y recibe los registros de los participantes para compararlos aquí.';return;}
         const records=data.records.filter(r=>r.samples?.length).sort((a,b)=>{
@@ -106,7 +121,7 @@
         });
         if(!records.length) {status.textContent='El ensayo no contiene muestras para representar.';return;}
         if(typeof Chart==='undefined') {status.textContent='No se ha cargado la librería de gráficas. Recarga la página con conexión.';return;}
-        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),axes=[['X',0,'#1565c0','jointCompareCanvasX'],['Y',1,'#c62828','jointCompareCanvasY'],['Z',2,'#2e7d32','jointCompareCanvasZ']],dashes=[[],[8,5],[3,4],[11,4,2,4]],view=$('jointCompareView').value;
+        const start=data.windowMasterMs.start,end=data.windowMasterMs.end,span=Math.max(1,end-start),axes=[['X',0,'#1565c0','jointCompareCanvasX'],['Y',1,'#c62828','jointCompareCanvasY'],['Z',2,'#2e7d32','jointCompareCanvasZ']],dashes=[[],[8,5],[3,4],[11,4,2,4]];
         const periods=records.map(r=>samplePeriodMs(r,start,end)).filter(finite),commonPeriod=periods.length?Math.max(...periods):null,grid=[];
         if(view==='common'&&!finite(commonPeriod)){status.textContent='No hay suficientes marcas temporales válidas para construir la rejilla común.';return;}
         if(view==='common'&&finite(commonPeriod))for(let t=start;t<=end+.1;t+=commonPeriod)grid.push(t);
@@ -125,7 +140,9 @@
             const options=jointTemporalOptions(span/1000,axis==='Z'?'Aceleración Z con detrend (m/s²)':'Aceleración '+axis+' (m/s²)',item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²',true);options.scales.x.title.text='Tiempo en el reloj maestro (s)';
             // Consistent with Realizar medida: temporal X=0..duration and
             // symmetric Y around zero, rounded up by 20% for readable ticks.
-            const peak=Math.max(.000001,...datasets.flatMap(d=>d.data.map(p=>Math.abs(p.y)).filter(finite)));
+            let peak=.000001;
+            for(const dataset of datasets)for(const point of dataset.data)
+                if(finite(point.y))peak=Math.max(peak,Math.abs(point.y));
             const expansion=peak*1.2,exponent=Math.pow(10,Math.floor(Math.log10(expansion))-1);
             const yLimit=Math.ceil(expansion/exponent)*exponent;
             options.scales.y.min=-yLimit;
@@ -138,6 +155,7 @@
             const chart=new Chart($(canvasId).getContext('2d'),{type:'line',data:{datasets},options});
             s.compareCharts.push(chart);enableLegendToggling(chart);
         }
+        s.compareRenderCache={run:s.run,imported:s.compareExport,view,records:recordsNow};
     }
 
         return Object.freeze({renderResults,clearSyncCharts,jointTemporalOptions,histogramBins,histogramMarkup,timelineMarkup,makeHistogramChart,makeTimelineChart,modelSummaryMarkup,renderSyncResults,renderComparison});
