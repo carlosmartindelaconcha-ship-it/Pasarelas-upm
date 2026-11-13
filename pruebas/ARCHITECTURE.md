@@ -455,3 +455,16 @@ de 3 s: 0,8 s de margen después del ejemplo animado.
 Solo se cambian duración, repetición y atributos de animación; no se alteran
 la geometría del teléfono, los ejes ni los SVG de sincronización.
 Se versionan las URL de los SVG para invalidar caché en Safari y Chrome.
+
+### Ciclos más rápidos y cuenta atrás fuera del centro (13-11-2026)
+
+Los SVG de ejemplo y de cada gesto de los ejes X/Y/Z duran ahora **2 s por
+una sola ida y vuelta**, sin modificar la geometría ni los ejes. Tras la cuenta
+atrás de 3 s para la referencia en reposo, se registran 2,6 s de aceleraciones
+(2 s de movimiento más 0,6 s de margen). Se mantiene el mensaje inicial de 5 s
+y «OBSERVA» de 1,1 s.
+
+«QUIETO · 3, 2, 1» y «¡AHORA!» se muestran en la **esquina superior
+derecha del propio dibujo**, con márgenes, tamaño compacto y animación
+de escala anclada a esa esquina; dejan de tapar el teléfono central.
+Los SVG originales y el mecanismo de sincronización entre móviles no cambian.

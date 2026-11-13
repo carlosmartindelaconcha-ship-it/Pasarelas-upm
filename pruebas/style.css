@@ -1865,3 +1865,51 @@ main button:not(:where(
     .joint-calibration-example,
     .joint-calibration-example.observe {animation:none;}
 }
+
+/* Countdowns belong to the upper-right of the image, never the phone centre.
+   The visual wrapper uses the same maximum width as the original SVG artwork. */
+.joint-calibration-visual {
+    position:relative;
+    width:100%;
+    max-width:526.89203px;
+    margin:0 auto;
+}
+#jointCalibrationCountdown.joint-countdown-overlay {
+    position:absolute;
+    top:clamp(12px,3vw,18px);
+    right:clamp(12px,3vw,18px);
+    bottom:auto;
+    left:auto;
+    transform:none;
+    transform-origin:top right;
+    width:max-content;
+    min-width:0;
+    max-width:calc(50% - 16px);
+    box-sizing:border-box;
+    margin:0;
+    padding:9px 12px;
+    border:1px solid #fff;
+    border-radius:12px;
+    font-size:clamp(.93rem,3.5vw,1.24rem);
+    line-height:1.2;
+    letter-spacing:0;
+    white-space:nowrap;
+    pointer-events:none;
+    animation:jointCountdownCornerPulse .8s ease-in-out infinite alternate;
+}
+#jointCalibrationCountdown.joint-countdown-overlay.go {
+    background:rgba(20,120,72,.92);
+    color:#fff;
+}
+@keyframes jointCountdownCornerPulse {
+    from {transform:scale(.98);}
+    to {transform:scale(1.025);}
+}
+@media (max-width:480px) {
+    #jointCalibrationCountdown.joint-countdown-overlay {
+        top:12px;
+        right:12px;
+        padding:8px 10px;
+        font-size:clamp(.88rem,3.7vw,1.02rem);
+    }
+}
