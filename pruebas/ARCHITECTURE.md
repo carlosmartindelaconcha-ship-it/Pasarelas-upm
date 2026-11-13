@@ -333,3 +333,22 @@ Los tests verifican estado por instancia, registro de eventos, orden de carga,
 syntax de nuevos scripts y compatibilidad de la generación experimental.
 La interfaz móvil real todavía requiere un recorrido manual por plano,
 papelera, zoom, adquisición, resultados y reintento de transferencia.
+
+### Interfaz móvil y coherencia de gráficos (13-11-2026)
+
+Las pestañas usan una barra horizontal estable y conservan la vista visible
+al alternar entre paneles. Durante una adquisición el panel de Medir queda
+fijado a la ventana del teléfono, evitando el salto al principio de la página
+en Chrome Android; el registro continúa con los gestos bloqueados.
+
+Las gráficas de Comparar mantienen los ejes estructurales X/Y/Z y el criterio
+original de marcas temporales y detrend. Se igualan las opciones de gráfica
+con Realizar medida: tiempo desde cero, límites Y simétricos con margen 20%,
+zoom y reinicio global/individual, etiquetas y colores. No se destruyen las
+gráficas locales ni se redibujan mientras están ocultas. En dispositivos
+táctiles se deshabilita el arrastre en comparación para permitir el scroll
+natural con un dedo; se conserva el zoom de dos dedos y el reinicio.
+
+Nuevo control común "Valores: ocultos / visibles", desactivado por defecto,
+para habilitar los indicadores de Chart.js en todas las gráficas. Su ajuste
+se mantiene únicamente en el almacenamiento local de la versión experimental.

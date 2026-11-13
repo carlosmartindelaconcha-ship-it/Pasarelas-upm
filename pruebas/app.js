@@ -1484,7 +1484,7 @@ function createAccelerationChart() {
                        toques o gestos.
                     */
                     events:
-                        [],
+                        ["click"],
 
                     plugins: {
 
@@ -3747,6 +3747,8 @@ function getLegendTouch(chart, touch) {
 
 
 function showClickedValue(event, elements, chart) {
+
+    if (!globalThis.VWOMAChartTooltips?.isEnabled()) return;
 
     let activeElements = elements || [];
 

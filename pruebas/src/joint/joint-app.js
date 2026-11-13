@@ -33,12 +33,12 @@
         if (s.run) s.run.incidents.push(item);
     }
     function guard(fn) { return async (...args) => {try {await fn(...args);} catch(e) {tell(e.message || String(e),true); $('jointPairStatus').textContent=e.message || String(e);}}; }
-    function tab(name) {
-        for (const n of ['Plan','Devices','Sync','Measure','Results','Compare']) {
-            $('jointPanel'+n).hidden=n!==name; $('jointTab'+n).setAttribute('aria-selected',String(n===name));
-        }
-        if(name==='Compare') renderComparison();
-    }
+    const {tab}=globalThis.VWOMATabNavigation.createNavigation({
+        $,window,raf:typeof requestAnimationFrame==='function'?requestAnimationFrame:null,
+        renderComparison:()=>renderComparison(),
+        onMeasureVisible:()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},
+        isRecording:()=>document.body?.classList?.contains('recording-lock')||false
+    });
     function open() {
         if (typeof isRecording!=='undefined' && isRecording) throw Error('Detén primero el ensayo individual.');
         if (root.hidden) {
@@ -343,7 +343,7 @@
 
     function ensureJointCharts() {
         if(typeof Chart==='undefined')return false;
-        const common={responsive:true,maintainAspectRatio:false,animation:false,events:[],parsing:false,plugins:{legend:{position:'top',labels:{boxWidth:28,font:{size:12}}}},scales:{x:{type:'linear',grid:{color:'rgba(0,0,0,.08)'}},y:{grid:{color:'rgba(0,0,0,.08)'}}}};
+        const common={responsive:true,maintainAspectRatio:false,animation:false,events:['click'],parsing:false,plugins:{legend:{position:'top',labels:{boxWidth:28,font:{size:12}}}},scales:{x:{type:'linear',grid:{color:'rgba(0,0,0,.08)'}},y:{grid:{color:'rgba(0,0,0,.08)'}}}};
         if(!s.jointCharts.time)s.jointCharts.time=new Chart($('jointLive').getContext('2d'),{type:'line',data:{datasets:[{label:'X',data:[],borderColor:'#1565c0',borderWidth:2,pointRadius:0},{label:'Y',data:[],borderColor:'#c62828',borderWidth:2,pointRadius:0},{label:'Z',data:[],borderColor:'#2e7d32',borderWidth:2,pointRadius:0}]},options:{...common,scales:{x:{...common.scales.x,min:0,max:5,title:{display:true,text:'Tiempo (s)'}},y:{...common.scales.y,title:{display:true,text:'Aceleración (m/s²)'}}}}});
         if(!s.jointCharts.spectrum)s.jointCharts.spectrum=new Chart($('jointLiveSpectrum').getContext('2d'),{type:'line',data:{datasets:[{label:'X',data:[],borderColor:'#1565c0',borderWidth:2,pointRadius:0},{label:'Y',data:[],borderColor:'#c62828',borderWidth:2,pointRadius:0},{label:'Z',data:[],borderColor:'#2e7d32',borderWidth:2,pointRadius:0}]},options:{...common,scales:{x:{...common.scales.x,min:0,max:30,title:{display:true,text:'Frecuencia (Hz)'}},y:{...common.scales.y,min:0,title:{display:true,text:'Amplitud'}}}}});
         return true;
@@ -410,8 +410,11 @@
             if(t>r.end+1000)finishRun().catch(e=>tell(e.message,true));
         }
         $('jointSampleCount').textContent=r?.samples.length||0;$('jointRate').textContent=localStatus().sensor?sampleRate().toFixed(1)+' Hz':'—';
-        drawPreview();
-        if(s.uiTick%4===0)drawLiveSpectrum();
+        // Hidden canvases must not redraw or resize while another tab is active.
+        if(!$('jointPanelMeasure').hidden){
+            drawPreview();
+            if(s.uiTick%4===0)drawLiveSpectrum();
+        }
         if(++s.uiTick%4===0){renderDevices();broadcast({type:'STATUS',status:localStatus()});if(running())persist();}
     }
     function resetSession() {

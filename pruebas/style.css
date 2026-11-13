@@ -1442,8 +1442,9 @@ body.recording-lock main {
 .joint-options article { border: 1px solid #d4e0ea; border-radius: 10px; padding: 20px; }
 .joint-options button { width: 100%; }
 .joint-badge { display: inline-block; background: #e2f2ef; color: #11695e; border-radius: 12px; padding: 5px 10px; font-size: .8rem; font-weight: 700; }
-.joint-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 18px 0; }
-.joint-tabs button { flex: 1; white-space: nowrap; background: #edf3f9; color: #445e7b; }
+.joint-tabs { display:flex; gap:6px; overflow-x:auto; padding:12px 0; position:sticky; top:0; z-index:30; background:#fff; border-bottom:1px solid #dce7ef; -webkit-overflow-scrolling:touch; scrollbar-width:none; overscroll-behavior-x:contain; scroll-padding:0 10px; }
+.joint-tabs::-webkit-scrollbar { display:none; }
+.joint-tabs button { flex:0 0 auto; white-space:nowrap; background:#edf3f9; color:#445e7b; }
 .joint-tabs button[aria-selected="true"] { background: var(--vwoma-blue); color: white; }
 .joint-app fieldset { border: 1px solid #d8e3ec; border-radius: 8px; padding: 15px; margin: 12px 0; min-width: 0; }
 .joint-app legend { font-weight: 600; font-size: .88rem; }
@@ -1576,7 +1577,7 @@ body.recording-lock main {
 .joint-calibration-actions button.done::after { content:' ✓'; }.joint-calibration-actions button:disabled { opacity:.55; }
 .joint-axis-compare { margin:18px 0; }
 body.recording-lock #jointWorkspace { min-height: calc(100dvh - 60px); }
-body.recording-lock #jointPanelMeasure { height:calc(100dvh - 54px); box-sizing:border-box; display:flex !important; flex-direction:column; padding:8px; overflow:hidden; touch-action:none; user-select:none; }
+body.recording-lock #jointPanelMeasure { position:fixed; inset:0; z-index:1000; width:100%; height:100vh; height:100dvh; box-sizing:border-box; display:flex !important; flex-direction:column; padding:calc(8px + env(safe-area-inset-top)) 12px calc(8px + env(safe-area-inset-bottom)); overflow:hidden; touch-action:none; user-select:none; background:#fff; }
 body.recording-lock #jointPanelMeasure > h3,
 body.recording-lock #jointPanelMeasure > .joint-fields,
 body.recording-lock #jointMeasureState,
@@ -1631,8 +1632,15 @@ body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; mi
 .joint-sync-timeline-canvas { height:245px; }
 .joint-sync-timeline .joint-secondary { margin-top:8px; padding:5px 8px; font-size:.78rem; }
 .joint-compare-wrap { border: 1px solid #d8e3ec; border-radius: 9px; background: #fbfdff; overflow: hidden; margin-top: 12px; }
-.joint-compare-chart-wrap { height: 440px; padding: 8px; box-sizing: border-box; }
-#jointCompareCanvas { display: block; width: 100%; height: 100%; }
+.joint-compare-chart-wrap { height:clamp(260px,50dvh,410px); padding:8px; box-sizing:border-box; background:#fff; }
+#jointCompareCanvasX,#jointCompareCanvasY,#jointCompareCanvasZ { display:block; width:100%; height:100%; }
+.joint-axis-compare { padding:12px; border:1px solid #dce7ef; border-radius:10px; background:#fcfdff; }
+.joint-axis-compare .chart-heading { flex-wrap:wrap; gap:8px; }
+.joint-axis-compare .chart-heading h4 { margin:0; }
+.chart-values-toolbar { display:flex; justify-content:flex-end; padding:6px 10px 10px; }
+.vwoma-tooltip-toggle { white-space:nowrap; }
+#testForm.measurement-active .chart-values-toolbar { display:none; }
+@media (max-width:600px) { .joint-axis-compare { padding:8px; } .joint-compare-chart-wrap { height:clamp(245px,46dvh,365px); padding:4px; } }
 .joint-app details { margin: 18px 0; padding: 12px; background: #f2f6fa; border-radius: 8px; }
 .joint-app summary { cursor: pointer; font-weight: 600; margin-bottom: 12px; }
 @media (max-width: 600px) {

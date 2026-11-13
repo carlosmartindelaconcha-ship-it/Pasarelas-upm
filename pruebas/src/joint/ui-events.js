@@ -232,7 +232,14 @@
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointDownloadProcessed').onclick=guard(exportProcessedJson);$('jointCsvProcessed').onclick=guard(exportProcessedCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
     $('jointCompareView').onchange=renderComparison;
-    $('jointCompareResetZoom').onclick=()=>s.compareCharts?.forEach(chart=>chart.resetZoom('none'));
+    $('jointCompareResetZoom').onclick=()=>s.compareCharts?.forEach(chart=>chart.resetZoom?.('none'));
+    document.querySelectorAll('[data-joint-compare-reset]').forEach(button=>{
+        button.onclick=()=>{
+            const axis=button.dataset.jointCompareReset;
+            const canvas=$('jointCompareCanvas'+axis);
+            s.compareCharts?.find(chart=>chart.canvas===canvas)?.resetZoom?.('none');
+        };
+    });
     $('jointImportSession').onchange=guard(async e=>{
         const file=e.target.files[0];if(!file)return;
         if(file.size>100000000)throw Error('El ensayo JSON es demasiado grande para abrirlo en el navegador.');

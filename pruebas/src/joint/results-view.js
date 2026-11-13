@@ -99,7 +99,6 @@
     function renderComparison() {
         const status=$('jointCompareStatus'),data=comparisonExport();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
-        for(const chart of Object.values(s.jointCharts||{}))chart?.destroy();s.jointCharts={time:null,spectrum:null};
         if(!data) {status.textContent='Termina un ensayo y recibe los registros de los participantes para compararlos aquí.';return;}
         const records=data.records.filter(r=>r.samples?.length).sort((a,b)=>{
             const ap=data.plan.points?.find(p=>p.device===a.device.id),bp=data.plan.points?.find(p=>p.device===b.device.id);
@@ -124,6 +123,18 @@
                 datasets.push({label:name,data:points.filter((_,i)=>i%stride===0),borderColor:color,borderDash:dashes[deviceIndex%dashes.length],borderWidth:deviceIndex?1.35:2.15,pointRadius:0,tension:0,parsing:false});
             });
             const options=jointTemporalOptions(span/1000,axis==='Z'?'Aceleración Z con detrend (m/s²)':'Aceleración '+axis+' (m/s²)',item=>item.dataset.label+': '+item.parsed.y.toFixed(4)+' m/s²',true);options.scales.x.title.text='Tiempo en el reloj maestro (s)';
+            // Consistent with Realizar medida: temporal X=0..duration and
+            // symmetric Y around zero, rounded up by 20% for readable ticks.
+            const peak=Math.max(.000001,...datasets.flatMap(d=>d.data.map(p=>Math.abs(p.y)).filter(finite)));
+            const expansion=peak*1.2,exponent=Math.pow(10,Math.floor(Math.log10(expansion))-1);
+            const yLimit=Math.ceil(expansion/exponent)*exponent;
+            options.scales.y.min=-yLimit;
+            options.scales.y.max=yLimit;
+            options.plugins.zoom.limits.y={min:-yLimit,max:yLimit};
+            options.plugins.zoom.pan.mode='x';
+            // Do not trap single-finger scrolling over canvases on touchscreens.
+            if(typeof matchMedia==='function'&&matchMedia('(pointer: coarse)').matches)
+                options.plugins.zoom.pan.enabled=false;
             const chart=new Chart($(canvasId).getContext('2d'),{type:'line',data:{datasets},options});
             s.compareCharts.push(chart);enableLegendToggling(chart);
         }
