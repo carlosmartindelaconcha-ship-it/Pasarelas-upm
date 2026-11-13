@@ -288,3 +288,39 @@ test('el aviso de lectura y OBSERVA mantienen el SVG en reposo hasta la demostra
     'assets/calibration/telefono-ejes-reposo.svg');
   assert.equal(f.s.calibration.guidePhase,'ready');
 });
+
+test('Omitir calibración aparece en la cabecera y abre allí el selector manual',()=>{
+  const f=fixture();
+  f.ctl.showCalibration();
+  assert.equal(f.node('jointSkipCalibration').hidden,false);
+  assert.equal(f.node('jointCalibrationOverride').hidden,true);
+  assert.equal(f.node('jointManualCalibration').hidden,true);
+  f.ctl.chooseManualCalibration();
+  assert.equal(f.node('jointSkipCalibration').hidden,true);
+  assert.equal(f.node('jointCalibrationOverride').hidden,false);
+  assert.equal(f.node('jointManualCalibration').hidden,false);
+  assert.equal(f.node('jointBeginCalibration').hidden,true);
+  assert.equal(f.s.calibration.guidePhase,'idle');
+  f.ctl.setManualCalibration(1);
+  assert.equal(f.s.calibration.complete,true);
+  assert.equal(f.node('jointSkipCalibration').hidden,true);
+  assert.equal(f.node('jointCalibrationOverride').hidden,true);
+  assert.equal(f.node('jointManualCalibration').hidden,true);
+  assert.equal(f.node('jointBeginCalibration').hidden,true);
+  assert.deepEqual(f.ctl.correctedVector([2,-3,4]),[2,-3,4]);
+});
+
+test('Omitir durante la introducción detiene su progreso y permite elegir el signo',()=>{
+  const f=fixture();
+  f.ctl.beginCalibrationGuide();
+  assert.equal(f.s.calibration.guidePhase,'message');
+  f.ctl.chooseManualCalibration();
+  assert.equal(f.s.calibration.guidePhase,'idle');
+  assert.equal(f.node('jointCalibrationExample').hidden,true);
+  f.runTimer(5000);
+  assert.equal(f.s.calibration.guidePhase,'idle');
+  assert.equal(f.node('jointManualCalibration').hidden,false);
+  f.ctl.setManualCalibration(-1);
+  assert.equal(f.s.calibration.complete,true);
+  assert.deepEqual(f.ctl.correctedVector([2,-3,4]),[-2,3,-4]);
+});

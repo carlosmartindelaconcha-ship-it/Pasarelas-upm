@@ -47,3 +47,22 @@ test('contador QUIETO y AHORA en esquina superior derecha, con margen al borde',
   assert.match(corner[1],/max-width:calc\(50% - 16px\)/);
   assert.match(css,/@keyframes jointCountdownCornerPulse/);
 });
+
+test('Omitir calibración sustituye Pendiente junto al título, sin botones duplicados',()=>{
+  const html=read('index.html');
+  const start=html.indexOf('<section id="jointCalibration"');
+  const end=html.indexOf('</section>',start);
+  const content=html.slice(start,end);
+  const head=content.slice(0,content.indexOf('id="jointBeginCalibration"'));
+  assert.match(head,/class="joint-section-head joint-calibration-head"/);
+  assert.ok(head.indexOf('id="jointCalibrationTitle"')>=0);
+  assert.ok(head.indexOf('id="jointSkipCalibration"')>head.indexOf('id="jointCalibrationTitle"'));
+  assert.ok(head.indexOf('id="jointCalibrationOverride"')>head.indexOf('id="jointSkipCalibration"'));
+  assert.equal((html.match(/id="jointSkipCalibration"/g)||[]).length,1);
+  assert.doesNotMatch(content,/id="jointCalibrationState"/);
+  assert.ok(content.indexOf('id="jointBeginCalibration"')>content.indexOf('id="jointSkipCalibration"'));
+  assert.ok(content.indexOf('id="jointManualCalibration"')<content.indexOf('id="jointBeginCalibration"'));
+  const css=read('style.css');
+  assert.match(css,/\.joint-calibration-head\s*\{[^}]*flex-wrap:nowrap/s);
+  assert.match(css,/\.joint-app \.joint-calibration-skip\s*\{[^}]*flex:0 0 auto/s);
+});
