@@ -480,3 +480,14 @@ elección explícita de factor +1 o −1 para los tres ejes, sin omitir la
 asignación de signos. No se duplican botones ni se altera el formato de
 los registros. Si la omisión se elige durante la demostración, esta se
 cancela; el botón principal se oculta hasta que se elija el factor.
+
+### Rediseño de calibración en móviles (13-11-2026)
+
+Se elimina el diseño que colocaba «Omitir calibración» al lado del
+título y comprimía la explicación en Safari iPhone. El encabezado y
+su texto de ayuda ocupan todo el ancho. Debajo hay dos botones con
+anchos iguales, «Calibrar ejes» (principal) y «Omitir calibración»
+(secundario). Por debajo de 350 px se apilan. Durante la demostración,
+si solo queda visible Omitir se alinea a la derecha. Al elegir omitir,
+se oculta la fila y aparece el selector manual de signos, sin huecos.
+No cambia la adquisición, la física de calibración ni el protocolo.

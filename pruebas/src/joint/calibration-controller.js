@@ -118,6 +118,7 @@
         const guide=c.guidePhase||'idle',ready=guide==='ready'||done;
         $('jointCalibration').classList.toggle('complete',done);
         const begin=$('jointBeginCalibration');
+        $('jointCalibrationControls').hidden=done||!!c.manualChoosing;
         begin.hidden=done||guide!=='idle'||!!c.manualChoosing;
         begin.disabled=!!active||!s.sensorEnabled;
         const hint=$('jointCalibrationExample');
@@ -152,7 +153,7 @@
             c.manualChoosing?'Elige el signo que se aplicará por igual a X, Y y Z.':
             c.feedback||(done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':
             ready?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z». Cada prueba dura 2,6 s y corrige solo el signo del eje seleccionado.':
-            'Pulsa «Calibrar ejes». Primero verás un único ejemplo en X; después se activarán los tres gestos.');
+            'Te mostraremos una ida y vuelta en X. Después realiza un gesto por cada eje.');
         renderCalibrationCountdown();
     }
     function renderCalibrationCountdown() {

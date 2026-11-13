@@ -324,3 +324,18 @@ test('Omitir durante la introducción detiene su progreso y permite elegir el si
   assert.equal(f.s.calibration.complete,true);
   assert.deepEqual(f.ctl.correctedVector([2,-3,4]),[-2,3,-4]);
 });
+
+test('acciones de calibracion no dejan un espacio vacio al omitir o completar',()=>{
+  const f=fixture();
+  f.ctl.showCalibration();
+  assert.equal(f.node('jointCalibrationControls').hidden,false);
+  f.ctl.beginCalibrationGuide();
+  assert.equal(f.node('jointCalibrationControls').hidden,false);
+  assert.equal(f.node('jointBeginCalibration').hidden,true);
+  f.ctl.chooseManualCalibration();
+  assert.equal(f.node('jointCalibrationControls').hidden,true);
+  assert.equal(f.node('jointManualCalibration').hidden,false);
+  f.ctl.setManualCalibration(1);
+  assert.equal(f.node('jointCalibrationControls').hidden,true);
+  assert.equal(f.node('jointManualCalibration').hidden,true);
+});
