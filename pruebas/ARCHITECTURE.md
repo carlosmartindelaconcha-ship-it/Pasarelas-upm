@@ -224,3 +224,26 @@ permanecen estables.
 La separación por responsabilidades no equivale todavía a desacoplamiento
 total. Los controladores comparten el estado del ensayo mediante contratos
 explícitos y algunos callbacks diferidos hasta la inicialización completa.
+
+
+### Fiabilidad de las transferencias entre móviles
+
+El transporte mantiene el protocolo de `TRANSFER_BEGIN`, `TRANSFER_CHUNK`,
+`TRANSFER_END`, `TRANSFER_ACK` y SHA-256, con bloques de 12 000 caracteres
+y el esquema de registro existente. A diferencia de la implementación inicial,
+se permite una ventana limitada de 4 bloques en tránsito, en orden por
+DataChannel, para evitar esperar un RTT completo entre cada bloque.
+La confirmación de todos los ACK de la ventana se exige antes de avanzar.
+Se conservan los tres intentos de cada bloque y el ACK final de integridad.
+
+Durante la transferencia se actualizan porcentajes **sin reconstruir**
+los gráficos de RTT/offset, que consumían CPU y podían retrasar los
+mensajes de WebRTC en Safari. En el maestro aparece el progreso de
+recepción; si el participante pierde la conexión, se conserva el registro
+en memoria/IndexedDB cuando está disponible y se muestra explícitamente
+el error, con posibilidad de reintentar desde "Enviar datos".
+
+La prueba de integración simula dos extremos, los mensajes originales
+WebRTC y una transferencia de muchos bloques, y comprueba el límite
+de mensajes, el paralelismo acotado y la conservación del registro si
+falla la comunicación. Esto no sustituye la prueba de dos teléfonos reales.

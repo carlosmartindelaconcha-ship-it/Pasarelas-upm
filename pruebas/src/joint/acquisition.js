@@ -22,7 +22,7 @@
     async function requestWake() {try{if(navigator.wakeLock)s.wake=await navigator.wakeLock.request('screen');}catch(e){incident('screen','No se pudo mantener la pantalla activa.');}}
     function releaseWake(){if(s.wake){s.wake.release().catch(()=>{});s.wake=null;}}
     function beginRun(id,start,end,duration) {
-        s.results.clear();s.compareExport=null;s.storageFailed=false;
+        s.results.clear();s.compareExport=null;s.storageFailed=false;s.transferError=null;
         const networkModel=s.role==='host'?{offset:0,drift:0,reference:0,count:0,rtt:0}:structuredClone(s.syncModel);
         const physicalCorrection=s.role==='host'?0:Number(s.syncCalibration.correctionMs||0);
         const model={...networkModel,offset:networkModel.offset+physicalCorrection,physicalCorrectionMs:physicalCorrection};

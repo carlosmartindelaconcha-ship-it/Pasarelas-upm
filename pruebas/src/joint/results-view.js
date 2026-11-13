@@ -8,7 +8,7 @@
                                 syncMetric,selectedForModel,enableLegendToggling,
                                 comparisonExport,samplePeriodMs,structuralValue,
                                 resampleAxis,detrendPoints}) {
-    function renderResults() {
+    function renderResults(updateSyncCharts=true) {
         const r=s.run;
         $('jointDownload').disabled=!r?.finished;$('jointCsv').disabled=!r?.finished;$('jointDownloadProcessed').disabled=!r?.finished;$('jointCsvProcessed').disabled=!r?.finished;
         $('jointNewRun').disabled=!!running()||!!s.transfer||!!r?.finishing;
@@ -18,13 +18,16 @@
         const expected=[r.device,...(s.role==='host'?[...s.peers.values()].filter(p=>r.plan.points.some(q=>q.device===p.id)).map(p=>({id:p.id,name:p.name})):[])];
         for(const d of expected) {
             const data=s.results.get(d.id);
-            html+=`<article class="joint-device-card"><strong>${escape(d.name)}</strong><p>${data?data.samples.length+' muestras · '+data.incidents.length+' incidencias':d.id===s.id?r.samples.length+' muestras locales':'Registro pendiente de recibir'}</p></article>`;
+            const incoming=s.role==='host'?s.peers.get(d.id)?.incoming:null;
+            const details=data?data.samples.length+' muestras · '+data.incidents.length+' incidencias':d.id===s.id?r.samples.length+' muestras locales':incoming?'Recibiendo registro: '+Math.round(100*incoming.length/Math.max(1,incoming.size))+'%':'Registro pendiente de recibir';
+            html+=`<article class="joint-device-card"><strong>${escape(d.name)}</strong><p>${details}</p></article>`;
         }
         if(s.transfer)html+=`<p>Enviando al maestro: ${s.transfer.percent}%</p>`;
         if(r.transferred)html+='<p>Registro confirmado por el maestro.</p>';
+        if(s.transferError)html+=`<p class="joint-warning">No se pudo entregar el registro: ${escape(s.transferError)}. Puedes volver a pulsar «Enviar datos» sin perder las muestras locales.</p>`;
         if(s.storageFailed)html+='<p class="joint-warning">El guardado persistente ha fallado: descarga los datos antes de cerrar.</p>';
         $('jointResultsList').innerHTML=html;
-        renderSyncResults(r);
+        if(updateSyncCharts)renderSyncResults(r);
     }
     function clearSyncCharts(){for(const chart of s.syncCharts)chart?.destroy();s.syncCharts=[];}
     function jointTemporalOptions(duration,yTitle,tooltip,legend=true) {

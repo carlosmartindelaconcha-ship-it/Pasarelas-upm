@@ -27,22 +27,37 @@
             }catch(e){if(attempt===2)throw e;}
         }
     }
+    // Four blocks in flight avoids one full round-trip per chunk on high-RTT Wi-Fi.
+    // The ordered DataChannel preserves the receiver's sequential chunk contract.
+    const TRANSFER_WINDOW = 4;
     async function sendRecord() {
         if(s.role!=='guest')return;
         if(!s.run?.finished)throw Error('Termina primero el ensayo.');
         if(s.transfer)throw Error('Hay una transferencia en curso.');
         const host=[...s.peers.values()][0];if(!host||host.channel?.readyState!=='open')throw Error('No hay conexión con el maestro. Descarga tus datos localmente.');
-        s.transfer={percent:0};renderResults();
+        s.transferError=null;
+        s.transfer={percent:0};renderResults(false);
         try {
             const text=JSON.stringify(localRecord()),hash=await hashText(text),transferId=uid(),count=Math.ceil(text.length/12000);
             if(text.length>80000000)throw Error('Registro demasiado grande para transferir. Descárgalo localmente.');
             await acknowledged(host,{type:'TRANSFER_BEGIN',transferId,runId:s.run.id,size:text.length,count,hash},-1);
-            for(let i=0;i<count;i++) {
-                await acknowledged(host,{type:'TRANSFER_CHUNK',transferId,index:i,data:text.slice(i*12000,(i+1)*12000)},i);
-                s.transfer.percent=Math.round(100*(i+1)/count);renderResults();
+            for(let first=0;first<count;first+=TRANSFER_WINDOW) {
+                const confirmations=[];
+                for(let i=first;i<Math.min(count,first+TRANSFER_WINDOW);i++)
+                    confirmations.push(acknowledged(host,{type:'TRANSFER_CHUNK',transferId,index:i,data:text.slice(i*12000,(i+1)*12000)},i));
+                // Wait for every in-flight ACK before the next window; no unresolved
+                // promises can leak into a manual retry if one chunk is rejected.
+                const replies=await Promise.allSettled(confirmations);
+                const rejected=replies.find(result=>result.status==='rejected');
+                if(rejected)throw rejected.reason;
+                s.transfer.percent=Math.round(100*Math.min(count,first+TRANSFER_WINDOW)/count);
+                renderResults(false);
             }
             await acknowledged(host,{type:'TRANSFER_END',transferId},count);
             s.run.transferred=true;tell('El maestro ha recibido el registro y verificado su integridad.');
+        }catch(error){
+            s.transferError=error.message||String(error);
+            throw error;
         }finally{s.transfer=null;renderResults();}
     }
 
@@ -50,13 +65,15 @@
         if(m.type==='TRANSFER_BEGIN'&&s.role==='host') {
             if(!s.run||s.run.id!==m.runId||!Number.isInteger(m.size)||m.size<1||m.size>80000000||!Number.isInteger(m.count)||m.count!==Math.ceil(m.size/12000)||typeof m.hash!=='string')throw Error('Transferencia no válida.');
             p.incoming={id:m.transferId,runId:m.runId,size:m.size,count:m.count,hash:m.hash,parts:[],length:0,next:0};
-            send(p,{type:'TRANSFER_ACK',transferId:m.transferId,index:-1});return;
+            send(p,{type:'TRANSFER_ACK',transferId:m.transferId,index:-1});renderResults(false);return;
         }
         if(m.type==='TRANSFER_CHUNK'&&s.role==='host') {
             const t=p.incoming;if(!t||t.id!==m.transferId)return;
             if(m.index<t.next){send(p,{type:'TRANSFER_ACK',transferId:t.id,index:m.index});return;}
             if(m.index!==t.next||typeof m.data!=='string'||m.data.length>12000||t.length+m.data.length>t.size)throw Error('Bloque de datos no válido.');
-            t.parts.push(m.data);t.length+=m.data.length;t.next++;send(p,{type:'TRANSFER_ACK',transferId:t.id,index:m.index});return;
+            t.parts.push(m.data);t.length+=m.data.length;t.next++;send(p,{type:'TRANSFER_ACK',transferId:t.id,index:m.index});
+            if(t.next%8===0||t.next===t.count)renderResults(false);
+            return;
         }
         if(m.type==='TRANSFER_END'&&s.role==='host') {
             const t=p.incoming;
