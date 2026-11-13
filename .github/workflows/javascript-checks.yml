@@ -1,0 +1,46 @@
+name: VWOMA JavaScript checks
+
+on:
+  push:
+    branches:
+      - "refactor/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  javascript:
+    name: Node.js syntax and regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check source syntax
+        run: |
+          node --check src/ui/chart-tooltips.js
+          node --check src/ui/test-names.js
+          node --check src/joint/tab-navigation.js
+          node --check src/signal/preprocessing.js
+          node --check src/signal/spectra.js
+          node --check app.js
+          node --check src/joint/plan-controller.js
+          node --check src/joint/webrtc-transport.js
+          node --check src/joint/clock-model.js
+          node --check src/joint/persistence.js
+          node --check src/joint/acquisition.js
+          node --check src/joint/calibration-math.js
+          node --check src/joint/calibration-controller.js
+          node --check src/joint/exports.js
+          node --check src/joint/record-transfer.js
+          node --check src/joint/results-view.js
+          node --check src/joint/session-state.js
+          node --check src/joint/ui-events.js
+          node --check src/joint/joint-app.js
+          node --check vwoma-i18n.js
+      - name: Run regression tests
+        run: node --test tests/*.test.cjs
