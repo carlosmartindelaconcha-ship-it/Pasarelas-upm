@@ -172,3 +172,65 @@ test('Comparar muestra solo las tres curvas XYZ del maestro cuando no hay partic
   assert.equal(charts.length,6);
   assert.match(element('jointCompareStatus').textContent,/Un solo acelerómetro/);
 });
+
+
+test('Comparar aplica detrend de orden 0 por eje y por móvil, en bruto y rejilla común',()=>{
+  for(const view of ['raw','common']) {
+    const nodes=new Map(),charts=[];
+    class ChartMock {
+      constructor(ctx,options){this.canvas=ctx.canvas;this.data=options.data;this.options=options.options;charts.push(this);}
+      destroy(){}
+    }
+    const el=id=>{
+      if(!nodes.has(id))nodes.set(id,{
+        id,hidden:false,textContent:'',value:id==='jointCompareView'?view:'',
+        getContext(){return {canvas:this}},querySelectorAll:()=>[],addEventListener(){}
+      });
+      return nodes.get(id);
+    };
+    const records=[0,1].map((deviceIndex)=>({
+      device:{id:deviceIndex?'guest':'host',name:deviceIndex?'Android':'Maestro'},
+      samples:Array.from({length:5},(_,i)=>({
+        masterTimeMs:1000+i*100,
+        raw:[i,0,0,10+deviceIndex*100+i,20+deviceIndex*100+i*2,9.8+deviceIndex*10+i*.25]
+      }))
+    }));
+    const originals=JSON.stringify(records);
+    const s={id:'host',role:'host',run:{id:'run-1',finished:true},
+      peers:new Map(),results:new Map(records.map(r=>[r.device.id,r])),
+      compareCharts:[],compareExport:null};
+    const controller=createResultsView({
+      s,$:el,escape:String,Chart:ChartMock,finite:Number.isFinite,median:()=>100,
+      running:()=>false,syncMetric:()=>null,selectedForModel:()=>false,enableLegendToggling:()=>{},
+      comparisonExport:()=>({
+        plan:{points:[{device:'host',name:'P1',x:0},{device:'guest',name:'P2',x:10}]},
+        windowMasterMs:{start:1000,end:1400},records
+      }),
+      samplePeriodMs:()=>100,
+      structuralValue:(raw,_record,axis)=>raw[3+axis],
+      resampleAxis:(samples,getValue,grid)=>grid.flatMap(t=>{
+        const sample=samples.find(s=>s.masterTimeMs===t);
+        return sample?[{x:t,y:getValue(sample)}]:[];
+      }),
+      detrendPoints:()=>{throw Error('Comparar no debe aplicar detrend lineal');}
+    });
+    controller.renderComparison();
+    assert.equal(charts.length,3);
+    for(const [axis,chart] of charts.entries()){
+      assert.equal(chart.data.datasets.length,2);
+      assert.match(chart.options.scales.y.title.text,/sin continua/);
+      for(const [deviceIndex,dataset] of chart.data.datasets.entries()){
+        const values=dataset.data.map(p=>p.y);
+        assert.equal(values.length,5);
+        const mean=values.reduce((a,b)=>a+b,0)/values.length;
+        assert.ok(Math.abs(mean)<1e-10,
+          view+' axis '+axis+' device '+deviceIndex+' mean='+mean);
+        // An order-0 detrend must not remove an existing physical trend.
+        const expectedSlope=[1,2,.25][axis];
+        assert.ok(Math.abs(values[1]-values[0]-expectedSlope)<1e-10);
+      }
+    }
+    assert.equal(JSON.stringify(records),originals,'las muestras originales no se alteran');
+    assert.match(el('jointCompareStatus').textContent,/detrend de orden 0 por móvil/);
+  }
+});
