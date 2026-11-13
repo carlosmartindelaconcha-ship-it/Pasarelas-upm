@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diagnóstico acelerómetro — Pasarelas UPM</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{font:16px/1.45 system-ui,sans-serif;background:#101827;color:#edf3ff;margin:0}
+main{max-width:740px;margin:auto;padding:22px 16px}h1{font-size:1.55rem}h2{font-size:1.1rem;margin:0 0 10px}
+p,.muted{color:#bdd0e3}.panel{background:#1b2a3e;padding:17px;border-radius:13px;margin:14px 0}
+button{border:0;border-radius:9px;background:#77e0d4;color:#0a2431;padding:13px 16px;margin:4px 6px 4px 0;font-size:1rem;font-weight:700}button:disabled{opacity:.4}
+.secondary{background:#455b77;color:#fff}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.tile{padding:12px;background:#102036;border-radius:9px}.tile strong{font-size:1.6rem;display:block}
+small{color:#bdd0e3}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#102036;padding:12px;border-radius:9px;font-size:.78rem}
+</style></head><body><main>
+<h1>Diagnóstico del acelerómetro</h1>
+<p>Comparación de <code>devicemotion</code> y API de sensores directos. Se solicita una frecuencia de 60 Hz y se mide la frecuencia efectiva durante 15 segundos. Los datos permanecen en el móvil.</p>
+<section class="panel"><h2>Compatibilidad</h2><pre id="support"></pre></section>
+<section class="panel"><h2>Medición</h2><p>Mantén la pantalla encendida y esta pestaña en primer plano.</p>
+<button id="start">Iniciar prueba</button><button id="stop" class="secondary" disabled>Detener</button>
+<p id="progress" aria-live="polite">Sin iniciar</p></section>
+<section class="panel"><h2>Resultados</h2><div id="results" class="grid"></div></section>
+<section class="panel"><h2>Informe técnico</h2><pre id="report">Sin datos todavía.</pre>
+<button id="copy" class="secondary" disabled>Copiar informe</button></section>
+<p><small>Importante: aceleración con y sin gravedad son campos de un mismo evento, no canales independientes. La frecuencia solicitada a la API no garantiza la frecuencia de entrega. El resultado bajo de Firefox podría deberse a la implementación del navegador, al sistema o a los sensores del dispositivo.</small></p>
+</main><script>
+'use strict';
+const el=id=>document.getElementById(id), names=['Accelerometer','LinearAccelerationSensor'];
+const support=['User agent: '+navigator.userAgent,'Contexto seguro: '+isSecureContext,'DeviceMotionEvent: '+(typeof DeviceMotionEvent!=='undefined'),...names.map(n=>n+': '+(typeof window[n]==='function'?'disponible':'NO disponible'))].join('\n');
+el('support').textContent=support;
+let running=false, timeout=null, streams=[], listener=null, buckets={}, errors=[], started=0, saved='';
+function bucket(){return {t:[],valid:0,reported:[]}}
+function record(b,valid,reported){b.t.push(performance.now());if(valid)b.valid++;if(Number.isFinite(reported))b.reported.push(reported)}
+function calc(b){
+ const ts=b.t, diffs=[];for(let i=1;i<ts.length;i++)diffs.push(ts[i]-ts[i-1]);diffs.sort((a,b)=>a-b);
+ const hz=ts.length>1?1000*(ts.length-1)/(ts[ts.length-1]-ts[0]):NaN;
+ const median=diffs.length?diffs[Math.floor(diffs.length/2)]:NaN;
+ const p95=diffs.length?diffs[Math.min(diffs.length-1,Math.ceil(.95*diffs.length)-1)]:NaN;
+ const interval=b.reported.length?b.reported.reduce((a,c)=>a+c,0)/b.reported.length:NaN;
+ return {count:ts.length,valid:b.valid,hz,median,p95,interval}
+}
+function num(n){return Number.isFinite(n)?n.toFixed(2):'N/D'}
+function render(){
+ el('results').replaceChildren();
+ for(const [name,b] of Object.entries(buckets)){
+  const s=calc(b),box=document.createElement('div');box.className='tile';
+  const title=document.createElement('small');title.textContent=name;
+  const value=document.createElement('strong');value.textContent=num(s.hz)+' Hz';
+  const more=document.createElement('small');more.textContent=s.count+' eventos; '+s.valid+' válidos; mediana '+num(s.median)+' ms; p95 '+num(s.p95)+' ms';
+  box.append(title,value,more);el('results').append(box)
+ }
+}
+async function start(){
+ if(running)return;
+ running=true;errors=[];streams=[];buckets={'devicemotion':bucket(),'con gravedad (mismo evento)':bucket(),'sin gravedad (mismo evento)':bucket()};
+ el('start').disabled=true;el('stop').disabled=false;el('copy').disabled=true;el('progress').textContent='Solicitando permisos...';
+ if(typeof DeviceMotionEvent!=='undefined'){
+  let allowed=true;
+  if(typeof DeviceMotionEvent.requestPermission==='function'){
+   try{allowed=(await DeviceMotionEvent.requestPermission())==='granted'}catch(e){allowed=false;errors.push('Permiso devicemotion: '+e.name+': '+e.message)}
+  }
+  if(allowed&&running){
+   listener=e=>{
+    record(buckets.devicemotion,true,e.interval);
+    record(buckets['con gravedad (mismo evento)'],!!(e.accelerationIncludingGravity&&Number.isFinite(e.accelerationIncludingGravity.x)));
+    record(buckets['sin gravedad (mismo evento)'],!!(e.acceleration&&Number.isFinite(e.acceleration.x)));
+   };
+   window.addEventListener('devicemotion',listener);
+  }else errors.push('Permiso devicemotion no concedido');
+ }else errors.push('DeviceMotionEvent no disponible');
+ for(const name of names){
+  if(!running)break;
+  if(typeof window[name]!=='function'){errors.push(name+': constructor no disponible');continue}
+  const b=bucket();buckets[name+' (solicitado 60 Hz)']=b;
+  try{
+   const sensor=new window[name]({frequency:60});
+   sensor.addEventListener('reading',()=>record(b,[sensor.x,sensor.y,sensor.z].every(Number.isFinite)));
+   sensor.addEventListener('error',e=>errors.push(name+': '+(e.error?.name||'error')+': '+(e.error?.message||'')));
+   sensor.start();streams.push(sensor)
+  }catch(e){errors.push(name+': '+e.name+': '+e.message)}
+ }
+ started=performance.now();
+ const tick=()=>{
+  if(!running)return;
+  const sec=(performance.now()-started)/1000;
+  el('progress').textContent='Midiendo: '+Math.min(sec,15).toFixed(1)+' / 15 s';
+  render();
+  if(sec>=15)stop();else timeout=setTimeout(tick,500);
+ };
+ tick()
+}
+function stop(){
+ if(!running)return;running=false;clearTimeout(timeout);
+ if(listener){window.removeEventListener('devicemotion',listener);listener=null}
+ for(const sensor of streams){try{sensor.stop()}catch(e){}}
+ streams=[];
+ el('start').disabled=false;el('stop').disabled=true;el('copy').disabled=false;
+ el('progress').textContent='Prueba terminada';
+ render();
+ const lines=[support,'','Duración aproximada: '+num((performance.now()-started)/1000)+' s',''];
+ for(const [name,b] of Object.entries(buckets)){const s=calc(b);lines.push(name+': '+num(s.hz)+' Hz; '+s.count+' eventos; '+s.valid+' válidos; dt mediano '+num(s.median)+' ms; dt p95 '+num(s.p95)+' ms; event.interval medio '+num(s.interval)+' ms')}
+ lines.push('','Errores / disponibilidad:',...(errors.length?errors:['Sin errores comunicados']));
+ saved=lines.join('\n');el('report').textContent=saved
+}
+el('start').addEventListener('click',start);el('stop').addEventListener('click',stop);
+el('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(saved);el('copy').textContent='Copiado'}catch(e){el('copy').textContent='No se pudo copiar'}});
+</script></body></html>
