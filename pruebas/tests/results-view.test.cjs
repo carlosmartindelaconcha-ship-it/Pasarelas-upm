@@ -125,3 +125,50 @@ test('cambiar de pestaña conserva gráficos de comparación y no reprocesa mues
   assert.equal(newCharts.length,6);
   assert.equal(newCharts[0].destroyed,true);
 });
+
+test('Comparar muestra solo las tres curvas XYZ del maestro cuando no hay participantes',()=>{
+  const nodes=new Map(),charts=[];
+  class ChartMock {
+    constructor(ctx,config){this.canvas=ctx.canvas;this.options=config.options;this.data=config.data;charts.push(this);}
+    destroy(){}
+  }
+  const element=id=>{
+    if(!nodes.has(id))nodes.set(id,{
+      id,hidden:false,textContent:'',value:'raw',
+      getContext(){return {canvas:this}},querySelectorAll:()=>[],addEventListener(){}
+    });
+    return nodes.get(id);
+  };
+  const record={device:{id:'master',name:'Maestro'},samples:[
+    {masterTimeMs:1000,raw:[1,2,9.8]},
+    {masterTimeMs:1100,raw:[1.5,2.5,10]},
+    {masterTimeMs:1200,raw:[2,3,9.7]}
+  ]};
+  const s={id:'master',role:'host',run:{id:'solo-1',finished:true},
+    peers:new Map(),results:new Map([['master',record]]),
+    compareCharts:[],compareExport:null};
+  const controller=createResultsView({
+    s,$:element,escape:String,Chart:ChartMock,finite:Number.isFinite,median:()=>100,
+    running:()=>false,syncMetric:()=>0,selectedForModel:()=>false,
+    enableLegendToggling:()=>{},
+    comparisonExport:()=>({plan:{points:[{device:'master',name:'P1',x:0,y:0}]},
+      windowMasterMs:{start:1000,end:1200},records:[record]}),
+    samplePeriodMs:()=>100,structuralValue:(raw,r,axis)=>raw[axis],
+    resampleAxis:()=>[],detrendPoints:v=>v
+  });
+  controller.renderComparison();
+  assert.equal(charts.length,3);
+  assert.equal(s.compareCharts.length,3);
+  assert.deepEqual(charts.map(c=>c.data.datasets.length),[1,1,1]);
+  assert.match(element('jointCompareTitle').textContent,/Señales de Maestro/);
+  assert.match(element('jointCompareStatus').textContent,/Un solo acelerómetro/);
+  assert.ok(charts.every(c=>c.data.datasets[0].label.includes('Maestro')));
+  assert.ok(charts.every(c=>c.data.datasets[0].data.length>0));
+  assert.equal(s.results.size,1);
+  // El JSON importado con un único acelerómetro también se presenta en singular.
+  s.compareExport={some:true};
+  s.run=null;
+  controller.renderComparison();
+  assert.equal(charts.length,6);
+  assert.match(element('jointCompareStatus').textContent,/Un solo acelerómetro/);
+});

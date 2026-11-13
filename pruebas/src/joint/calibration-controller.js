@@ -16,6 +16,20 @@
         const state=s.syncCalibration,button=$('jointSyncStart');
         if(!button)return;
         const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
+        if(s.role==='host'&&!peers.length){
+            // A single accelerometer has no inter-device time offset to validate.
+            button.hidden=true;
+            $('jointSyncState').textContent='No necesaria (solo maestro)';
+            $('jointSyncState').classList.toggle('done',true);
+            $('jointSyncHelp').textContent=s.calibration.complete?
+                'Puedes pasar a Medir. Con un único móvil no es necesaria la sincronización entre dispositivos.':
+                'Activa el acelerómetro y calibra sus ejes X, Y y Z. Después puedes medir con un solo móvil.';
+            $('jointSyncBurst').hidden=true;
+            $('jointSyncGestureActions').hidden=true;
+            $('jointSyncCountdown').hidden=true;
+            $('jointSyncSummary').innerHTML='<p class="joint-help">Sin participantes conectados: se registra únicamente el maestro.</p>';
+            return;
+        }
         const axesReady=s.calibration.complete&&peers.every(p=>p.status?.calibrated);
         button.hidden=s.role!=='host';button.disabled=s.role!=='host'||!axesReady||state.phase==='network'||state.phase==='gesture'||state.phase==='processing'||state.phase==='gesture-ready'||state.phase==='accepted';
         const badge=$('jointSyncState');

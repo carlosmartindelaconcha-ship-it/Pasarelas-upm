@@ -392,3 +392,23 @@ ya no oculta el valor anterior: solo se sustituye tras una selección válida,
 o desaparece al arrastrar, pellizcar, hacer zoom o tocar fuera del canvas.
 Las pruebas reproducen la secuencia `pointerdown → pointerup → click` y los
 toques repetidos en iOS/Android.
+
+### Medida conjunta con un único acelerómetro (13-11-2026)
+
+Cuando el maestro no tiene participantes conectados, «Medir» ofrece
+«Iniciar solo con el maestro». Se siguen exigiendo acelerómetro activo,
+página visible, punto asignado, calibración de signos XYZ y duración válida.
+La validación física entre relojes y los mensajes PREPARE/READY/START_ACK
+se omiten exclusivamente cuando el número de participantes activos es cero.
+
+El inicio conserva la cuenta atrás de 4 s y usa el mismo ciclo de adquisición,
+almacenamiento y exportación JSON/CSV. Una copia del plano de ese ensayo
+elimina asignaciones a antiguos dispositivos desconectados, mientras el plano
+editable conserva los puntos para ensayos posteriores. El resultado contiene
+un solo registro, y Comparar presenta las tres componentes del maestro con
+una única curva por eje. Con participantes conectados se sigue exigiendo
+sincronización física y se mantiene intacto el protocolo WebRTC.
+
+Comparar presenta el nombre del único acelerómetro (incluidos registros JSON
+importados), con una sola serie por componente X/Y/Z; no exige un segundo
+registro para mostrar las curvas.

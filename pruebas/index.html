@@ -734,8 +734,8 @@
                     <div class="joint-live-values"><span class="joint-run-time">Tiempo <strong id="jointRunTime">00:00.0</strong></span><span>Muestras <strong id="jointSampleCount">0</strong></span><span class="joint-extra-info">Frecuencia observada <strong id="jointRate">—</strong></span><span class="joint-extra-info">Mi punto <strong id="jointMyPoint">Sin asignar</strong></span></div>
                     <div class="joint-measurement-chart"><canvas id="jointLive" width="800" height="230" aria-label="Previsualización de las aceleraciones locales"></canvas></div><p class="joint-help">Previsualización local: X azul · Y rojo · Z verde. Todas las muestras recibidas se guardan.</p>
                     <div class="joint-measurement-chart"><canvas id="jointLiveSpectrum" width="800" height="220" aria-label="Espectro en tiempo real de las aceleraciones locales"></canvas></div><p class="joint-help">Espectro en tiempo real hasta 30 Hz; se actualiza durante la adquisición.</p>
-                    <div class="joint-actions"><button id="jointStart" type="button" data-vwoma-icon="play" class="vwoma-action">Preparar e iniciar</button><button id="jointStop" type="button" class="joint-danger" disabled data-vwoma-icon="stop">Detener / cancelar</button></div>
-                    <p class="joint-help">La medida usa la calibración física aceptada. Durante el ensayo se mantienen 10 intercambios/s solo para diagnóstico; no desplazan la malla temporal.</p>
+                    <p id="jointSoloHint" class="joint-help" hidden>Sin participantes conectados. Puedes iniciar un ensayo únicamente con este acelerómetro después de calibrar sus ejes; no es necesaria la sincronización entre móviles.</p><div class="joint-actions"><button id="jointStart" type="button" data-vwoma-icon="play" class="vwoma-action"><span id="jointStartLabel">Preparar e iniciar</span></button><button id="jointStop" type="button" class="joint-danger" disabled data-vwoma-icon="stop">Detener / cancelar</button></div>
+                    <p class="joint-help">Con varios móviles se usa la sincronización física aceptada y se intercambian marcas temporales para diagnóstico. Con el maestro solo, se registra únicamente su acelerómetro y no hay relojes que sincronizar.</p>
                 </div>
                 <div id="jointPanelResults" role="tabpanel" aria-labelledby="jointTabResults" hidden>
                     <h3>Registros y resultados</h3><div id="jointResultsList"></div>
@@ -745,10 +745,10 @@
                     <details><summary>Recuperar registros guardados en este navegador</summary><button id="jointRecover" type="button" class="joint-secondary" data-vwoma-icon="folder">Buscar registros locales</button><div id="jointRecoveryList"></div></details>
                 </div>
                 <div id="jointPanelCompare" role="tabpanel" aria-labelledby="jointTabCompare" hidden>
-                    <h3>Señales sincronizadas</h3>
+                    <h3 id="jointCompareTitle">Señales sincronizadas</h3>
                     <p class="joint-help">X azul, Y rojo y Z verde. La línea del maestro es continua; las de los participantes son discontinuas. Puedes ampliar con rueda o dos dedos, desplazarte con un dedo, ocultar series desde la leyenda y restablecer el zoom.</p>
                     <div class="joint-actions"><label>Representación<select id="jointCompareView"><option value="common" selected>Rejilla temporal común</option><option value="raw">Marcas originales</option></select></label><button id="jointCompareResetZoom" type="button" class="joint-secondary" data-vwoma-icon="reset">Restablecer zoom</button><label class="joint-file">Abrir ensayo JSON del maestro<input id="jointImportSession" type="file" accept="application/json,.json"></label></div>
-                    <p id="jointCompareStatus" class="joint-help">Termina un ensayo y recibe los registros de los participantes para compararlos aquí.</p>
+                    <p id="jointCompareStatus" class="joint-help">Termina un ensayo para visualizar las señales de los móviles que hayan medido.</p>
                     <div class="joint-axis-compare"><div class="chart-heading"><h4>X estructural · longitudinal</h4><button type="button" class="chart-control" data-joint-compare-reset="X" data-vwoma-icon="reset">Restablecer zoom</button></div><div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvasX" aria-label="Aceleraciones X estructurales comparadas"></canvas></div></div>
                     <div class="joint-axis-compare"><div class="chart-heading"><h4>Y estructural · transversal</h4><button type="button" class="chart-control" data-joint-compare-reset="Y" data-vwoma-icon="reset">Restablecer zoom</button></div><div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvasY" aria-label="Aceleraciones Y estructurales comparadas"></canvas></div></div>
                     <div class="joint-axis-compare"><div class="chart-heading"><h4>Z estructural · vertical, detrend</h4><button type="button" class="chart-control" data-joint-compare-reset="Z" data-vwoma-icon="reset">Restablecer zoom</button></div><div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvasZ" aria-label="Aceleraciones Z estructurales comparadas y sin tendencia"></canvas></div></div>
@@ -805,16 +805,16 @@
     <script defer src="src/joint/webrtc-transport.js?v=20261109-modular-transport-v1"></script>
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
     <script defer src="src/joint/persistence.js?v=20261109-modular-persistence-v1"></script>
-    <script defer src="src/joint/acquisition.js?v=20261113-acquisition-transfer-v2"></script>
+    <script defer src="src/joint/acquisition.js?v=20261113-acquisition-solo-v3"></script>
     <script defer src="src/joint/calibration-math.js?v=20261112-calibration-math-v1"></script>
-    <script defer src="src/joint/calibration-controller.js?v=20261112-calibration-controller-v1"></script>
+    <script defer src="src/joint/calibration-controller.js?v=20261113-calibration-solo-v2"></script>
     <script defer src="src/joint/exports.js?v=20261112-exports-v1"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
-    <script defer src="src/joint/results-view.js?v=20261113-touch-pan-v7"></script>
+    <script defer src="src/joint/results-view.js?v=20261113-solo-comparison-v8"></script>
     <script defer src="src/joint/tab-navigation.js?v=20261113-android-tabs-v2"></script>
     <script defer src="src/joint/session-state.js?v=20261113-joint-state-v1"></script>
     <script defer src="src/joint/ui-events.js?v=20261113-joint-ui-events-v3"></script>
-    <script defer src="src/joint/joint-app.js?v=20261113-preview-unified-gestures-v13"></script>
+    <script defer src="src/joint/joint-app.js?v=20261113-preview-joint-solo-v14"></script>
     <script defer src="vwoma-i18n.js?v=20261108-mobile-header-v9"></script>
 
 

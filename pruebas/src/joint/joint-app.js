@@ -75,8 +75,11 @@
         }
         if(s.role==='guest'&&s.syncModel.count) html+=`<p class="joint-help">Mi reloj respecto al maestro: ${s.syncModel.offset.toFixed(2)} ms (estimado). RTT mínimo: ${s.syncModel.rtt.toFixed(2)} ms.</p>`;
         $('jointDevices').innerHTML=html;
+        const hasParticipants=[...s.peers.values()].some(p=>p.channel?.readyState==='open');
         $('jointStart').hidden=s.role!=='host'; $('jointSync').hidden=s.role!=='host';
-        $('jointStart').disabled=!!running()||!!s.transaction||!s.syncCalibration.accepted;
+        $('jointStart').disabled=!!running()||!!s.transaction||!s.calibration.complete||(hasParticipants&&!s.syncCalibration.accepted);
+        $('jointStartLabel').textContent=hasParticipants?'Preparar e iniciar':'Iniciar solo con el maestro';
+        $('jointSoloHint').hidden=s.role!=='host'||hasParticipants;
         $('jointDuration').disabled=s.role!=='host'||!!running()||!!s.transaction;
         $('jointEnableSensor').disabled=s.sensorEnabled;
         $('jointStop').disabled=!running()&&!s.transaction;

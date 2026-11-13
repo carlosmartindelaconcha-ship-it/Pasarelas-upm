@@ -111,11 +111,63 @@ test('maestro espera READY y START_ACK antes de confirmar el ensayo',async()=>{
   assert.ok(f.alerts.some(a=>/Todos han confirmado/.test(a.message)));
 });
 
-test('no inicia sin un participante conectado',async()=>{
+test('sin participantes, el maestro inicia el ensayo y conserva el plano histórico',async()=>{
+  const f=fixture();
+  f.state.peers.clear();
+  f.state.syncCalibration.accepted=false; // no hay otro reloj que sincronizar
+  const originalPlan=structuredClone(f.state.plan);
+  await f.controller.startRun();
+  assert.equal(f.state.run.id,'run-42');
+  assert.equal(f.state.run.start,104000);
+  assert.equal(f.state.run.state,'armed');
+  assert.equal(f.state.run.plan.points[0].device,'host');
+  assert.equal(f.state.run.plan.points[1].device,null);
+  assert.deepEqual(f.state.plan,originalPlan,'no se altera la asignación guardada');
+  assert.deepEqual(f.state.run.syncModels,{});
+  assert.equal(f.state.run.synchronizationCalibration.phase,'not-required');
+  assert.equal(f.state.run.device.id,'host');
+  assert.equal(f.state.transaction,null);
+  assert.deepEqual(f.sent,[],'sin mensajes WebRTC de preparación ni de inicio');
+  assert.equal(f.periodic.size,0,'sin sondeos de reloj para un único móvil');
+  assert.ok(f.events.includes('enterRecording'));
+  assert.ok(f.events.includes('runArmed'));
+  f.controller.appendSample(f.state.run,[0,104000,104000,0.1,0.2,9.7,16,104001,104001]);
+  await f.controller.finishRun();
+  assert.equal(f.state.run.finished,true);
+  assert.equal(f.state.results.size,1);
+  assert.equal(f.state.results.get('host').samples.length,1);
+  assert.equal(f.closeCalls(),1);
+});
+
+test('un participante desconectado no impide el ensayo solo del maestro',async()=>{
+  const f=fixture();
+  f.peer.channel.readyState='closed';
+  f.state.syncCalibration.accepted=false;
+  await f.controller.startRun();
+  assert.equal(f.state.run.plan.points[1].device,null);
+  assert.equal(f.state.plan.points[1].device,'mobile-2');
+  f.controller.stopRun('cancelar');
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(f.state.run.state,'cancelled');
+  assert.ok(!f.sent.some(message=>message.type==='ABORT'||message.type==='STOP_AT'));
+});
+
+test('un ensayo solo todavía exige calibración local y punto del maestro',async()=>{
   const f=fixture();f.state.peers.clear();
-  await assert.rejects(f.controller.startRun(),/Conecta al menos otro móvil/);
+  f.state.calibration.complete=false;
+  await assert.rejects(f.controller.startRun(),/calibración X, Y y Z/);
+  f.state.calibration.complete=true;
+  f.state.plan.points[0].device=null;
+  await assert.rejects(f.controller.startRun(),/Asigna el maestro a un punto/);
   assert.equal(f.state.run,null);
-  assert.equal(f.sent.length,0);
+});
+
+test('con participantes conectados sigue siendo obligatoria la sincronización física',async()=>{
+  const f=fixture();
+  f.state.syncCalibration.accepted=false;
+  await assert.rejects(f.controller.startRun(),/Calibrar y sincronizar/);
+  assert.equal(f.state.run,null);
 });
 
 test('no inicia con duración inválida o calibración pendiente',async()=>{
