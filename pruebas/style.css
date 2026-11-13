@@ -1967,3 +1967,41 @@ main button:not(:where(
     .joint-calibration-controls {grid-template-columns:minmax(0,1fr);}
     #jointBeginCalibration[hidden] + #jointSkipCalibration:not([hidden]) {grid-column:1;}
 }
+
+
+/* Ajuste Safari: selector manual dentro de su tarjeta.
+   No modifica el flujo de sensores, el dibujo ni otras pantallas. */
+.joint-app #jointCalibration,
+.joint-app #jointManualCalibration {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+.joint-app #jointCalibration .joint-calibration-head,
+.joint-app #jointCalibration .joint-calibration-head > p {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+.joint-app #jointManualCalibration > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.joint-app #jointManualCalibration > div > button {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 10px 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+    text-align: center;
+}
+@media (max-width: 350px) {
+    .joint-app #jointManualCalibration > div {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

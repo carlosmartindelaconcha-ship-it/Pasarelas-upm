@@ -95,3 +95,14 @@ test('ninguna cabecera secundaria hereda el fondo azul ni el relleno del encabez
   assert.match(css,/\.joint-calibration-head\s*\{display:block;width:100%;min-width:0;/);
   assert.equal((html.match(/id="jointSkipCalibration"/g)||[]).length,1);
 });
+
+
+test('selector manual en móvil: sin desbordes horizontales y cache CSS actualizada',()=>{
+  const html=read('index.html'),css=read('style.css');
+  assert.match(html,/style\.css\?v=20261113-calibration-mobile-overflow-v13/);
+  assert.match(html,/id="jointManualCalibration"/);
+  assert.match(css,/\.joint-app #jointCalibration,\s*\.joint-app #jointManualCalibration\s*\{[^}]*box-sizing:\s*border-box;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;/s);
+  assert.match(css,/\.joint-app #jointManualCalibration > div\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(css,/\.joint-app #jointManualCalibration > div > button\s*\{[^}]*min-width:\s*0;[^}]*white-space:\s*normal;/s);
+  assert.match(css,/@media \(max-width:\s*350px\)\s*\{\s*\.joint-app #jointManualCalibration > div\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\);/s);
+});
