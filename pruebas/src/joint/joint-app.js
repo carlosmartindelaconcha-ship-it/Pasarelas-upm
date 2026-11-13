@@ -33,6 +33,9 @@
         if (s.run) s.run.incidents.push(item);
     }
     function guard(fn) { return async (...args) => {try {await fn(...args);} catch(e) {tell(e.message || String(e),true); $('jointPairStatus').textContent=e.message || String(e);}}; }
+    // Reveal a newly active control in the page or the pairing dialog.
+    const revealActionTarget=(id,position='start')=>
+        globalThis.VWOMAScrollNavigation?.revealTarget?.($(id),position);
     const {tab}=globalThis.VWOMATabNavigation.createNavigation({
         $,window,raf:typeof requestAnimationFrame==='function'?requestAnimationFrame:null,
         renderComparison:()=>renderComparison(),
@@ -94,7 +97,8 @@
         workspace: (...args) => workspace(...args), requireHostEdit, localStatus,
         renderDevices: (...args) => renderDevices(...args), savePlan, renderPlan,
         startSync: (...args) => startSync(...args),
-        onMessage: (...args) => onMessage(...args)
+        onMessage: (...args) => onMessage(...args),
+        revealActionTarget
     });
 
     // Clock estimation is independent of WebRTC and of the browser UI.
@@ -245,7 +249,7 @@
             startSync:(...args)=>startSync(...args), pause, clockFit,
             send:(...args)=>send(...args),
             broadcast:(...args)=>broadcast(...args),
-            uid, structuredClone, setTimeout, median, math:calibrationMath
+            uid, structuredClone, setTimeout, median, math:calibrationMath, revealActionTarget
         });
 
     function motion(event) {

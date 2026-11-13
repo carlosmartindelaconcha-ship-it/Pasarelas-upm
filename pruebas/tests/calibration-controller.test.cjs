@@ -9,7 +9,7 @@ const {createMath}=require('../src/joint/calibration-math.js');
 const finite=Number.isFinite;
 const median=v=>{const a=v.filter(finite).sort((x,y)=>x-y),n=a.length;return n?(n%2?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2):null};
 function fixture(overrides={}) {
-  const notices=[],sent=[],tabs=[],elements=new Map(),timers=[];let time=1000,rendered=0;
+  const notices=[],sent=[],tabs=[],reveals=[],elements=new Map(),timers=[];let time=1000,rendered=0;
   const node=id=>{
     if(!elements.has(id))elements.set(id,{
       id,hidden:false,disabled:false,textContent:'',innerHTML:'',value:0,alt:'',
@@ -39,9 +39,9 @@ function fixture(overrides={}) {
     startSync:async()=>{},pause:async()=>{},clockFit:()=>null,
     send:(p,msg)=>sent.push([p.id,msg]),broadcast:msg=>sent.push(['all',msg]),
     uid:()=> 'sync1',structuredClone,setTimeout:(fn,delay)=>{timers.push({fn,delay});return timers.length;},median,
-    math:controlledMath
+    math:controlledMath,revealActionTarget:(id,position)=>reveals.push([id,position])
   });
-  return {ctl,s,peer,node,notices,sent,tabs,getRendered:()=>rendered,setTime:t=>time=t,
+  return {ctl,s,peer,node,notices,sent,tabs,reveals,getRendered:()=>rendered,setTime:t=>time=t,
     runTimer:delay=>{
       const index=timers.findIndex(t=>t.delay===delay);
       assert.ok(index>=0,'temporizador esperado: '+delay);
@@ -338,4 +338,26 @@ test('acciones de calibracion no dejan un espacio vacio al omitir o completar',(
   f.ctl.setManualCalibration(1);
   assert.equal(f.node('jointCalibrationControls').hidden,true);
   assert.equal(f.node('jointManualCalibration').hidden,true);
+});
+
+
+test('los botones llevan al usuario a la ilustracion, el selector o el gesto iniciado',()=>{
+  const intro=fixture();
+  intro.ctl.beginCalibrationGuide();
+  assert.deepEqual(intro.reveals,[['jointCalibrationAnimation','start']]);
+
+  const gesture=fixture();
+  gesture.s.calibration.guidePhase='ready';
+  gesture.ctl.startCalibration('y');
+  assert.deepEqual(gesture.reveals,[['jointCalibrationAnimation','start']]);
+
+  const manual=fixture();
+  manual.ctl.chooseManualCalibration();
+  assert.deepEqual(manual.reveals,[['jointManualCalibration','start']]);
+
+  const sync=fixture();
+  sync.s.syncCalibration.phase='gesture-ready';
+  sync.s.syncCalibration.results[sync.s.id]={axes:{}};
+  sync.ctl.startSyncGesture('x');
+  assert.ok(sync.reveals.some(([id])=>id==='jointSyncAnimation'));
 });

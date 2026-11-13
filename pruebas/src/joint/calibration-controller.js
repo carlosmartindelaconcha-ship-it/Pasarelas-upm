@@ -5,7 +5,7 @@
  */
 (function registerCalibrationController(root) {
     'use strict';
-    function createController({s, $, escape, now, toMaster, finite, sampleRate, tell, renderDevices, tab, requireHostEdit, localStatus, startSync, pause, clockFit, send, broadcast, uid, structuredClone, setTimeout, median, math}) {
+    function createController({s, $, escape, now, toMaster, finite, sampleRate, tell, renderDevices, tab, requireHostEdit, localStatus, startSync, pause, clockFit, send, broadcast, uid, structuredClone, setTimeout, median, math, revealActionTarget=()=>{}}) {
         const {linearDetrend, lowPassCalibration, calibrationLobes,
                filteredGestureSeries, interpolateGesture, correlationAt,
                estimateGestureAxis}=math;
@@ -32,6 +32,7 @@
             if(!s.sensorEnabled)throw Error('Activa antes el acelerómetro.');
             if(c.complete||c.active||(c.guidePhase&&c.guidePhase!=='idle'))return;
             c.guidePhase='message';c.feedback=null;renderCalibration();
+            revealActionTarget('jointCalibrationAnimation','start');
             setTimeout(()=>{
                 if(s.calibration!==c||c.guidePhase!=='message'||c.complete||c.manualChoosing)return;
                 c.guidePhase='observe';renderCalibration();
@@ -180,6 +181,7 @@
         s.calibration.feedback=null;
         s.calibration.active={axis,start,end:start+CAL_GESTURE_MS,baseline:[],samples:[]};
         renderCalibration();
+        revealActionTarget('jointCalibrationAnimation','start');
         tell('Eje '+axis.toUpperCase()+': quieto 3, 2, 1. Después haz una sola ida y vuelta.');
     }
     function chooseManualCalibration() {
@@ -188,6 +190,7 @@
         s.calibration.manualChoosing=true;
         s.calibration.guidePhase='idle'; // Cancela una demostración pendiente.
         renderCalibration();
+        revealActionTarget('jointManualCalibration','start');
         tell('Elige si quieres conservar los tres ejes o invertir los tres ejes.');
     }
     function setManualCalibration(sign) {
@@ -246,6 +249,7 @@
     function armSyncGesture(payload,model=s.syncModel) {
         s.syncCalibration.phase='gesture';s.syncCalibration.gesture={id:payload.id,axis:payload.axis,start:payload.start,end:payload.end,model:structuredClone(model),samples:[],sent:false};
         tab('Sync');renderSyncCalibration();
+        revealActionTarget('jointSyncAnimation','start');
     }
     async function startSyncCalibration() {
         requireHostEdit();
@@ -267,6 +271,7 @@
         if(state.phase!=='gesture-ready'||!['x','y','z'].includes(axis)||state.results?.[s.id]?.axes?.[axis])return;
         const start=now()+3000,end=start+6000,payload={type:'SYNC_GESTURE_ARM',id:state.id,axis,start,end};
         armSyncGesture(payload,{offset:0,drift:0,reference:0,count:0,rtt:0});broadcast(payload);
+        revealActionTarget('jointSyncAnimation','start');
         tell('Gesto '+axis.toUpperCase()+' preparado: quietos durante la cuenta atrás.');
         // 3 s de cuenta atrás + 6 s de gesto + 4 s para que todos envíen su ventana.
         setTimeout(()=>finalizeSyncGesture(state.id,axis),13000);

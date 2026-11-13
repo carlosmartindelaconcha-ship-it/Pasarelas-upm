@@ -5,7 +5,7 @@
  */
 (function registerTransport(root) {
     'use strict';
-    function createTransport({ s, VERSION, STUN_SERVERS, MAX_PEERS, MAX_TOKEN, MAX_MESSAGE, QR_CHUNK_SIZE, MAX_QR_PAGES, uid, now, finite, $, running, tell, incident, guard, tab, open, workspace, requireHostEdit, localStatus, renderDevices, savePlan, renderPlan, startSync, onMessage }) {
+    function createTransport({ s, VERSION, STUN_SERVERS, MAX_PEERS, MAX_TOKEN, MAX_MESSAGE, QR_CHUNK_SIZE, MAX_QR_PAGES, uid, now, finite, $, running, tell, incident, guard, tab, open, workspace, requireHostEdit, localStatus, renderDevices, savePlan, renderPlan, startSync, onMessage, revealActionTarget=()=>{} }) {
     // Bidirectional manual signaling, compressible QR; never send SDP to a service.
     async function encodeToken(payload) {
         const bytes=new TextEncoder().encode(JSON.stringify(payload));
@@ -74,6 +74,7 @@
         const link=payload.kind==='offer'?location.href.split('#')[0]+'#joint='+code:code;
         $('jointPairOutput').value=link; $('jointPairOutput').hidden=false; $('jointCopyCode').hidden=false;
         stopQrCycle();s.qrPages=qrTransferPages(code);renderQrPage();
+        revealActionTarget('jointQr','center');
         if(s.qrPages.length>1)s.qrPageTimer=setInterval(()=>{s.qrPageIndex=(s.qrPageIndex+1)%s.qrPages.length;renderQrPage();},1800);
     }
     function openPair(mode='join') {
@@ -486,6 +487,8 @@
         await stopScan();
         s.scan=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});s.capturePermission=true;
         const video=$('jointScanner');video.srcObject=s.scan;video.hidden=false;$('jointStopScan').hidden=false;await video.play();
+        // Keep the live preview in view, scrolling the dialog, not the page behind it.
+        revealActionTarget('jointScanner','center');
         if(s.role==='host'&&s.currentInvite){
             const p=s.peers.get(s.currentInvite);if(p)pairStatus(p,'Cámara preparada. En el participante pulsa ahora «El maestro ya está escaneando: generar respuesta».');
         }
