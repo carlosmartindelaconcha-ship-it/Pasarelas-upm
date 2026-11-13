@@ -11,7 +11,7 @@
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
         resetPlanView, download, deletePlanPoint, updatePlanPoint, svgPosition, planViewport,
         geometry, zoomPlanAt, snapPlanPosition, renderPlan, localStatus, renderDevices,
-        broadcast, enableSensor, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
+        broadcast, enableSensor, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
         startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
         exportProcessedJson, exportProcessedCsv, sendRecord, recover, renderComparison, validComparisonExport,
         requestWake, incident, running
@@ -218,6 +218,7 @@
     $('jointPlan').addEventListener('wheel',e=>{if(s.role!=='host'||running()||s.transaction)return;e.preventDefault();const before=svgPosition(e);if(!before)return;zoomPlanAt(before,e.deltaY<0?.8:1.25);renderPlan();},{passive:false});
     $('jointDeviceName').onchange=()=>{s.name=$('jointDeviceName').value.trim().slice(0,40)||'Mi móvil';broadcast({type:'HELLO',id:s.id,name:s.name,status:localStatus()});renderDevices();renderPlan();};
     $('jointEnableSensor').onclick=guard(enableSensor);
+    $('jointBeginCalibration').onclick=guard(beginCalibrationGuide);
     $('jointCalibrateX').onclick=guard(()=>startCalibration('x'));
     $('jointCalibrateY').onclick=guard(()=>startCalibration('y'));
     $('jointCalibrateZ').onclick=guard(()=>startCalibration('z'));

@@ -11,6 +11,33 @@
                estimateGestureAxis}=math;
         const correctedVector=(values,calibration=s.calibration)=>
             math.correctedVector(values,calibration);
+        const CAL_CYCLE_MS=3000, CAL_GESTURE_MS=3600, CAL_INTRO_MS=2200;
+        const CAL_REST='assets/calibration/telefono-ejes-reposo.svg';
+        const cycleSrc=axis=>'assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg';
+        function updateCalibrationIllustration() {
+            const c=s.calibration,active=c.active,t=now();
+            const playing=!!active&&t>=active.start&&t<active.start+CAL_CYCLE_MS;
+            const example=!active&&c.guidePhase==='demo';
+            const axis=example?'x':active?.axis||'x';
+            const image=$('jointCalibrationImage'),src=playing||example?cycleSrc(axis):CAL_REST;
+            // Reassign only on a real state transition: reloading a SVG restarts it.
+            if(image.getAttribute('src')!==src)image.setAttribute('src',src);
+            image.alt=playing||example?'Un único ciclo en el eje '+axis.toUpperCase():'Teléfono quieto en el origen';
+        }
+        function beginCalibrationGuide() {
+            const c=s.calibration;
+            if(!s.sensorEnabled)throw Error('Activa antes el acelerómetro.');
+            if(c.complete||c.active||(c.guidePhase&&c.guidePhase!=='idle'))return;
+            c.guidePhase='message';c.feedback=null;renderCalibration();
+            setTimeout(()=>{
+                if(s.calibration!==c||c.guidePhase!=='message')return;
+                c.guidePhase='demo';renderCalibration();
+                setTimeout(()=>{
+                    if(s.calibration!==c||c.guidePhase!=='demo')return;
+                    c.guidePhase='ready';renderCalibration();
+                },CAL_CYCLE_MS);
+            },CAL_INTRO_MS);
+        }
 
     function renderSyncCalibration() {
         const state=s.syncCalibration,button=$('jointSyncStart');
@@ -81,44 +108,65 @@
     function calibrationAxisName(axis) {return axis==='x'?'X · longitudinal':axis==='y'?'Y · transversal':'Z · vertical';}
     function renderCalibration() {
         const c=s.calibration,active=c.active,done=c.complete;
-        const state=$('jointCalibrationState');state.textContent=done?'Sentidos corregidos':active?'En curso':'Pendiente';state.classList.toggle('done',done);
+        const guide=c.guidePhase||'idle',ready=guide==='ready'||done;
+        const state=$('jointCalibrationState');
+        state.textContent=done?'Sentidos corregidos':active?'En curso':guide==='demo'?'Ejemplo':guide==='message'?'Instrucciones':ready?'Elige un eje':'Pendiente';
+        state.classList.toggle('done',done);
         $('jointCalibration').classList.toggle('complete',done);
-        const axis=active?.axis||['x','y','z'].find(key=>!c.map[key])||'x';
-        const words={x:'mueve el móvil sobre el eje X y vuelve al origen.',y:'mueve el móvil sobre el eje Y y vuelve al origen.',z:'mueve el móvil sobre el eje Z y vuelve al origen.'};
-        const image=$('jointCalibrationImage');
-        const calibrationSrc=done?'assets/calibration/telefono-ejes-reposo.svg':'assets/calibration/telefono-eje-'+axis+'.svg';
-        if(image.getAttribute('src')!==calibrationSrc)image.setAttribute('src',calibrationSrc);
-        image.alt=done?'Móvil centrado en el origen tras calibrar los ejes':'Móvil moviéndose sobre el eje '+axis.toUpperCase();
+        const begin=$('jointBeginCalibration');
+        begin.hidden=done||guide!=='idle';begin.disabled=!!active||!s.sensorEnabled;
+        $('jointCalibrationExample').hidden=guide!=='message'||done;
+        updateCalibrationIllustration();
         $('jointCalibrationAnimation').classList.toggle('complete',done);
-        $('jointCalibrationInstruction').textContent=done?'Móvil centrado en el origen.':'Calibrar '+calibrationAxisName(axis)+' · '+words[axis];
+        const axis=active?.axis||['x','y','z'].find(key=>!c.map[key])||'x';
+        $('jointCalibrationInstruction').textContent=done?'Teléfono quieto en el origen.':
+            active?'Eje '+axis.toUpperCase()+' · una sola ida y vuelta.':
+            guide==='demo'?'EJEMPLO · X: observa una sola ida y vuelta.':
+            ready?'Teléfono quieto. Elige X, Y o Z para realizar el gesto.':
+            'Pulsa «Calibrar ejes» para ver cómo se realiza el movimiento.';
         for(const key of ['x','y','z']) {
             const calibration=c.map[key],button=$('jointCalibrate'+key.toUpperCase()),factor=$('jointFactor'+key.toUpperCase()),card=factor.closest('.joint-factor');
-            button.disabled=!!active||(!s.sensorEnabled)||!!calibration;button.classList.toggle('done',!!calibration);
+            button.disabled=!ready||!!active||!s.sensorEnabled||!s.sensor||!!calibration;
+            button.classList.toggle('done',!!calibration);
             factor.textContent=calibration?'× '+(calibration.sign>0?'+1':'−1'):'Pendiente';
             card.classList.toggle('ready',!!calibration);
         }
         const override=$('jointCalibrationOverride'),manual=$('jointManualCalibration'),skip=$('jointSkipCalibration');
-        override.hidden=done;
-        manual.hidden=done||!c.manualChoosing;
+        override.hidden=done;manual.hidden=done||!c.manualChoosing;
         skip.disabled=!!active||!s.sensorEnabled||!!c.manualChoosing;
-        $('jointCalibrationHelp').textContent=active?'Prepárate: empieza el gesto cuando termine la cuenta atrás.':c.feedback||(done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':'Pulsa cada eje y sigue el gesto indicado. Cada prueba solo corrige el signo de su propio registro; no se intercambian ejes.');
+        $('jointCalibrationHelp').textContent=active?'Quieto durante la cuenta atrás. Al aparecer «¡AHORA!», haz una sola ida y vuelta.':
+            guide==='message'?'Observa el ejemplo antes de elegir un eje.':
+            guide==='demo'?'Eje X: un ciclo completo de 3 segundos, regreso al origen.':
+            c.feedback||(done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':
+            ready?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z». Cada prueba dura 3,6 s y corrige solo el signo del eje seleccionado.':
+            'Pulsa «Calibrar ejes». Primero verás un único ejemplo en X; después se activarán los tres gestos.');
         renderCalibrationCountdown();
     }
     function renderCalibrationCountdown() {
         const box=$('jointCalibrationCountdown'),active=s.calibration.active;
-        if(!active){box.hidden=true;box.classList.remove('go');return;}
-        const t=now();box.hidden=false;
-        if(t<active.start){box.classList.remove('go');box.textContent='Quieto · '+Math.max(1,Math.ceil((active.start-t)/1000));}
-        else {box.classList.add('go');box.textContent='¡AHORA! · '+Math.max(0,Math.ceil((active.end-t)/1000))+' s para ida y vuelta';}
+        if(!active){box.hidden=true;box.classList.remove('go');updateCalibrationIllustration();return;}
+        const t=now();
+        updateCalibrationIllustration();
+        if(t<active.start) {
+            box.hidden=false;box.classList.remove('go');
+            box.textContent='QUIETO · '+Math.max(1,Math.ceil((active.start-t)/1000));
+        } else if(t<active.start+650) {
+            box.hidden=false;box.classList.add('go');box.textContent='¡AHORA!';
+        } else {
+            box.hidden=true;box.classList.remove('go');
+        }
     }
     function startCalibration(axis) {
+        if(!['x','y','z'].includes(axis))throw Error('Eje de calibración no válido.');
         if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
+        if(s.calibration.guidePhase!=='ready')throw Error('Pulsa primero «Calibrar ejes» y observa el ejemplo.');
         if(s.calibration.active||s.calibration.map[axis])return;
-        // Durante la cuenta atrás se mide la componente continua; en Z incluye la gravedad.
+        // Three seconds of baseline including gravity, one 3s cycle and .6s margin.
         const start=now()+3000;
         s.calibration.feedback=null;
-        s.calibration.active={axis,start,end:start+6000,baseline:[],samples:[]};renderCalibration();
-        tell('Calibración '+axis.toUpperCase()+': mantén el móvil quieto y empieza al aparecer ¡AHORA!.');
+        s.calibration.active={axis,start,end:start+CAL_GESTURE_MS,baseline:[],samples:[]};
+        renderCalibration();
+        tell('Eje '+axis.toUpperCase()+': quieto 3, 2, 1. Después haz una sola ida y vuelta.');
     }
     function chooseManualCalibration() {
         if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
@@ -141,7 +189,7 @@
             s.calibration.feedback=message;tell(message,true);renderCalibration();
         };
         if(rows.length<20){
-            fail('Eje '+axis.toUpperCase()+': solo llegaron '+rows.length+' muestras en 6 s. Mantén Safari visible y revisa el permiso del acelerómetro.');return;
+            fail('Eje '+axis.toUpperCase()+': solo llegaron '+rows.length+' muestras durante el gesto. Mantén Safari visible y revisa el permiso del acelerómetro.');return;
         }
         const quiet=active.baseline.map(row=>row[raw]).filter(finite);
         if(quiet.length<12){
@@ -246,7 +294,7 @@
         tell('Sincronización física validada. Ya puedes pasar a Medir.');renderSyncCalibration();renderDevices();
     }
 
-        return Object.freeze({renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture});
+        return Object.freeze({renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture});
     }
     const api=Object.freeze({createController});
     if(typeof module==='object'&&module.exports) module.exports=api;

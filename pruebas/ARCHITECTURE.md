@@ -426,3 +426,19 @@ ninguna recta ni se modifica la pendiente física de la señal.
 La modificación solo afecta a la visualización: no altera las muestras
 originales, el formato JSON, el CSV bruto ni el procesamiento de exportación
 ya existente (que conserva su detrend lineal de Z).
+
+### Calibración guiada con demostración de un solo ciclo (13-11-2026)
+
+Los gestos XYZ quedan bloqueados hasta pulsar «Calibrar ejes» y terminar
+una introducción de 2,2 s con el mensaje superpuesto «EJEMPLO: haz un SOLO
+movimiento de ida y vuelta con el móvil en CADA EJE». A continuación se
+representa una sola ida y vuelta en X durante 3 s. Después se muestra el
+teléfono inmóvil en el centro y se habilitan los tres gestos XYZ.
+
+Cada eje mantiene 3 s de reposo para estimar la continua y registra 3,6 s
+(un ciclo de 3 s más 0,6 s de tolerancia). El vídeo SVG se activa solamente
+al aparecer «¡AHORA!» y vuelve al reposo al terminar. Las versiones de
+un ciclo se generan a partir de los SVG originales cambiando únicamente
+`repeatCount` y `fill`; los gráficos SVG de sincronización entre
+móviles no se modifican. El filtrado y la detección de lóbulos permanecen
+intactos.
