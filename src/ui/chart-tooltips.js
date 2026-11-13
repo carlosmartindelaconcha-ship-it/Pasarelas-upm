@@ -6,7 +6,7 @@
   'use strict';
   function createController({Chart,document}={}) {
     const listeners=new WeakMap();
-    let lastGestureTime=0;
+    let lastGestureTime=-Infinity;
     const now=()=>typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
     const charts=()=>{
       const instances=Chart?.instances;

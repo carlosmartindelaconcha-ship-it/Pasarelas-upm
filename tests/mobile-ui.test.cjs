@@ -1,6 +1,7 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
 const {createNavigation}=require('../src/joint/tab-navigation.js');
 const {createController}=require('../src/ui/chart-tooltips.js');
 
