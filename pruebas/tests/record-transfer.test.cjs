@@ -46,3 +46,19 @@ test('el receptor confirma un mensaje duplicado sin añadirlo otra vez',async()=
  const sent=[];const result=await t.handleTransferMessage(p,{type:'TRANSFER_END',transferId:'tx'});
  assert.equal(result,undefined);
 });
+
+test('errores específicos de metadatos distinguen el motivo real del rechazo',()=>{
+  const t=fixture();
+  assert.throws(()=>t.validateRecord({...record,schema:'old-schema'},'guest-1','run-1'),/versión del formato/);
+  assert.throws(()=>t.validateRecord(record,'guest-1','other-run'),/ensayo distinto/);
+  assert.throws(()=>t.validateRecord(record,'guest-2','run-1'),/identificador del móvil distinto/);
+  assert.throws(()=>t.validateRecord({...record,samples:undefined},'guest-1','run-1'),/falta el array/);
+  assert.throws(()=>t.validateRecord({...record,samples:new Array(101).fill(null)},'guest-1','run-1'),/límite de muestras/);
+});
+test('sesiones de campañas distintas no se mezclan aunque coincidan los IDs',()=>{
+  const s={role:'host',session:'other-session',results:new Map(),transfer:null};
+  const t=createTransfer({s,MAX_SAMPLES:100,finite:Number.isFinite,send:()=>true,
+    renderResults:()=>{},localRecord:()=>null,uid:()=> 'transfer-1',tell:()=>{},
+    crypto:webcrypto,TextEncoder,Uint8Array,setTimeout,clearTimeout});
+  assert.throws(()=>t.validateRecord({...record,session:'original-session'},'guest-1','run-1'),/otra sesión conjunta/);
+});

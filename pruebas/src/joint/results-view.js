@@ -24,7 +24,9 @@
         }
         if(s.transfer)html+=`<p>Enviando al maestro: ${s.transfer.percent}%</p>`;
         if(r.transferred)html+='<p>Registro confirmado por el maestro.</p>';
-        if(s.transferError)html+=`<p class="joint-warning">No se pudo entregar el registro: ${escape(s.transferError)}. Puedes volver a pulsar «Enviar datos» sin perder las muestras locales.</p>`;
+        if(s.transferError)html+=s.role==='host'
+            ?`<p class="joint-warning">Registro rechazado: ${escape(s.transferError)}. Solicita al participante que compruebe la conexión y vuelva a enviar el registro.</p>`
+            :`<p class="joint-warning">No se pudo entregar el registro: ${escape(s.transferError)}. Puedes volver a pulsar «Enviar datos» sin perder las muestras locales.</p>`;
         if(s.storageFailed)html+='<p class="joint-warning">El guardado persistente ha fallado: descarga los datos antes de cerrar.</p>';
         $('jointResultsList').innerHTML=html;
         if(updateSyncCharts)renderSyncResults(r);
