@@ -352,3 +352,7 @@ natural con un dedo; se conserva el zoom de dos dedos y el reinicio.
 Nuevo control común "Valores: ocultos / visibles", desactivado por defecto,
 para habilitar los indicadores de Chart.js en todas las gráficas. Su ajuste
 se mantiene únicamente en el almacenamiento local de la versión experimental.
+
+La vista Comparar reutiliza gráficas existentes cuando no han cambiado el ensayo,
+los dispositivos, las muestras ni el modo de representación. Conserva el zoom
+y evita recalcular y volver a dibujar grandes series en cada cambio de pestaña.
