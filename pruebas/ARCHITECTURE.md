@@ -276,3 +276,34 @@ distinta a la del enlace, propagación de rechazos hasta el participante,
 integridad incorrecta, recuperación tras errores y mensaje persistente en
 Resultados. La causa específica del rechazo observado por el usuario sigue
 pendiente de una nueva prueba en móviles reales con estos diagnósticos.
+
+
+### Corrección de la preview: formato de registro vs. almacenamiento (13-11-2026)
+
+**Causa raíz confirmada:** la publicación de `/pruebas/` aplicaba
+`replaceAll('upm-joint-v1','upm-joint-vwoma-preview-v1')` sobre todo
+`joint-app.js`. Esa sustitución no solo aislaba IndexedDB: también
+transformaba el esquema del registro de
+`pasarelas-upm-joint-v1` a
+`pasarelas-upm-joint-vwoma-preview-v1`.
+El receptor de WebRTC exigía la versión original. El participante ya
+fallaba en su validación local y por eso informaba
+«Registro local conservado. Registro incompatible: versión del formato
+no reconocida». El problema no era el sensor ni la conexión.
+
+`scripts/preview-config.cjs` sustituye **exclusivamente** tres
+expresiones concretas: nombre de base IndexedDB, clave de escritura
+del plano y clave de lectura del plano. Mantiene idéntico el protocolo
+y exige que `runMeta()`, la validación de registros y la señalización
+de transferencia coincidan en `pasarelas-upm-joint-v1`.
+`tests/preview-config.test.cjs` reproduce expresamente la antigua
+sustitución global y exige que sea rechazada por las pruebas.
+
+El historial de ensayos ya guardados bajo el esquema experimental
+erróneo se puede **descargar desde Recuperar**: solo al exportarlos
+se normaliza esa variante conocida al esquema correcto,
+preservando las muestras y la identidad de cada dispositivo.
+No se altera silenciosamente el almacenamiento IndexedDB original.
+Este procedimiento no convierte archivos arbitrarios ni atribuye un
+registro a otro teléfono. La pantalla y el mecanismo de recuperación
+siguen requiriendo comprobación manual real en los móviles.

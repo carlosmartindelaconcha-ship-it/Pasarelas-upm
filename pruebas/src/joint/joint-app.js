@@ -221,6 +221,7 @@
             structuredClone:value=>structuredClone(value),
             setTimeout, clearTimeout
         });
+    const repairArchivedPreviewMeta=meta=>meta?.schema==='pasarelas-upm-joint-vwoma-preview-v1'?{...meta,schema:'pasarelas-upm-joint-v1'}:meta;
     async function recover() {
         const entries=await storedRuns();
         $('jointRecoveryList').replaceChildren();
@@ -229,7 +230,7 @@
             const b=document.createElement('button');b.type='button';b.className='joint-secondary';b.textContent=entry.meta.created.slice(0,19)+' · '+entry.meta.device.name;
             b.onclick=guard(async()=>{
                 const chunks=await storedChunks(entry.key);
-                download('recuperado_'+entry.meta.id+'.json',{...entry.meta,recovered:true,samples:chunks.flatMap(v=>v.rows)});
+                download('recuperado_'+entry.meta.id+'.json',{...repairArchivedPreviewMeta(entry.meta),recovered:true,samples:chunks.flatMap(v=>v.rows)});
             });$('jointRecoveryList').append(b);
         }
     }
@@ -329,7 +330,7 @@
         });
 
     function runMeta(run) {
-        return {schema:'pasarelas-upm-joint-vwoma-preview-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,networkClock:run.networkClock||run.initialClock,finalClock:run.finalClock,syncModels:run.syncModels||{},synchronizationCalibration:run.synchronizationCalibration||null,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj robusto fijado al inicio del ensayo más la corrección física fija de la tablilla; los intercambios posteriores solo diagnostican su estabilidad.',userAgent:navigator.userAgent};
+        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,networkClock:run.networkClock||run.initialClock,finalClock:run.finalClock,syncModels:run.syncModels||{},synchronizationCalibration:run.synchronizationCalibration||null,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj robusto fijado al inicio del ensayo más la corrección física fija de la tablilla; los intercambios posteriores solo diagnostican su estabilidad.',userAgent:navigator.userAgent};
     }
     function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
     /* Binary file download, validated exports and common-grid interpolation. */
