@@ -36,6 +36,7 @@
     const {tab}=globalThis.VWOMATabNavigation.createNavigation({
         $,window,raf:typeof requestAnimationFrame==='function'?requestAnimationFrame:null,
         renderComparison:()=>renderComparison(),
+        onMeasureVisible:()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},
         isRecording:()=>document.body?.classList?.contains('recording-lock')||false
     });
     function open() {
@@ -408,8 +409,11 @@
             if(t>r.end+1000)finishRun().catch(e=>tell(e.message,true));
         }
         $('jointSampleCount').textContent=r?.samples.length||0;$('jointRate').textContent=localStatus().sensor?sampleRate().toFixed(1)+' Hz':'—';
-        drawPreview();
-        if(s.uiTick%4===0)drawLiveSpectrum();
+        // Hidden canvases must not redraw or resize while another tab is active.
+        if(!$('jointPanelMeasure').hidden){
+            drawPreview();
+            if(s.uiTick%4===0)drawLiveSpectrum();
+        }
         if(++s.uiTick%4===0){renderDevices();broadcast({type:'STATUS',status:localStatus()});if(running())persist();}
     }
     function resetSession() {

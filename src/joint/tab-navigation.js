@@ -4,7 +4,7 @@
 (function registerTabNavigation(root) {
   'use strict';
   const NAMES=Object.freeze(['Plan','Devices','Sync','Measure','Results','Compare']);
-  function createNavigation({$,window,raf,renderComparison,isRecording=()=>false}) {
+  function createNavigation({$,window,raf,renderComparison,onMeasureVisible=()=>{},isRecording=()=>false}) {
     let current=null;
     function tab(name) {
       if(!NAMES.includes(name))throw Error('Pestaña desconocida: '+name);
@@ -17,6 +17,11 @@
         $('jointTab'+n).tabIndex=n===name?0:-1;
       }
       if(name==='Compare')renderComparison();
+      if(name==='Measure') {
+        // Resize only after the panel is visible (important for Chrome Android).
+        const resize=()=>{ try { onMeasureVisible?.(); }catch(_){} };
+        if(typeof raf==='function')raf(resize);
+      }
       const bar=$('jointTabs'),button=$('jointTab'+name);
       if(bar?.scrollTo && button?.getBoundingClientRect && bar.getBoundingClientRect) {
         const x=button.getBoundingClientRect().left-bar.getBoundingClientRect().left;
