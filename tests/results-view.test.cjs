@@ -67,3 +67,12 @@ test('el progreso no necesita reconstruir histogramas ni gráficos',()=>{
   assert.equal(x.s.syncCharts.length,0);
   assert.equal(x.byId('jointRttHistograms').innerHTML,'');
 });
+
+test('el maestro recibe un diagnóstico específico sin ofrecer el botón del participante',()=>{
+  const x=setup('host');
+  x.s.transferError='Registro incompatible: identificador del móvil distinto del emparejado.';
+  x.api.renderResults(false);
+  assert.match(x.byId('jointResultsList').innerHTML,/Registro rechazado/);
+  assert.match(x.byId('jointResultsList').innerHTML,/identificador del móvil distinto/);
+  assert.doesNotMatch(x.byId('jointResultsList').innerHTML,/Puedes volver a pulsar «Enviar datos»/);
+});

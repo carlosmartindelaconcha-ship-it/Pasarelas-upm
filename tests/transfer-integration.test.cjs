@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {webcrypto}=require('node:crypto');
 const {createTransfer}=require('../src/joint/record-transfer.js');
 
-function network({samples=2400,dropChunkAck=false,disconnectAfter=null}={}) {
+function network({samples=2400,dropChunkAck=false,disconnectAfter=null,hostPeerId=null}={}) {
   const id='guest-1',runId='run-2',session='joint-session';
   const rows=Array.from({length:samples},(_,i)=>[
     i,1000+i*16.7,1000+i*16.7,0.12,0.15,9.81,16.7,1000+i*16.7,995+i*16.7
@@ -18,7 +18,7 @@ function network({samples=2400,dropChunkAck=false,disconnectAfter=null}={}) {
   const guestState={role:'guest',id,session,run:{id:runId,finished:true},results:new Map(),transfer:null};
   const messages=[],errors=[],notices=[],renderEvents=[];
   let maxPendingChunks=0;
-  const hostPeer={id,acks:new Map(),incoming:null,completedTransfer:null,channel:{readyState:'open'}};
+  const hostPeer={id:hostPeerId||id,acks:new Map(),incoming:null,completedTransfer:null,channel:{readyState:'open'}};
   const guestPeer={id:'master',acks:new Map(),channel:{readyState:'open'}};
   guestState.peers=new Map([[guestPeer.id,guestPeer]]);
   hostState.peers=new Map([[hostPeer.id,hostPeer]]);
@@ -96,8 +96,13 @@ test('rechaza muestras corrompidas sin registrar un archivo inválido',async()=>
   for(let i=1;i<Math.ceil(text.length/12000);i++) {
     await n.host.handleTransferMessage(n.hostPeer,{type:'TRANSFER_CHUNK',transferId:'bad',index:i,data:text.slice(i*12000,(i+1)*12000)});
   }
-  await assert.rejects(n.host.handleTransferMessage(n.hostPeer,{type:'TRANSFER_END',transferId:'bad'}),/integridad/);
+  await n.host.handleTransferMessage(n.hostPeer,{type:'TRANSFER_END',transferId:'bad'});
   assert.equal(n.hostState.results.size,0);
+  assert.equal(n.hostPeer.incoming,null);
+  assert.match(n.hostState.transferError,/integridad/);
+  assert.ok(n.messages.some(m=>m.from==='host'&&m.type==='TRANSFER_REJECT'));
+  assert.ok(n.notices.some(v=>/integridad/.test(v)));
+
 });
 
 test('fallo de conexión deja registro local y permite reintentar manualmente',async()=>{
@@ -108,4 +113,41 @@ test('fallo de conexión deja registro local y permite reintentar manualmente',a
   assert.equal(n.guestState.run.transferred,undefined);
   assert.equal(n.record.samples.length,240);
   assert.equal(n.hostState.results.size,0);
+});
+
+test('identidad distinta del emparejamiento: rechazo preciso y rápido en ambos móviles',async()=>{
+  const n=network({samples:200,hostPeerId:'peer-repaired-with-new-invite'});
+  await assert.rejects(n.guest.sendRecord(),/rechazado.*[Ii]dentificador del móvil distinto del emparejado/);
+  assert.equal(n.guestState.run.transferred,undefined);
+  assert.equal(n.guestState.transfer,null);
+  assert.match(n.guestState.transferError,/Identificador del móvil distinto/);
+  assert.match(n.hostState.transferError,/Identificador del móvil distinto/);
+  assert.equal(n.hostState.results.size,0);
+  assert.ok(n.messages.some(m=>m.type==='TRANSFER_REJECT'&&m.index===-1));
+  assert.equal(n.messages.some(m=>m.type==='TRANSFER_CHUNK'),false);
+});
+
+test('metadatos incompatibles en el payload dan un rechazo detallado tras el hash',async()=>{
+  const n=network({samples:35});
+  const corrupted={...n.record,schema:'pasarelas-upm-joint-unknown'};
+  const text=JSON.stringify(corrupted),hash=await n.host.hashText(text),transferId='invalid-shape';
+  const count=Math.ceil(text.length/12000);
+  await n.host.handleTransferMessage(n.hostPeer,{type:'TRANSFER_BEGIN',transferId,runId:n.record.id,size:text.length,count,hash});
+  for(let i=0;i<count;i++)await n.host.handleTransferMessage(n.hostPeer,{
+    type:'TRANSFER_CHUNK',transferId,index:i,data:text.slice(i*12000,(i+1)*12000)
+  });
+  await n.host.handleTransferMessage(n.hostPeer,{type:'TRANSFER_END',transferId});
+  assert.equal(n.hostState.results.size,0);
+  assert.match(n.hostState.transferError,/versión del formato/);
+  assert.ok(n.messages.some(m=>m.type==='TRANSFER_REJECT'&&m.index===count));
+  assert.equal(n.hostPeer.incoming,null);
+});
+
+test('un registro local incoherente se detiene antes de ocupar WebRTC',async()=>{
+  const n=network({samples:12});
+  n.record.device.id='different-device';
+  await assert.rejects(n.guest.sendRecord(),/identificador del móvil distinto/i);
+  assert.equal(n.messages.length,0);
+  assert.equal(n.hostState.results.size,0);
+  assert.ok(n.guestState.transferError);
 });

@@ -247,3 +247,32 @@ La prueba de integración simula dos extremos, los mensajes originales
 WebRTC y una transferencia de muchos bloques, y comprueba el límite
 de mensajes, el paralelismo acotado y la conservación del registro si
 falla la comunicación. Esto no sustituye la prueba de dos teléfonos reales.
+
+### Diagnóstico exacto de un registro incompatible (13-11-2026)
+
+La prueba real detectó que el maestro rechazaba el registro de un participante
+con el mensaje genérico «Registro recibido incompatible». Esa excepción
+se producía al verificar metadatos **después** de reconstruir el archivo y
+comprobar su SHA-256, de modo que no era prueba de corrupción en tránsito.
+
+La validación distingue ahora entre versión de esquema, identificador de ensayo,
+identificador del participante emparejado, identidad de sesión, ausencia de
+muestras y límite máximo. El participante comprueba su propio registro
+**antes** de comenzar la transferencia. El maestro compara la identidad
+anunciada en `TRANSFER_BEGIN` con el `p.id` del enlace WebRTC y, si hay
+incompatibilidad, devuelve `TRANSFER_REJECT` con el motivo concreto.
+El rechazo interrumpe los reintentos de ACK innecesarios y muestra el motivo
+en ambos teléfonos. Un esquema o identificador inesperado **no se reescribe
+automáticamente**, para evitar atribuir mediciones al sensor incorrecto.
+
+La respuesta `TRANSFER_REJECT` es una extensión compatible dentro de esta
+versión experimental; el resto de mensajes, bloques y validación SHA-256
+continúan como antes. Los registros locales y el almacenamiento IndexedDB se
+conservan cuando se rechaza una transferencia.
+
+Pruebas añadidas: errores de metadatos diferenciados, prueba del objeto
+producido por `runMeta` del código real, rechazo temprano de una identidad
+distinta a la del enlace, propagación de rechazos hasta el participante,
+integridad incorrecta, recuperación tras errores y mensaje persistente en
+Resultados. La causa específica del rechazo observado por el usuario sigue
+pendiente de una nueva prueba en móviles reales con estos diagnósticos.
