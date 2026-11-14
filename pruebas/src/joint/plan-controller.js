@@ -438,6 +438,9 @@
             savePlan(false);
             record?.remove();
             $('jointPlan').querySelector(`[data-point="${CSS.escape(id)}"]`)?.remove();
+            // Las sugerencias dependían de la geometría anterior: se retiran
+            // sin recrear toda la tabla ni alterar la animación de borrado.
+            $('jointPlan').querySelectorAll('.joint-interpolation-proposed').forEach(el=>el.remove());
             $('jointPlan').querySelectorAll('[data-point]').forEach(el=>el.classList.toggle('selected',el.dataset.point===s.selected));
             renderDevices();
             tell(`${point.id} eliminado del plano.`);
