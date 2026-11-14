@@ -65,15 +65,11 @@
         if(firstOpen)window.scrollTo({top:0});
     }
     function workspace() {
-        const firstWorkspace=$('jointWorkspace').hidden;
         $('jointLanding').hidden=true; $('jointWorkspace').hidden=false;
         $('jointRole').textContent=s.role==='host'?'Maestro':'Participante';
         $('jointPair').hidden=s.role!=='host'; $('jointSessionLabel').textContent=s.session.slice(0,8);
         $('jointDeviceName').value=s.name;
-        renderPlan(); renderDevices();
-        // Una actualización de QR o red no debe devolver a Plano ni
-        // desmontar Resultados mientras el usuario intenta desplazarse.
-        if(firstWorkspace)tab('Plan');
+        renderPlan(); renderDevices(); tab('Plan');
     }
     function requireHostEdit() {
         if (s.role!=='host') throw Error('El plano lo edita el maestro.');
