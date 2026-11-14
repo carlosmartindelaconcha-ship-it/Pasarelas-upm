@@ -11,29 +11,83 @@
                estimateGestureAxis}=math;
         const correctedVector=(values,calibration=s.calibration)=>
             math.correctedVector(values,calibration);
-        const CAL_CYCLE_MS=2000, CAL_GESTURE_MS=2600, CAL_INTRO_MS=5000, CAL_OBSERVE_MS=1100;
-        const SYNC_GESTURE_MS=6000, SYNC_READY_MS=3000;
+        const CAL_CYCLE_MS=2000, CAL_GESTURE_MS=2500, CAL_INTRO_MS=5000, CAL_OBSERVE_MS=1100;
+        const SYNC_GESTURE_MS=6000, SYNC_READY_MS=3000, SYNC_DEMO_MS=7500;
         const syncAsset=(axis,kind)=>'assets/joint/telefono-sincronizacion-eje-'+axis.toUpperCase()+'-tabla-madera-'+kind+'.svg?v=20261114-physical-sync-board-v1';
         let syncDemoSequence=0;
+
         const CAL_REST='assets/calibration/telefono-ejes-reposo.svg';
         const cycleSrc=axis=>'assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg?v=20261113-speed3';
+        const svgPromises=new Map();
+        let playback=null,playNumber=0,calGuideNumber=0,lastPlaybackKey=null;
+        function cachedSvg(axis) {
+            if(!svgPromises.has(axis))svgPromises.set(axis,
+                fetch(cycleSrc(axis)).then(res=>res.ok?res.text():null).catch(()=>null));
+            return svgPromises.get(axis);
+        }
+        function playCalibrationSvg(axis,kind,key) {
+            const image=$('jointCalibrationImage');
+            if(playback?.url)URL.revokeObjectURL(playback.url);
+            const item={key,kind,number:++playNumber,calibration:s.calibration,url:null};
+            playback=item;
+            lastPlaybackKey=key;
+            image.onload=null;image.onerror=null;
+            const finish=()=>{
+                if(playback!==item)return;
+                playback=null;
+                image.onload=null;image.onerror=null;
+                image.setAttribute('src',CAL_REST);
+                image.alt='Teléfono quieto en el origen';
+                if(item.url)URL.revokeObjectURL(item.url);
+                if(kind==='demo'&&s.calibration===item.calibration&&s.calibration.guidePhase==='demo'){
+                    s.calibration.guidePhase='ready';
+                    renderCalibration();
+                }
+            };
+            cachedSvg(axis).then(svg=>{
+                if(playback!==item)return;
+                // Fresh blob URL = fresh animation timeline on Chrome/Pixel.
+                // Original SVG artwork and its 2-second transform stay untouched.
+                const uri=svg?URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'})):
+                    cycleSrc(axis)+'&play='+Date.now()+'-'+item.number;
+                if(svg)item.url=uri;
+                image.onload=()=>{
+                    if(playback!==item)return;
+                    setTimeout(finish,CAL_CYCLE_MS);
+                };
+                image.onerror=()=>{
+                    if(playback!==item)return;
+                    tell('No se pudo reproducir el vídeo del eje '+axis.toUpperCase()+'.',true);
+                    finish();
+                };
+                image.setAttribute('src',uri);
+                image.alt='Ida y vuelta por el eje '+axis.toUpperCase();
+                // Do not leave the tutorial blocked by a missing Android image-load event.
+                setTimeout(()=>{if(playback===item)finish();},CAL_CYCLE_MS+1800);
+            }).catch(()=>{if(playback===item)finish();});
+        }
         function updateCalibrationIllustration() {
             const c=s.calibration,active=c.active,t=now();
-            // Bind the *visual* cycle to the actual SVG load, not a coarse 250 ms
-            // timer. A delayed refresh must never cut the SVG off mid-cycle.
-            if(active&&t>=active.start&&!finite(active.svgStartedAt))active.svgStartedAt=t;
-            const playing=!!active&&finite(active.svgStartedAt)&&t<active.svgStartedAt+CAL_CYCLE_MS;
-            const example=!active&&!c.complete&&c.guidePhase==='demo';
-            const axis=example?'x':active?.axis||'x';
-            const image=$('jointCalibrationImage'),src=playing||example?cycleSrc(axis):CAL_REST;
-            // Reassign only on a real state transition: reloading a SVG restarts it.
-            if(image.getAttribute('src')!==src)image.setAttribute('src',src);
-            image.alt=playing||example?'Un único ciclo en el eje '+axis.toUpperCase():'Teléfono quieto en el origen';
+            let key=null,kind=null,axis=null;
+            if(active&&t>=active.start&&t<active.end){
+                axis=active.axis;kind='gesture';key='gesture:'+axis+':'+active.start;
+            }else if(!active&&c.guidePhase==='demo'){
+                axis='x';kind='demo';key='demo:'+calGuideNumber;
+            }
+            if(key&&key!==lastPlaybackKey&&playback?.key!==key)
+                playCalibrationSvg(axis,kind,key);
+            if(!key&&!playback){
+                const image=$('jointCalibrationImage');
+                if(image.getAttribute('src')!==CAL_REST)image.setAttribute('src',CAL_REST);
+                image.alt='Teléfono quieto en el origen';
+            }
         }
         function beginCalibrationGuide() {
             const c=s.calibration;
             if(!s.sensorEnabled)throw Error('Activa antes el acelerómetro.');
             if(c.complete||c.active||(c.guidePhase&&c.guidePhase!=='idle'))return;
+            calGuideNumber++;
+            for(const axis of ['x','y','z'])cachedSvg(axis);
             c.guidePhase='message';c.feedback=null;renderCalibration();
             revealActionTarget('jointCalibrationAnimation','start');
             setTimeout(()=>{
@@ -41,118 +95,137 @@
                 c.guidePhase='observe';renderCalibration();
                 setTimeout(()=>{
                     if(s.calibration!==c||c.guidePhase!=='observe'||c.complete||c.manualChoosing)return;
+                    // Wait for the actual image load + complete playback, not just a timer.
                     c.guidePhase='demo';renderCalibration();
-                    setTimeout(()=>{
-                        if(s.calibration!==c||c.guidePhase!=='demo'||c.complete||c.manualChoosing)return;
-                        c.guidePhase='ready';renderCalibration();
-                    },CAL_CYCLE_MS);
                 },CAL_OBSERVE_MS);
             },CAL_INTRO_MS);
         }
+        function beginSyncGuide(state) {
+            if(s.syncCalibration!==state||state.phase!=='gesture-ready')return;
+            state.guidePhase='message';
+            state.guideNumber=++syncDemoSequence;
+            state.lastFeedback='';
+            renderSyncCalibration();
+            setTimeout(()=>{
+                if(s.syncCalibration!==state||state.phase!=='gesture-ready'||state.guidePhase!=='message')return;
+                state.guidePhase='observe';renderSyncCalibration();
+                setTimeout(()=>{
+                    if(s.syncCalibration!==state||state.phase!=='gesture-ready'||state.guidePhase!=='observe')return;
+                    state.guidePhase='demo';renderSyncCalibration();
+                },CAL_OBSERVE_MS);
+            },CAL_INTRO_MS);
+        }
+        function receiveSyncGuide(id) {
+            if(s.role!=='guest'||typeof id!=='string'||!id)return;
+            s.syncCalibration={id,phase:'gesture-ready',accepted:false,gesture:null,results:{},models:{},correctionMs:0};
+            beginSyncGuide(s.syncCalibration);
+        }
+
 
     function renderSyncCalibration() {
         const state=s.syncCalibration,button=$('jointSyncStart');
         if(!button)return;
         const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
+        const badge=$('jointSyncState'),burst=$('jointSyncBurst'),exampleBox=$('jointSyncExample');
+        const gestureActions=$('jointSyncGestureActions'),image=$('jointSyncImage'),countdown=$('jointSyncCountdown');
         if(s.role==='host'&&!peers.length){
-            // A single accelerometer has no inter-device time offset to validate.
-            button.hidden=true;
-            $('jointSyncState').textContent='No necesaria (solo maestro)';
-            $('jointSyncState').classList.toggle('done',true);
+            button.hidden=true;burst.hidden=true;gestureActions.hidden=true;exampleBox.hidden=true;countdown.hidden=true;
+            badge.textContent='No necesaria (solo maestro)';badge.classList.add('done');
             $('jointSyncHelp').textContent=s.calibration.complete?
-                'Puedes pasar a Medir. Con un único móvil no es necesaria la sincronización entre dispositivos.':
-                'Activa el acelerómetro y calibra sus ejes X, Y y Z. Después puedes medir con un solo móvil.';
-            $('jointSyncBurst').hidden=true;
-            $('jointSyncGestureActions').hidden=true;
-            $('jointSyncCountdown').hidden=true;
-            $('jointSyncGuide').hidden=true;
-            $('jointSyncSummary').innerHTML='<p class="joint-help">Sin participantes conectados: se registra únicamente el maestro.</p>';
+                'Puedes pasar a Medir. Con un único móvil no se sincronizan relojes.':
+                'Activa y calibra los ejes X, Y y Z. Después puedes medir con un solo móvil.';
+            const summary=$('jointSyncSummary'),html='<p class="joint-help">Sin participantes conectados: se registra únicamente el maestro.</p>';
+            if(summary.innerHTML!==html)summary.innerHTML=html;
             return;
         }
         const axesReady=s.calibration.complete&&peers.every(p=>p.status?.calibrated);
-        button.hidden=s.role!=='host';button.disabled=s.role!=='host'||!axesReady||state.phase==='network'||state.phase==='gesture'||state.phase==='processing'||state.phase==='gesture-ready'||state.phase==='accepted';
-        const badge=$('jointSyncState');
-        const labels={idle:'Pendiente',network:'Ráfaga de reloj','gesture-ready':'Elige un gesto',gesture:'Gesto en curso',processing:'Procesando',accepted:'Validada',failed:'Repetir prueba'};
-        badge.textContent=labels[state.phase]||'Pendiente';badge.classList.toggle('done',state.phase==='accepted');
-        const burst=$('jointSyncBurst'),burstProgress=$('jointSyncBurstProgress'),burstCount=$('jointSyncBurstCount');
-        burst.hidden=state.phase!=='network';
-        if(state.phase==='network'){
-            const counts=peers.map(p=>p.samples.filter(row=>row.runId===state.id&&row.phase==='precal').length),count=counts.length?Math.min(...counts):0;
-            burstProgress.value=Math.min(200,count);burstCount.textContent=Math.min(200,count)+' / 200 respuestas confirmadas';
+        const phase=state.phase,guide=state.guidePhase||'idle';
+        button.hidden=s.role!=='host'||!['idle','failed'].includes(phase);
+        button.disabled=s.role!=='host'||!axesReady;
+        const names={idle:'Pendiente',network:'Preparando relojes','gesture-ready':guide==='ready'?'Elige un eje':'Ejemplo',gesture:'Gesto en curso',processing:'Procesando',accepted:'Validada',failed:'Repetir prueba'};
+        badge.textContent=names[phase]||'Pendiente';badge.classList.toggle('done',phase==='accepted');
+        burst.hidden=phase!=='network';
+        if(phase==='network'){
+            const counts=peers.map(p=>p.samples.filter(row=>row.runId===state.id&&row.phase==='precal').length);
+            const count=counts.length?Math.min(...counts):0;
+            $('jointSyncBurstProgress').value=Math.min(200,count);
+            $('jointSyncBurstCount').textContent=Math.min(200,count)+' / 200 respuestas confirmadas';
         }
         const gesture=state.gesture;
-        const box=$('jointSyncCountdown');
-        // start/end pertenecen al reloj del maestro; no se comparan con el reloj local del invitado.
-        const gestureMasterNow=gesture?(s.role==='host'?now():toMaster(now(),gesture.model||s.syncModel)):null;
-        if(!gesture||!finite(gesture.start)||!finite(gesture.end)||!finite(gestureMasterNow)||gestureMasterNow>gesture.end+1200){box.hidden=true;box.classList.remove('go');}
-        else {
-            const d=gestureMasterNow-gesture.start;
-            box.hidden=false;
-            if(d<0){box.classList.remove('go');box.textContent=Math.max(1,Math.ceil(-d/1000));}
-            else {box.classList.add('go');box.textContent=d<550?'¡AHORA!':'MIDE · '+Math.max(0,(gesture.end-gestureMasterNow)/1000).toFixed(1)+' s';}
-        }
-        const syncImage=$('jointSyncImage'),syncInstruction=$('jointSyncInstruction'),gestureActions=$('jointSyncGestureActions');
-        const demo=s.role==='host'&&state.phase==='gesture-ready'?state.demo:null;
-        const example=demo?.phase==='example',ready=demo?.phase==='ready';
-        const active=state.phase==='gesture'&&!!gesture;
-        const capturing=active&&gesture.phase!=='finished'&&finite(gestureMasterNow)&&gestureMasterNow>=gesture.start&&gestureMasterNow<gesture.end;
-        const axis=gesture?.axis||(example||ready?demo.axis:null)||['x','y','z'].find(key=>!state.results?.[s.id]?.axes?.[key])||'x';
-        const syncSrc=example?syncAsset(axis,'7_5s')+'&example='+demo.sequence:
+        const masterNow=gesture?(s.role==='host'?now():toMaster(now(),gesture.model||s.syncModel)):null;
+        const active=phase==='gesture'&&!!gesture;
+        const capturing=active&&gesture.phase!=='finished'&&finite(masterNow)&&masterNow>=gesture.start&&masterNow<gesture.end;
+        const demo=phase==='gesture-ready'&&guide==='demo';
+        const ready=phase==='gesture-ready'&&guide==='ready';
+        const axis=gesture?.axis||['x','y','z'].find(key=>!state.results?.[s.id]?.axes?.[key])||'x';
+        const src=demo?syncAsset('x','7_5s')+'&demo='+state.guideNumber:
             capturing?syncAsset(axis,'medida-6s')+'&gesture='+Math.round(gesture.start):
             syncAsset(axis,'reposo');
-        // Do not reassign SVG src on each 250 ms refresh: Safari restarts animation.
-        if(syncImage.getAttribute('src')!==syncSrc)syncImage.setAttribute('src',syncSrc);
-        syncImage.alt=example?'Ejemplo de dos móviles sobre una tabla moviéndose según '+axis.toUpperCase():
-            capturing?'Dos móviles sobre la tabla: gesto de medida '+axis.toUpperCase():
-            'Dos móviles sobre una tabla, quietos en el origen de '+axis.toUpperCase();
-        const guide=$('jointSyncGuide'),title=$('jointSyncGuideTitle'),copy=$('jointSyncGuideText'),time=$('jointSyncGuideTime');
-        const back=$('jointSyncBack'),replay=$('jointSyncReplay'),next=$('jointSyncContinue'),begin=$('jointSyncBegin'),progress=$('jointSyncProgress');
-        guide.hidden=!(example||ready||active||state.phase==='processing');
-        back.hidden=!(example||ready);replay.hidden=!ready;next.hidden=!example;begin.hidden=!ready;
-        begin.disabled=!ready||s.role!=='host';
-        progress.hidden=!active;
-        progress.value=capturing?Math.min(1,Math.max(0,(gestureMasterNow-gesture.start)/SYNC_GESTURE_MS)):
-            gesture?.phase==='finished'?1:0;
-        if(example){
-            title.textContent='Ejemplo · eje '+axis.toUpperCase();
-            copy.textContent='Observa cómo la tabla de madera y los dos móviles se mueven juntos, sin girar, siguiendo el eje '+axis.toUpperCase()+'. Después pulsa «Continuar».';
-            time.textContent='Ejemplo · 7,5 s';
-        }else if(ready){
-            title.textContent='Ahora hazlo tú · eje '+axis.toUpperCase();
-            copy.textContent='Sujeta ambos móviles paralelos sobre la tabla. Pulsa «Iniciar medida», mantén el conjunto quieto 3 s y, al ver «¡AHORA!», mueve la tabla durante los 6 s de registro.';
-            time.textContent='3 s quieto + 6 s medida';
-        }else if(active){
-            title.textContent=gesture.phase==='finished'?'Gesto capturado · '+axis.toUpperCase():capturing?'Midiendo · eje '+axis.toUpperCase():'Preparados · eje '+axis.toUpperCase();
-            copy.textContent=gesture.phase==='finished'?'Esperando resultados del maestro. Mantén ambos móviles visibles.':
-                capturing?'Mueve la tabla con ambos móviles a la vez en la dirección '+axis.toUpperCase()+'. No gires el conjunto.':
-                'Mantén la tabla inmóvil durante la cuenta atrás, hasta que aparezca «¡AHORA!».';
-            time.textContent=gesture.phase==='finished'?'Procesando':capturing?Math.max(0,(gesture.end-gestureMasterNow)/1000).toFixed(1)+' s':
-                'Comienza en '+Math.max(1,Math.ceil((gesture.start-gestureMasterNow)/1000))+' s';
-        }else if(state.phase==='processing'){
-            title.textContent='Procesando gesto';
-            copy.textContent='Esperando la comparación de las aceleraciones de ambos móviles.';
-            time.textContent='';
+        if(image.getAttribute('src')!==src){
+            image.onload=demo?()=>{
+                if(s.syncCalibration!==state||state.guidePhase!=='demo'||state.demoLoaded)return;
+                state.demoLoaded=true;
+                setTimeout(()=>{
+                    if(s.syncCalibration!==state||state.phase!=='gesture-ready'||state.guidePhase!=='demo')return;
+                    state.guidePhase='ready';renderSyncCalibration();
+                },SYNC_DEMO_MS);
+            }:null;
+            image.onerror=demo?()=>{
+                if(s.syncCalibration!==state||state.guidePhase!=='demo')return;
+                state.guidePhase='ready';
+                tell('No se pudo mostrar el ejemplo de sincronización. Puedes continuar.',true);
+                renderSyncCalibration();
+            }:null;
+            image.setAttribute('src',src);
         }
-        syncInstruction.textContent=example?'Observa el ejemplo y pulsa «Continuar».':
-            ready?'El conjunto permanece quieto hasta comenzar la medida.':
-            gesture?(gesture.phase==='finished'?'Gesto '+axis.toUpperCase()+' capturado. Esperando resultados…':
-                gestureMasterNow<gesture.start?'Quieto durante la cuenta atrás.':
-                'Mueve la tabla con los dos móviles en '+axis.toUpperCase()+' durante 6 s.'):
-            state.phase==='gesture-ready'?'Elige X, Y o Z para ver el ejemplo.':'Primero calibra los relojes.';
-        gestureActions.hidden=state.phase!=='gesture-ready'||example||ready;
-        for(const key of ['x','y','z']){const control=$('jointSyncGesture'+key.toUpperCase()),done=!!state.results?.[s.id]?.axes?.[key];control.hidden=s.role!=='host';control.disabled=s.role!=='host'||done||state.phase!=='gesture-ready';control.classList.toggle('done',done);}
-        const localRows=[];
-        const own=state.results?.[s.id];
-        if(own?.axes)localRows.push(`<article class="joint-sync-card"><strong>${escape(s.name)} · ${state.phase==='accepted'?'referencia':'maestro'}</strong><p>${axisResultMarkup(own.axes)}</p><small>${own.accepted?'Corrección: '+own.correctionMs.toFixed(2)+' ms':'Sin corrección física local'}</small></article>`);
-        for(const p of peers){const result=state.results?.[p.id],model=state.models?.[p.id]||p.startModel,clock=finite(model?.offset)?`Offset inicial: ${model.offset.toFixed(2)} ms · RTT mín.: ${finite(model.rtt)?model.rtt.toFixed(2):'—'} ms`:'Modelo de reloj pendiente';localRows.push(`<article class="joint-sync-card"><strong>${escape(p.name)}</strong><p>${result?.axes?axisResultMarkup(result.axes):state.phase==='network'?'Midiendo RTT y offset…':state.phase==='gesture'?'Esperando gesto común…':'Pendiente'}</p><small>${clock}<br>${result?.accepted?'Corrección aplicada: '+result.correctionMs.toFixed(2)+' ms':result?.error?escape(result.error):'Se correlacionarán X–X, Y–Y y Z–Z.'}</small></article>`);}
-        $('jointSyncSummary').innerHTML=localRows.length?localRows.join(''):`<p class="joint-help">Activa y calibra todos los acelerómetros antes de validar la sincronización.</p>`;
-        if(state.phase==='accepted')$('jointSyncHelp').textContent='Sincronización validada. La corrección física se conservará para el próximo ensayo; los mensajes de 10 Hz durante la medida solo se guardarán como diagnóstico.';
-        else if(state.phase==='gesture-ready'){
-            const retry=['x','y','z'].find(axis=>!state.results?.[s.id]?.axes?.[axis]);
-            $('jointSyncHelp').textContent=retry?'Pulsa '+retry.toUpperCase()+'. Si el gesto no se reconoce, repite solo ese eje; no hace falta repetir la ráfaga de reloj.':'Comprobando los tres ejes…';
+        image.alt=demo?'Ejemplo de dos móviles recorriendo el eje X':
+            capturing?'Dos móviles realizando el movimiento sobre el eje '+axis.toUpperCase():
+            'Dos móviles quietos sobre una tabla';
+        if(!gesture||!finite(gesture.start)||!finite(gesture.end)||!finite(masterNow)||masterNow>=gesture.end){
+            countdown.hidden=true;countdown.classList.remove('go');
+        }else{
+            const d=masterNow-gesture.start;
+            countdown.hidden=false;
+            if(d<0){countdown.classList.remove('go');countdown.textContent='QUIETO · '+Math.max(1,Math.ceil(-d/1000));}
+            else{countdown.classList.add('go');countdown.textContent=d<650?'¡AHORA!':'MIDE · '+Math.max(0,(gesture.end-masterNow)/1000).toFixed(1)+' s';}
         }
-        else if(state.phase==='failed')$('jointSyncHelp').textContent='La calibración completa no se ha validado. Pulsa «Calibrar relojes» para reiniciarla de forma limpia.';
-        else if(!axesReady)$('jointSyncHelp').textContent='Completa los factores +1/−1 de X, Y y Z en todos los móviles antes de iniciar la prueba conjunta.';
+        exampleBox.hidden=phase!=='gesture-ready'||!['message','observe'].includes(guide);
+        exampleBox.textContent=guide==='observe'?'OBSERVA':'EJEMPLO: mueve los dos móviles unidos sobre una tabla rígida en CADA EJE, sin girarlos.';
+        exampleBox.classList.toggle('observe',guide==='observe');
+        const instruction=$('jointSyncInstruction');
+        instruction.textContent=demo?'EJEMPLO · X: observa cómo se desplaza el conjunto.':
+            guide==='observe'&&phase==='gesture-ready'?'OBSERVA: comenzará la demostración del eje X.':
+            guide==='message'&&phase==='gesture-ready'?'Lee el ejemplo. Después verás el movimiento.':
+            ready?(state.lastFeedback|| (s.role==='host'?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z».':'Preparado. El maestro seleccionará un eje.')):
+            active?(gesture.phase==='finished'?'Gesto capturado. Esperando el resultado…':
+                masterNow<gesture.start?'Móviles quietos hasta «¡AHORA!».':
+                'Mueve el conjunto en '+axis.toUpperCase()+' durante 6 segundos.'):
+            phase==='processing'?'Analizando el movimiento de los móviles.':
+            phase==='accepted'?'Sincronización física completada.':
+            phase==='network'?'Midiendo y ajustando los relojes.':
+            'Calibra primero los relojes.';
+        gestureActions.hidden=!ready;
+        for(const key of ['x','y','z']){
+            const control=$('jointSyncGesture'+key.toUpperCase()),done=!!state.results?.[s.id]?.axes?.[key];
+            control.hidden=s.role!=='host';control.disabled=s.role!=='host'||!ready||done;
+            control.classList.toggle('done',done);
+        }
+        const localRows=[],own=state.results?.[s.id];
+        if(own?.axes)localRows.push('<article class="joint-sync-card"><strong>'+escape(s.name)+' · '+(phase==='accepted'?'referencia':'maestro')+'</strong><p>'+axisResultMarkup(own.axes)+'</p><small>'+(own.accepted?'Corrección: '+own.correctionMs.toFixed(2)+' ms':'Sin corrección física local')+'</small></article>');
+        for(const p of peers){
+            const result=state.results?.[p.id],model=state.models?.[p.id]||p.startModel;
+            const clock=finite(model?.offset)?'Offset inicial: '+model.offset.toFixed(2)+' ms · RTT mín.: '+(finite(model.rtt)?model.rtt.toFixed(2):'—')+' ms':'Modelo de reloj pendiente';
+            localRows.push('<article class="joint-sync-card"><strong>'+escape(p.name)+'</strong><p>'+(result?.axes?axisResultMarkup(result.axes):phase==='network'?'Midiendo RTT y offset…':phase==='gesture'?'Esperando gesto común…':'Pendiente')+'</p><small>'+clock+'<br>'+(result?.accepted?'Corrección aplicada: '+result.correctionMs.toFixed(2)+' ms':result?.error?escape(result.error):'Se correlacionarán X–X, Y–Y y Z–Z.')+'</small></article>');
+        }
+        const summary=$('jointSyncSummary'),markup=localRows.length?localRows.join(''):'<p class="joint-help">Activa y calibra todos los acelerómetros antes de validar la sincronización.</p>';
+        if(summary.innerHTML!==markup)summary.innerHTML=markup;
+        if(phase==='accepted')$('jointSyncHelp').textContent='Sincronización validada. Puedes pasar a Medir.';
+        else if(phase==='gesture-ready')$('jointSyncHelp').textContent=ready?
+            (s.role==='host'?'Elige un eje. Tras 3 s quieto, mueve el conjunto durante 6 s. Si falla, repite ese eje.':'Espera a que el maestro inicie cada gesto.'):
+            guide==='demo'?'Observa el ejemplo; después comenzarán los gestos.':
+            'Lee las instrucciones y observa el movimiento antes de empezar.';
+        else if(phase==='failed')$('jointSyncHelp').textContent='La prueba no se ha validado. Pulsa «Calibrar relojes» para repetir.';
+        else if(!axesReady)$('jointSyncHelp').textContent='Calibra los tres ejes en todos los móviles antes de empezar.';
     }
     function axisResultMarkup(axes) {return ['x','y','z'].map(axis=>{const a=axes[axis];return a?.error?`${axis.toUpperCase()}: ${escape(a.error)}`:a&&finite(a.lag)?`${axis.toUpperCase()}: ${a.lag.toFixed(2)} ms · r ${a.correlation.toFixed(3)}`:`${axis.toUpperCase()}: —`;}).join('<br>');}
     function showCalibration() {
@@ -198,7 +271,7 @@
             guide==='demo'?'Eje X: una ida y vuelta de 2 segundos, regreso al origen.':
             c.manualChoosing?'Elige el signo que se aplicará por igual a X, Y y Z.':
             c.feedback||(done?'✓ Factores de signo guardados para este móvil. Puedes preparar la medida.':
-            ready?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z». Cada prueba dura 2,6 s y corrige solo el signo del eje seleccionado.':
+            ready?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z». Cada prueba registra 2,5 s y corrige solo el signo del eje seleccionado.':
             'Te mostraremos una ida y vuelta en X. Después realiza un gesto por cada eje.');
         renderCalibrationCountdown();
     }
@@ -212,6 +285,8 @@
             box.textContent='QUIETO · '+Math.max(1,Math.ceil((active.start-t)/1000));
         } else if(t<active.start+650) {
             box.hidden=false;box.classList.add('go');box.textContent='¡AHORA!';
+        } else if(t<active.end) {
+            box.hidden=false;box.classList.add('go');box.textContent='MIDE · '+Math.max(0,(active.end-t)/1000).toFixed(1)+' s';
         } else {
             box.hidden=true;box.classList.remove('go');
         }
@@ -221,7 +296,7 @@
         if(!s.sensorEnabled||!s.sensor)throw Error('Activa primero el acelerómetro y espera datos.');
         if(s.calibration.guidePhase!=='ready')throw Error('Pulsa primero «Calibrar ejes» y observa el ejemplo.');
         if(s.calibration.active||s.calibration.map[axis])return;
-        // Three seconds of baseline including gravity; one 2s SVG cycle and .6s margin.
+        // Three seconds of baseline including gravity; one 2s SVG cycle and .5s margin.
         const start=now()+3000;
         s.calibration.feedback=null;
         s.calibration.active={axis,start,end:start+CAL_GESTURE_MS,baseline:[],samples:[]};
@@ -331,13 +406,15 @@
         await pause(500);
         for(const p of peers){const rows=p.samples.filter(row=>row.runId===id&&row.phase==='precal');if(rows.length<185)throw Error('Solo se completaron '+rows.length+' de 200 intercambios con '+p.name+'. Repite la calibración.');const model=clockFit(rows);if(!model)throw Error('No se pudo ajustar el reloj de '+p.name+'.');p.model=model;p.startModel=structuredClone(model);s.syncCalibration.models[p.id]=structuredClone(model);send(p,{type:'CLOCK_MODEL',model});}
         s.syncCalibration.phase='gesture-ready';s.syncCalibration.results[s.id]={axes:{},accepted:true,correctionMs:0};
-        tell('Relojes listos. Fija los móviles en la tablilla y pulsa el primer gesto.');renderSyncCalibration();
+        broadcast({type:'SYNC_GUIDE_BEGIN',id});
+        tell('Relojes listos. Sigue las instrucciones y observa el ejemplo.');
+        beginSyncGuide(s.syncCalibration);
     }
     function startSyncGesture(axis) {
         requireHostEdit();const state=s.syncCalibration;
         if(state.phase!=='gesture-ready'||!['x','y','z'].includes(axis)||state.results?.[s.id]?.axes?.[axis])return;
         const start=now()+SYNC_READY_MS,end=start+SYNC_GESTURE_MS,payload={type:'SYNC_GESTURE_ARM',id:state.id,axis,start,end};
-        state.demo=null;
+        state.demo=null;state.lastFeedback='';
         armSyncGesture(payload,{offset:0,drift:0,reference:0,count:0,rtt:0});broadcast(payload);
         revealActionTarget('jointSyncAnimation','start');
         tell('Gesto '+axis.toUpperCase()+' preparado: quietos durante la cuenta atrás.');
@@ -366,6 +443,8 @@
             renderSyncCalibration();return;
         }
         state.results[s.id].axes[axis]={axis,lag:0,correlation:1};
+        state.lastFeedback='✓ Eje '+axis.toUpperCase()+' sincronizado. Puedes continuar.';
+        for(const p of peers)send(p,{type:'SYNC_AXIS_PROGRESS',id,axis,lag:state.results[p.id].axes[axis].lag,correlation:state.results[p.id].axes[axis].correlation});
         const allAxes=['x','y','z'].every(key=>peers.every(p=>state.results[p.id]?.axes?.[key]&&!state.results[p.id].axes[key].error));
         if(!allAxes){state.phase='gesture-ready';state.gesture=null;tell('Gesto '+axis.toUpperCase()+' procesado. Continúa con el siguiente eje.');renderSyncCalibration();return;}
         for(const p of peers){const result=state.results[p.id],lags=['x','y','z'].map(key=>result.axes[key].lag),spread=Math.max(...lags)-Math.min(...lags);result.correctionMs=median(lags);result.accepted=spread<=8;if(!result.accepted)result.error='Los retardos X, Y y Z no son coherentes.';}
@@ -378,12 +457,12 @@
             delete state.results[s.id].axes[retry];state.phase='gesture-ready';state.gesture=null;
             tell('El gesto '+retry.toUpperCase()+' es el menos coherente entre móviles. Repite solo ese eje.',true);renderSyncCalibration();return;
         }
-        state.phase='accepted';state.accepted=true;
+        state.phase='accepted';state.accepted=true;state.lastFeedback='✓ Sincronización completa.';
         for(const p of peers){const result=state.results[p.id];p.syncCalibration=structuredClone(result);send(p,{type:'SYNC_GESTURE_APPLY',id,correctionMs:result.correctionMs,axes:result.axes});}
         tell('Sincronización física validada. Ya puedes pasar a Medir.');renderSyncCalibration();renderDevices();
     }
 
-        return Object.freeze({renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, beginSyncExample, showSyncReady, cancelSyncExample, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture});
+        return Object.freeze({renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, receiveSyncGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, beginSyncExample, showSyncReady, cancelSyncExample, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture});
     }
     const api=Object.freeze({createController});
     if(typeof module==='object'&&module.exports) module.exports=api;
