@@ -2512,6 +2512,7 @@ async function startRecording() {
 
     isRecording =
         true;
+    document.documentElement.classList.remove('vwoma-post-test');
 
     testForm.classList.remove(
         "showing-results"
@@ -3517,7 +3518,9 @@ function stopRecording() {
         testForm.classList.add(
             "showing-results"
         );
-
+        // Evitar reajustes involuntarios al redimensionar las gráficas.
+        // No cambia Chart.js, el zoom ni los gestos de selección.
+        document.documentElement.classList.add('vwoma-post-test');
 
         /*
            Mostramos:
@@ -4149,6 +4152,7 @@ const { calculateWelchPsd, calculateSpectrum } = globalThis.VWOMASpectra;
 newTestButton.addEventListener(
     "click",
     function () {
+        document.documentElement.classList.remove('vwoma-post-test');
 
         testForm.classList.remove(
             "showing-results"
