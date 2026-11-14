@@ -69,7 +69,7 @@
     }
     /* Plane and point management are isolated from WebRTC/clock synchronization.
        Keep injected callbacks wired to this application's existing state. */
-    const { checkPlan, savePlan, pointFor, deviceName, deviceCode, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, pointAtPlanEdge, renderPlan, setPlanFilter, proposeInterpolation, acceptInterpolation, discardInterpolation, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint } = globalThis.VWOMAPlan.createController({
+    const { checkPlan, savePlan, pointFor, deviceName, deviceCode, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, pointAtPlanEdge, renderPlan, setPlanFilter, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint } = globalThis.VWOMAPlan.createController({
         s, finite, MAX_POINTS, running, $, tell, broadcast: (...args) => broadcast(...args),
         storageKey:'upm-joint-plan-vwoma-preview-v1', escape, requireHostEdit, renderDevices
     });
@@ -547,7 +547,7 @@
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
         stopJointSensor();stopDuringSync();document.body.classList.remove('recording-lock','joint-measure-fixed','joint-measuring');releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
-        s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planFilter='support';s.interpolationSuggestions=[];s.planPointers.clear();
+        s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planFilter='support';s.planPointers.clear();
         s.calibration={map:{},active:null,complete:false,guidePhase:'idle'};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
@@ -575,7 +575,6 @@
             if(firstSensor)firstSensor.device=s.id;
         }
         s.planFilter='support';
-        s.interpolationSuggestions=[];
         s.selected=s.plan.points.find(p=>p.kind==='support')?.id||null;
         workspace();tell('Define el plano con sensores, apoyos y puntos de interpolación.');
     }
@@ -584,7 +583,7 @@
         tab, renderResults, renderSyncCalibration, createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
-        resetPlanView, download, deletePlanPoint, updatePlanPoint, setPlanFilter, proposeInterpolation, acceptInterpolation, discardInterpolation, pointAtPlanEdge, svgPosition, planViewport,
+        resetPlanView, download, deletePlanPoint, updatePlanPoint, setPlanFilter, pointAtPlanEdge, svgPosition, planViewport,
         geometry, zoomPlanAt, snapPlanPosition, renderPlan, localStatus, renderDevices,
         broadcast, enableSensor, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
         startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
