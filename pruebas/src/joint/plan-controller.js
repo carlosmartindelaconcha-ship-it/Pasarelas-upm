@@ -101,6 +101,7 @@
     const filteredPoints=()=>s.plan.points.filter(p=>planFilter()==='all'||pointKind(p)===planFilter());
     function setPlanFilter(filter) {
         if(!POINT_TYPES[filter])throw Error('Vista de puntos desconocida.');
+        if(planFilter()===filter)return;
         s.planFilter=filter;
         const visible=filteredPoints();
         if(!visible.some(p=>p.id===s.selected))s.selected=visible[0]?.id||null;
@@ -117,18 +118,22 @@
         if(s.selected&&!visible.some(p=>p.id===s.selected))s.selected=visible[0]?.id||null;
         for(const button of document.querySelectorAll('#jointPointFilters [data-point-filter]')){
             const selected=button.dataset.pointFilter===filter;
-            button.setAttribute('aria-pressed',String(selected));
+            if(button.getAttribute('aria-pressed')!==String(selected))button.setAttribute('aria-pressed',String(selected));
         }
         const headings={sensor:['Sensores','Edita las coordenadas y asigna un móvil a cada sensor.'],
             support:['Apoyos','Condición de contorno: coordenada modal φ = 0.'],
             interpolation:['Interpolación','Puntos donde se evaluará la forma modal interpolada.'],
             all:['Todos los puntos','Vista conjunta. Edita cada punto en su categoría.']};
-        $('jointPointsTitle').textContent=headings[filter][0];
-        $('jointPointTableHelp').textContent=headings[filter][1]+' Desliza una fila a la izquierda para eliminar.';
-        $('jointPointTableFunction').textContent=filter==='sensor'?'Móvil':filter==='support'?'Condición':filter==='interpolation'?'Estado':'Función';
+        const title=$('jointPointsTitle'),help=$('jointPointTableHelp'),heading=$('jointPointTableFunction');
+        const titleText=headings[filter][0],helpText=headings[filter][1]+' Desliza una fila a la izquierda para eliminar.';
+        const headingText=filter==='sensor'?'Móvil':filter==='support'?'Condición':filter==='interpolation'?'Estado':'Función';
+        if(title.textContent!==titleText)title.textContent=titleText;
+        if(help.textContent!==helpText)help.textContent=helpText;
+        if(heading.textContent!==headingText)heading.textContent=headingText;
         const addKind=filter==='all'?'sensor':filter;
-        $('jointAddPointInline').textContent='Añadir '+({sensor:'sensor',support:'apoyo',interpolation:'interpolación'}[addKind]);
-        $('jointAddPointInline').hidden=filter==='all';
+        const addButton=$('jointAddPointInline'),addLabel='Añadir '+({sensor:'sensor',support:'apoyo',interpolation:'interpolación'}[addKind]);
+        if(addButton.textContent!==addLabel)addButton.textContent=addLabel;
+        if(addButton.hidden!==(filter==='all'))addButton.hidden=filter==='all';
         const view=planViewport(),g=geometry(view),gridStep=planGridStep(g),labelStep=planLabelStep(g);
         const deckX=g.originX,deckY=g.originY-s.plan.width*g.scale;
         const deckW=s.plan.length*g.scale,deckH=s.plan.width*g.scale;
