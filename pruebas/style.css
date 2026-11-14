@@ -1486,15 +1486,11 @@ body.recording-lock main {
     background:#fff;
     pointer-events:none;
 }
-/* Desactivar el anclaje automático del navegador cuando hay puntos,
-   gráficas o mensajes que cambian de tamaño mientras se trabaja. */
-html.joint-workspace-active,
-body.joint-workspace-active,
-body.joint-workspace-active main,
-body.joint-workspace-active #jointApp,
-body.joint-workspace-active #jointWorkspace {
-    overflow-anchor:none;
-}
+/* Mantener el anclaje nativo de Chrome/Android durante el scroll.
+   Los paneles de trabajo pueden actualizar mensajes y datos cada segundo:
+   desactivar overflow-anchor en todos los ancestros desplaza el contenido
+   visible cuando cambia la altura. Las gráficas tras un ensayo individual
+   conservan sus propias reglas independientes más arriba. */
 .joint-tabs {
     display:flex;
     gap:6px;

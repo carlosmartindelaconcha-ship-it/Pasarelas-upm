@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261114-setups-v2">
+    <link rel="stylesheet" href="style.css?v=20261114-android-global-scroll-v1">
 
     <!-- MapLibre -->
     <link
@@ -1037,7 +1037,10 @@
           let lastWidth = 0;
           const fit = () => {
             const width = heading.getBoundingClientRect().width;
-            if (width < 100) return;
+            // Android Chrome emits resize events while hiding/showing its
+            // address bar during vertical scroll. Recalculating font sizes
+            // without a WIDTH change forces unnecessary document reflows.
+            if (width < 100 || Math.abs(width - lastWidth) < 0.5) return;
             lastWidth = width;
             const maxSize = 40;
             const available = width - 4;
@@ -1055,7 +1058,11 @@
           window.addEventListener('resize', queueFit, {passive:true});
           window.addEventListener('orientationchange', queueFit, {passive:true});
           window.addEventListener('pageshow', queueFit);
-          if (document.fonts?.ready) document.fonts.ready.then(queueFit).catch(() => {});
+          if (document.fonts?.ready) document.fonts.ready.then(() => {
+            // Font metrics may change even when the viewport width does not.
+            lastWidth = 0;
+            queueFit();
+          }).catch(() => {});
           if (window.ResizeObserver) new ResizeObserver(() => {
             const width = heading.getBoundingClientRect().width;
             if (Math.abs(width - lastWidth) > 0.5) queueFit();
