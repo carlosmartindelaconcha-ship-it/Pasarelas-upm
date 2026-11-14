@@ -1445,9 +1445,10 @@ body.recording-lock main {
 .joint-options article { border: 1px solid #d4e0ea; border-radius: 10px; padding: 20px; }
 .joint-options button { width: 100%; }
 .joint-badge { display: inline-block; background: #e2f2ef; color: #11695e; border-radius: 12px; padding: 5px 10px; font-size: .8rem; font-weight: 700; }
-/* Navegación sticky sin reservar espacio: el fondo pertenece a la propia
-   barra. La cobertura del área de estado aparece SOLAMENTE al pegarse,
-   anclada a la barra y nunca como una capa fija independiente. */
+/* Una única barra sticky: pegada al inicio real del viewport.
+   Safari ya gestiona la barra de estado. No añadir otro top:44px que
+   desplaza la navegación y deja contenido visible por encima.
+   El fondo superior es una extensión ABSOLUTA, nunca ocupa altura. */
 .joint-navigation-sentinel {
     position:relative;
     display:block;
@@ -1456,9 +1457,9 @@ body.recording-lock main {
     pointer-events:none;
 }
 .joint-navigation-shell {
-    --joint-nav-status-inset:0px;
+    --joint-nav-cover-height:56px;
     position:sticky;
-    top:var(--joint-nav-status-inset);
+    top:0;
     z-index:40;
     display:block;
     box-sizing:border-box;
@@ -1469,19 +1470,21 @@ body.recording-lock main {
 .joint-navigation-shell.is-stuck::before {
     content:"";
     position:absolute;
-    top:calc(0px - var(--joint-nav-status-inset));
+    top:calc(0px - var(--joint-nav-cover-height));
     left:calc(50% - 50vw);
     width:100vw;
-    height:var(--joint-nav-status-inset);
+    height:var(--joint-nav-cover-height);
     background:#fff;
     pointer-events:none;
 }
-@supports (-webkit-touch-callout: none) {
-    @media (max-width:600px) {
-        .joint-navigation-shell {
-            --joint-nav-status-inset:max(44px,env(safe-area-inset-top,0px));
-        }
-    }
+/* Desactivar el anclaje automático del navegador cuando hay puntos,
+   gráficas o mensajes que cambian de tamaño mientras se trabaja. */
+html.joint-workspace-active,
+body.joint-workspace-active,
+body.joint-workspace-active main,
+body.joint-workspace-active #jointApp,
+body.joint-workspace-active #jointWorkspace {
+    overflow-anchor:none;
 }
 .joint-tabs {
     display:flex;
@@ -1758,7 +1761,6 @@ body.joint-measure-fixed #jointApp > #jointNotice,
 body.joint-measure-fixed #jointWorkspace > .joint-toolbar {display:none !important;}
 /* Medir tiene su propia zona segura; no duplicarla ni aplicar sticky. */
 body.joint-measure-fixed #jointNavShell {
-    --joint-nav-status-inset:0px;
     position:relative;
     top:auto;
     z-index:auto;
