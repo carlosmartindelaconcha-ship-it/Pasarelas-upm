@@ -2267,6 +2267,13 @@ main button:not(:where(
 #testForm.showing-results {
     overflow-anchor:none;
 }
+html.vwoma-post-test,
+html.vwoma-post-test body {
+    overflow-anchor:none;
+}
+html.vwoma-post-test {
+    scroll-behavior:auto;
+}
 #testForm:not(.measurement-active) #recordButton {display:block;width:100%;min-height:54px;margin:0 0 18px;}
 
 /* Calibración guiada: una sola animación por gesto, reposo permanente al terminar. */
