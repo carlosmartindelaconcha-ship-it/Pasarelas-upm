@@ -333,14 +333,29 @@
     /* Browser presentation stays here; acquisition only invokes these hooks. */
     const acquisitionUi={
         enterRecording:()=>{
+            $('jointDurationLabel').textContent='Inicio en';
+            $('jointRunTime').textContent='00:04.0';
             document.body.classList.add('recording-lock');tab('Measure');ensureJointCharts();
             setTimeout(()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},50);
         },
         runArmed:()=>{renderPlan();renderDevices();tell('Inicio programado. Pantalla y gestos bloqueados durante la medida.');},
-        preparing:()=>{tab('Measure');$('jointMeasureState').textContent='Confirmando dispositivos…';renderPlan();renderDevices();},
-        preparationInterrupted:()=>{$('jointMeasureState').textContent='Preparación interrumpida';},
+        preparing:()=>{
+            tab('Measure');
+            $('jointDurationLabel').textContent='Preparando…';
+            $('jointRunTime').textContent='--:--';
+            $('jointMeasureState').textContent='Confirmando dispositivos…';
+            renderPlan();renderDevices();
+        },
+        preparationInterrupted:()=>{
+            $('jointMeasureState').textContent='Preparación interrumpida';
+            $('jointDurationLabel').textContent='Duración';
+            $('jointRunTime').textContent='00:00.0';
+        },
         refresh:()=>{renderDevices();renderPlan();},
-        exitRecording:()=>{document.body.classList.remove('recording-lock');document.body.classList.remove('joint-measuring');},
+        exitRecording:()=>{
+            document.body.classList.remove('recording-lock','joint-measuring');
+            $('jointDurationLabel').textContent='Duración';
+        },
         closing:()=>{$('jointMeasureState').textContent='Cerrando registro…';},
         finished:()=>{tab('Results');renderPlan();renderDevices();renderResults();}
     };
@@ -454,6 +469,14 @@
         const chart=s.jointCharts.spectrum,spectra=[calculateSpectrum(source,'ax',rate),calculateSpectrum(source,'ay',rate),calculateSpectrum(source,'az',rate)],max=Math.max(.001,...spectra.flatMap(series=>series.map(p=>p.y))),limit=Math.ceil(max*100)/100;
         chart.data.datasets.forEach((dataset,axis)=>dataset.data=spectra[axis]);chart.options.scales.x.min=0;chart.options.scales.x.max=30;chart.options.scales.y.min=0;chart.options.scales.y.max=limit;chart.update('none');
     }
+    function formatMeasureCountdown(ms) {
+        // Redondeo hacia arriba a 0,1 s para que nunca indique 00:00.0
+        // antes de completar el tiempo.
+        const tenths=Math.ceil(Math.max(0,ms)/100);
+        const minutes=String(Math.floor(tenths/600)).padStart(2,'0');
+        const seconds=String(Math.floor((tenths%600)/10)).padStart(2,'0');
+        return minutes+':'+seconds+'.'+(tenths%10);
+    }
     function tick() {
         if(root.hidden)return;
         const r=s.run;
@@ -475,20 +498,28 @@
             }
         }
         renderSyncCalibration();
-        if(s.transaction?.phase==='ready') {
+        if(s.transaction?.phase==='ready'){
             $('jointMeasureState').textContent='Confirmando dispositivos…';
+            if(!r){
+                $('jointDurationLabel').textContent='Preparando…';
+                $('jointRunTime').textContent='--:--';
+            }
         }
-        if(r&&activeStates.has(r.state)) {
+        if(r&&activeStates.has(r.state)){
             const t=toMaster(now(),r.initialClock);
             if(t<r.start){
                 refreshJointPreviewBaseline(r);
-                $('jointMeasureState').textContent='Inicio en '+Math.max(0,Math.ceil((r.start-t)/1000))+' s';
-            }
-            else {
+                const remaining=r.start-t;
+                $('jointDurationLabel').textContent='Inicio en';
+                $('jointRunTime').textContent=formatMeasureCountdown(remaining);
+                $('jointMeasureState').textContent='Inicio en '+Math.max(0,Math.ceil(remaining/1000))+' s';
+            }else{
                 if(r.state==='armed')refreshJointPreviewBaseline(r);
-                r.state='recording';const elapsed=Math.max(0,Math.min(t,r.end)-r.start);
+                r.state='recording';
+                const elapsed=Math.max(0,Math.min(t,r.end)-r.start);
+                $('jointDurationLabel').textContent='Tiempo restante';
+                $('jointRunTime').textContent=formatMeasureCountdown(r.end-t);
                 $('jointMeasureState').textContent=t>r.end?'Guardando margen final…':Math.floor(elapsed/60000).toString().padStart(2,'0')+':'+Math.floor(elapsed/1000%60).toString().padStart(2,'0');
-                $('jointRunTime').textContent=Math.floor(elapsed/60000).toString().padStart(2,'0')+':'+(elapsed/1000%60).toFixed(1).padStart(4,'0');
                 $('jointProgress').value=Math.min(1,elapsed/Math.max(1,r.end-r.start));
             }
             if(t>r.end+1000)finishRun().catch(e=>tell(e.message,true));
