@@ -152,7 +152,18 @@
       return calibrated.length===participants.length&&
         calibrated.every((id,i)=>id===participants.map(p=>p.id).sort()[i]);
     };
-    const currentValid=()=>!!s.setupPlan&&s.setupPlan.signature===currentSignature();
+    const currentValid=()=>{
+      const plan=s.setupPlan;
+      if(!plan||plan.signature!==currentSignature())return false;
+      if(plan.activeIndex===null)return true;
+      const applied=plan.setups[plan.activeIndex];
+      if(!applied)return false;
+      const expected=new Map(applied.assignments.map(a=>[a.pointId,a.deviceId]));
+      // Si alguien cambia manualmente la asignación del plano, un setup
+      // anterior deja de ser válido hasta que vuelva a aplicarse.
+      return s.plan.points.filter(sensor).every(p=>
+        (p.device||null)===(expected.get(p.id)||null));
+    };
     // Cachear el marcado de los setups para que los mensajes STATUS no
     // reconstruyan la vista, provoquen parpadeos ni desplacen la página.
     function setMarkup(element,key,markup){
