@@ -2636,3 +2636,80 @@ body.joint-measure-fixed:not(.joint-measuring) #jointPanelMeasure > .joint-measu
     .joint-guide-device {grid-template-columns:11px minmax(0,1fr) auto;gap:6px;}
     .joint-guide-device small {grid-column:2 / 4;}
 }
+
+
+/* Rediseño de campaña: Setups es el centro, Medir es un instrumento temporal. */
+.joint-setup-mode {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:13px 0 4px;}
+.joint-app .joint-setup-mode button {
+    width:100%;min-width:0;margin:0;min-height:44px;
+    padding:9px 7px;font-size:.85rem;line-height:1.2;
+    border:1px solid #ccdae7;border-radius:9px;
+}
+.joint-app .joint-setup-mode button[aria-pressed="true"]{
+    color:#fff;background:#173d66;border-color:#173d66;
+    box-shadow:0 2px 6px rgba(15,49,78,.12);
+}
+.joint-setup-manual-controls,.joint-setup-editor {
+    margin:11px 0 13px;padding:13px;
+    background:#f6f9fc;border:1px solid #d8e4ee;border-radius:10px;
+}
+.joint-setup-manual-controls h4,.joint-setup-editor h4 {margin:0 0 6px;color:#244b6a;font-size:.92rem;}
+.joint-setup-manual-controls > p,.joint-setup-editor > p {margin:6px 0 10px;}
+.joint-setup-manual-fields {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:9px;margin:9px 0;}
+.joint-setup-manual-fields label {display:grid;min-width:0;gap:5px;font-weight:650;font-size:.8rem;color:#365b7a;}
+.joint-setup-manual-fields select {width:100%;min-width:0;min-height:37px;border:1px solid #c1d4e4;border-radius:7px;color:#243e55;background:white;}
+.joint-app .joint-setup-manual-controls > button,
+.joint-app .joint-setup-editor > button {width:100%;min-height:43px;margin:7px 0 0;}
+.joint-app #jointSetupAutoHint {margin:3px 0 13px;}
+.joint-app #jointSetupAutoHint[hidden],
+.joint-app #jointSetupManualControls[hidden],
+.joint-app #jointSetupAutoControls[hidden],
+.joint-app #jointSetupEditor[hidden] {display:none!important;}
+.joint-app #jointSetupAutoControls button {white-space:normal;}
+.joint-setup-preview svg {max-height:300px;}
+/* La guía operativa queda dentro de Setups; la planta principal es la
+   del setup seleccionado. Se evita duplicar las dos plantas. */
+#jointPanelSetups .joint-measure-guide {margin:15px 0;padding:12px;}
+#jointPanelSetups #jointMeasureGuidePlan,
+#jointPanelSetups .joint-guide-legend {display:none;}
+#jointPanelSetups .joint-guide-heading h3 {font-size:1rem;}
+#jointPanelSetups #jointMeasureGoSetups {display:none!important;}
+#jointPanelSetups .joint-guide-buttons button {min-width:130px;}
+/* El teléfono entero de un sensor comparte un único color de estado.
+   Los huecos blancos son espacio negativo y conservan el contorno. */
+.joint-setup-phone {vector-effect:non-scaling-stroke;}
+/* El panel Medir no participa ya de la navegación principal. */
+#jointTabMeasure {display:none!important;}
+body.joint-measure-fixed #jointNavShell {display:none!important;}
+body.joint-measure-fixed #jointPanelMeasure {
+    grid-template-rows:auto auto minmax(0,1fr) minmax(0,1fr) auto;
+    grid-template-areas:"instrument" "duration" "temporal" "spectrum" "controls";
+}
+body.joint-measure-fixed #jointPanelMeasure > .joint-instrument-head {
+    grid-area:instrument;display:flex;align-items:center;
+    justify-content:space-between;gap:9px;min-width:0;
+    padding:2px 1px;
+}
+.joint-instrument-head strong {font-size:.9rem;font-weight:800;color:#173d60;}
+.joint-app .joint-instrument-head button {
+    flex:0 0 auto;min-width:0;padding:8px 10px;
+    min-height:35px;margin:0;font-size:.78rem;touch-action:manipulation;
+}
+body.joint-measure-fixed.joint-measuring #jointPanelMeasure {
+    grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;
+    grid-template-areas:"duration" "temporal" "spectrum" "controls";
+}
+body.joint-measure-fixed.joint-measuring #jointPanelMeasure > .joint-instrument-head {display:none!important;}
+body.joint-measure-fixed:not(.joint-measuring) #jointPanelMeasure > .joint-instrument-head {
+    flex:0 0 auto;position:sticky;top:0;z-index:3;background:#fff;
+    padding:5px 0 7px;border-bottom:1px solid #e1e9f0;
+}
+@media(max-width:450px) {
+    .joint-app .joint-setup-mode button {font-size:.78rem;}
+    .joint-setup-settings {grid-template-columns:1fr;}
+    .joint-app #jointSetupAutoControls button {width:100%;}
+}
+
+/* Durante los ensayos, el icono de medida se oculta sin eliminar su panel
+   del DOM; al concluir vuelve directamente a Setups para validar los datos. */
+body.joint-measure-fixed .joint-instrument-head {touch-action:manipulation;}

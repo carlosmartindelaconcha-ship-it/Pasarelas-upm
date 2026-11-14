@@ -7,6 +7,7 @@
 (function registerSetupPlanner(root) {
   'use strict';
   const EPS=1e-9;
+  const symbols=typeof module==='object'&&module.exports?require('./setup-symbols.js'):root.VWOMASetupSymbols;
   const sensor=p=>(p.kind||'sensor')==='sensor';
   const norm=(v,max)=>Math.max(0,Math.min(1,v/Math.max(EPS,max)));
   const unique=values=>new Set(values).size===values.length;
@@ -142,10 +143,12 @@
       history:[]
     };
   }
-  function createController({s,$,escape,requireHostEdit,running,savePlan,tell,tab,renderDevices}) {
+  function createController({s,$,escape,requireHostEdit,running,savePlan,tell,tab,renderDevices,confirmChange=()=>true}) {
     const peers=()=>[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
     const connected=()=>[{id:s.id,name:s.name},...peers().map(p=>({id:p.id,name:p.name||'Participante'}))];
-    const currentSignature=()=>signature(s.plan,s.id,peers().map(p=>p.id),s.syncCalibration.id);
+    // La planificación depende del plano y los moviles, no del identificador
+    // de calibracion: permite proponer setups antes de sincronizar.
+    const currentSignature=()=>signature(s.plan,s.id,peers().map(p=>p.id),null);
     const syncReady=()=>{
       if(s.role!=='host'||!s.calibration.complete)return false;
       const participants=peers();
@@ -193,8 +196,29 @@
       masterInput.value=s.setupMasterChoice||'';
       $('jointSetupPhoneCount').textContent=String(1+participants.length);
       $('jointSetupSensorCount').textContent=String(available.length);
-      masterInput.disabled=!host||!ready||!!running()||!!s.transaction;
-      generateButton.disabled=!host||!ready||available.length<2||!!running()||!!s.transaction||!!s.run;
+      masterInput.disabled=!host||!!running()||!!s.transaction||!!s.run;
+      generateButton.disabled=!host||!participants.length||available.length<2||!!running()||!!s.transaction||!!s.run;
+      const mode=s.setupMode||'auto';
+      const manualMode=mode==='manual';
+      $('jointSetupModeAuto').setAttribute('aria-pressed',String(!manualMode));
+      $('jointSetupModeManual').setAttribute('aria-pressed',String(manualMode));
+      $('jointSetupModeAuto').disabled=!host||!!running()||!!s.transaction||!!s.run;
+      $('jointSetupModeManual').disabled=!host||!!running()||!!s.transaction||!!s.run;
+      $('jointSetupAutoControls').hidden=manualMode;
+      $('jointSetupAutoHint').hidden=manualMode;
+      $('jointSetupManualControls').hidden=!manualMode;
+      $('jointSetupCreateManual').disabled=!host||!participants.length||available.length<2||
+        !!running()||!!s.transaction||!!s.run;
+      const manualChoices=peers().map((peer,i)=>{
+        const value=s.manualGuestPoints?.[peer.id]||'';
+        return '<label>'+escape(peer.name||'Móvil '+(i+1))+
+          '<select data-manual-device="'+escape(peer.id)+'" aria-label="Punto manual de '+escape(peer.name||peer.id)+'">'+
+          '<option value="">En espera</option>'+available.filter(p=>p.id!==s.setupMasterChoice).map(p=>
+          '<option value="'+escape(p.id)+'"'+(p.id===value?' selected':'')+'>'+
+          escape(p.id)+' · X '+p.x+' m</option>').join('')+'</select></label>';
+      }).join('');
+      setMarkup($('jointSetupManualAssignments'),'manual',manualChoices||
+        '<p class="joint-help">Conecta un móvil participante para crear un setup.</p>');
       const plan=s.setupPlan,valid=currentValid();
       const choseMaster=plan&&plan.masterPointId===s.setupMasterChoice;
       const fresh=valid&&choseMaster;
@@ -209,49 +233,48 @@
         summary.textContent='Tu punto se actualizará automáticamente al activar cada setup.';
         setMarkup(list,'list','');setMarkup(preview,'preview','');return;
       }
-      if(!participants.length)status.textContent='Conecta al menos un participante para distribuir los sensores manteniendo el maestro fijo.';
-      else if(!ready)status.textContent='Completa primero la calibración y la sincronización física de todos los móviles conectados.';
-      else if(available.length<2)status.textContent='Añade al menos dos sensores en Plano antes de generar setups.';
-      else status.textContent='Sincronización válida. El maestro permanecerá en un mismo sensor durante todos los setups.';
+      if(!participants.length)status.textContent='Conecta al menos un participante para organizar los setups.';
+      else if(available.length<2)status.textContent='Añade al menos dos sensores en Plano.';
+      else if(!ready)status.textContent='Puedes planificar ya los setups; para medir deberás completar la calibración y la sincronización.';
+      else status.textContent='Móviles sincronizados. El maestro permanecerá fijo en todos los setups.';
       if(!plan){
-        summary.textContent='Elige el sensor del maestro o deja la recomendación automática y pulsa «Generar setups».';
-        setMarkup(list,'list','');setMarkup(preview,'preview','');return;
+        summary.textContent=manualMode?
+          'Selecciona el punto fijo del maestro y asigna al menos un participante. Puedes crear los setups de uno en uno.':
+          'Elige el maestro y pulsa «Generar propuestas». Después podrás editarlas.';
+        setMarkup(list,'list','');setMarkup(preview,'preview','');
+        $('jointSetupEditor').hidden=true;return;
       }
       if(!fresh){
-        summary.textContent='El plano, los móviles, la sincronización o la referencia han cambiado. Vuelve a generar los setups.';
-        setMarkup(list,'list','');setMarkup(preview,'preview','');return;
+        summary.textContent='El plano, los móviles o la referencia han cambiado. Genera una nueva planificación.';
+        setMarkup(list,'list','');setMarkup(preview,'preview','');
+        $('jointSetupEditor').hidden=true;return;
       }
-      summary.textContent=plan.setups.length+' setups · referencia M en '+plan.masterPointId+
-        ' · '+(participants.length+1)+' móviles conectados · '+available.length+' sensores. '+
-        'La puntuación modal es orientativa: las formas reales todavía se desconocen.';
+      summary.textContent=plan.setups.length+' setups '+(plan.mode==='manual'?'manuales':'propuestos')+
+        ' · maestro fijo en '+plan.masterPointId+' · '+
+        (plan.setups.filter(x=>x.completedRunId).length)+' completados. '+
+        (!ready?'Termina la sincronización antes de activar uno.':'Selecciona uno para editarlo o medir.');
       const devices=new Map(connected().map((d,i)=>[d.id,{...d,code:i===0?'M':'S'+i}]));
       const points=new Map(s.plan.points.map(p=>[p.id,p]));
       if(selected){
-        const length=Math.max(EPS,s.plan.length),width=Math.max(EPS,s.plan.width);
-        const sx=p=>40+560*p.x/length,sy=p=>27+142*(1-p.y/width);
-        const selectedDevices=new Map(selected.assignments.map((a,i)=>
-          [a.pointId,i===0?'M':'S'+i]));
-        let shapes='<rect x="40" y="27" width="560" height="142" rx="4" fill="#eff4f9" stroke="#7898ae" stroke-width="1.5"/>';
-        for(const p of s.plan.points.filter(x=>x.kind==='support')){
-          shapes+='<path d="M '+sx(p)+' '+(sy(p)-7)+' l -7 14 h 14 Z" fill="#e4af72" stroke="#9b5f24" stroke-width="1.5"/>';
-        }
-        for(const p of available){
-          const code=selectedDevices.get(p.id),isMaster=code==='M',selected=!!code;
-          const color=isMaster?'#16824e':selected?'#176bb0':'#cdd6df';
-          const x=sx(p),y=sy(p);
-          shapes+='<circle cx="'+x+'" cy="'+y+'" r="'+(selected?8:4.5)+
-            '" fill="'+color+'" stroke="#fff" stroke-width="1.5"/>';
-          if(selected)shapes+='<text x="'+x+'" y="'+(y-12)+
-            '" fill="#153e68" font-size="12" font-weight="700" text-anchor="middle">'+
-            escape(code)+'</text>';
-        }
-        const previewMarkup='<svg viewBox="0 0 640 194" role="img" aria-label="Vista de planta del setup '+(index+1)+
-          ', con maestro fijo y sensores participantes">' +shapes+
-          '<text x="40" y="188" fill="#547087" font-size="11">X = 0</text>'+
-          '<text x="600" y="188" fill="#547087" font-size="11" text-anchor="end">X = '+s.plan.length+' m</text></svg>'+
-          '<p>Verde: maestro fijo · Azul: participantes activos · Gris: puntos sin medir · Triángulos: apoyos. Distribución esquemática normalizada.</p>';
+        const previewMarkup=symbols.planSvg({
+          plan:s.plan,assignments:selected.assignments,masterId:s.id,
+          measured:symbols.measuredPoints(plan),escapeText:escape
+        })+'<p>Rojo: maestro · Azul: esclavos activos · Verde: puntos ya medidos · Gris: pendientes · Triángulos: apoyos.</p>';
         setMarkup(preview,'preview',previewMarkup);
       }else setMarkup(preview,'preview','');
+      const canEdit=!!selected&&!selected.measuredRunId&&!s.run&&!running()&&!s.transaction;
+      $('jointSetupEditor').hidden=!canEdit;
+      $('jointSetupSaveEdit').disabled=!canEdit;
+      const selectedByDevice=new Map(selected?.assignments.map(a=>[a.deviceId,a.pointId])||[]);
+      const editorMarkup=peers().map((peer,i)=>{
+        const value=selectedByDevice.get(peer.id)||'';
+        return '<label>'+escape(peer.name||'Participante '+(i+1))+
+          '<select data-setup-edit-device="'+escape(peer.id)+'" aria-label="Editar punto de '+escape(peer.name||peer.id)+'">'+
+          '<option value="">En espera</option>'+available.filter(p=>p.id!==plan.masterPointId).map(p=>
+          '<option value="'+escape(p.id)+'"'+(p.id===value?' selected':'')+'>'+
+          escape(p.id)+' · X '+p.x+' m</option>').join('')+'</select></label>';
+      }).join('');
+      setMarkup($('jointSetupEditAssignments'),'edit',editorMarkup);
       const signature=plan.setups.map((setup,i)=>{
         const isSelected=i===index,applied=i===active;
         const assignments=setup.assignments.map((entry,j)=>{
@@ -263,7 +286,7 @@
         return '<article class="joint-setup-card'+(isSelected?' selected':'')+(applied?' active':'')+'">'+
             '<button type="button" class="joint-setup-select" data-setup-select="'+i+
             '" aria-pressed="'+isSelected+'"><strong>Setup '+(i+1)+'</strong><span>'+
-            (applied?'Activo':setup.completedRunId?'Completado':setup.measuredRunId?'Registrado':'Seleccionar')+'</span></button>'+
+            (applied?'Activo':setup.completedRunId&&setup.completedRunId===setup.measuredRunId?'Completado':setup.measuredRunId?'Registrado':'Seleccionar')+'</span></button>'+
             '<ul class="joint-setup-assignments">'+assignments+'</ul>'+
             (absent.length?'<p class="joint-help">En reposo: '+absent.map(d=>escape(devices.get(d.id)?.code)).join(', ')+'</p>':'')+
             (setup.measuredRunId?'<p class="joint-help">'+(setup.completedRunId===setup.measuredRunId?'Setup completado':'Ensayo registrado, pendiente de confirmar')+' · '+escape(setup.measuredRunId.slice(0,8))+'</p>':'')+
@@ -274,13 +297,76 @@
     function generateSetups(){
       requireHostEdit();
       if(s.run)throw Error('Prepara un nuevo ensayo antes de generar los setups.');
-      if(!syncReady())throw Error('Sincroniza primero todos los móviles conectados.');
+      if(s.setupMode==='manual')throw Error('Selecciona el modo automático para generar propuestas.');
+      if(s.setupPlan?.setups.some(x=>x.measuredRunId||x.completedRunId))
+        throw Error('Ya hay medidas registradas en esta campaña. No puedes reemplazar su planificación.');
       const guestIds=peers().map(p=>p.id);
       const plan=generate(s.plan,s.id,guestIds,s.setupMasterChoice);
-      s.setupPlan={...plan,signature:currentSignature()};
+      s.setupPlan={...plan,mode:'auto',signature:currentSignature()};
       renderSetups();
       tell(plan.setups.length+' setups generados. Revisa la distribución y activa el primero.');
       return plan;
+    }
+    function setSetupMode(mode){
+      requireHostEdit();
+      if(!['auto','manual'].includes(mode))throw Error('Modo de planificación desconocido.');
+      if(s.run)throw Error('Prepara otro ensayo antes de cambiar el modo de planificación.');
+      if(s.setupMode===mode)return;
+      if(s.setupPlan){
+        if(s.setupPlan.setups.some(x=>x.measuredRunId||x.completedRunId))
+          throw Error('La campaña ya tiene ensayos. No se puede cambiar el modo sin perder su historial.');
+        if(!confirmChange('Cambiar el modo sustituirá los setups sin medir. ¿Continuar?'))return;
+        s.setupPlan=null;s.setupMarkupCache=null;
+      }
+      s.setupMode=mode;renderSetups();
+    }
+    function assignmentsFrom(containerAttribute){
+      const entries=[{deviceId:s.id,pointId:s.setupMasterChoice}];
+      const els=[...document.querySelectorAll('['+containerAttribute+']')];
+      for(const element of els)if(element.value)
+        entries.push({deviceId:element.getAttribute(containerAttribute),pointId:element.value});
+      const sensorIds=new Set(s.plan.points.filter(sensor).map(p=>p.id));
+      if(entries.length<2)throw Error('Asigna al menos un participante a un punto de medida.');
+      if(!entries.every(e=>sensorIds.has(e.pointId)))throw Error('Alguno de los puntos ya no existe.');
+      if(!unique(entries.map(e=>e.pointId)))throw Error('Cada móvil debe ocupar un punto diferente.');
+      if(!unique(entries.map(e=>e.deviceId)))throw Error('Un móvil no puede tener dos puntos.');
+      const devices=new Set(connected().map(d=>d.id));
+      if(!entries.every(e=>devices.has(e.deviceId)))throw Error('Hay un móvil desconectado.');
+      return entries;
+    }
+    function createManualSetup(){
+      requireHostEdit();
+      if(s.run)throw Error('Prepara otro ensayo antes de crear un setup.');
+      if(s.setupMode!=='manual')throw Error('Selecciona el modo manual.');
+      const entries=assignmentsFrom('data-manual-device');
+      const master=chooseMaster(s.plan,s.setupMasterChoice);
+      if(!s.setupPlan){
+        s.setupPlan={masterPointId:master.id,recommendedMasterPointId:chooseMaster(s.plan).id,
+          masterScore:Number(modalScore(master,s.plan).toFixed(3)),setups:[],
+          activeIndex:null,selectedIndex:0,history:[],mode:'manual',signature:currentSignature()};
+      }else if(s.setupPlan.mode!=='manual'||!currentValid()||s.setupPlan.masterPointId!==master.id)
+        throw Error('La referencia o el plano ha cambiado. Crea una campaña manual nueva.');
+      const setup={index:s.setupPlan.setups.length+1,assignments:entries,quality:null,
+        measuredRunId:null,completedRunId:null};
+      s.setupPlan.setups.push(setup);
+      s.setupPlan.selectedIndex=setup.index-1;
+      renderSetups();
+      tell('Setup '+setup.index+' añadido. Puedes crear otro, editarlo o activarlo.');
+    }
+    function editSelectedSetup(){
+      requireHostEdit();
+      if(s.run)throw Error('Prepara otro ensayo antes de editar el setup.');
+      const plan=s.setupPlan;
+      if(!plan||!currentValid())throw Error('Genera primero una planificación válida.');
+      const index=plan.selectedIndex,selected=plan.setups[index];
+      if(!selected||selected.measuredRunId)throw Error('No puedes editar un setup que ya tiene un ensayo.');
+      if(plan.masterPointId!==s.setupMasterChoice)throw Error('La referencia del maestro no coincide.');
+      const entries=assignmentsFrom('data-setup-edit-device');
+      selected.assignments=entries;
+      selected.quality=null;
+      if(plan.activeIndex===index)plan.activeIndex=null;
+      renderSetups();
+      tell('Setup '+selected.index+' actualizado. Actívalo de nuevo antes de medir.');
     }
     function selectSetup(index){
       if(!s.setupPlan||!currentValid())throw Error('Genera primero un plan de setups actualizado.');
@@ -343,7 +429,7 @@
       tell('Setup '+setup.index+' completado. Puedes preparar el siguiente ensayo.');
     }
     return Object.freeze({
-      renderSetups,generateSetups,selectSetup,applySetup,markMeasured,confirmMeasured,
+      renderSetups,generateSetups,createManualSetup,setSetupMode,editSelectedSetup,selectSetup,applySetup,markMeasured,confirmMeasured,
       syncReady,currentValid,currentSignature
     });
   }

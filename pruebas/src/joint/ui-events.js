@@ -6,7 +6,7 @@
     'use strict';
     function bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
-        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, selectSetup, applySetup, confirmMeasured, renderMeasureGuide,
+        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, createManualSetup, setSetupMode, editSelectedSetup, selectSetup, applySetup, confirmMeasured, renderMeasureGuide,
         createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
@@ -240,18 +240,33 @@
     // todas las configuraciones y activa solo una para cada ensayo.
     $('jointSetupMaster').onchange=()=>{
         s.setupMasterChoice=$('jointSetupMaster').value;
-        renderSetups();
+        s.manualGuestPoints={};
+        renderSetups();renderMeasureGuide();
     };
+    $('jointSetupModeManual').onclick=guard(()=>setSetupMode('manual'));
+    $('jointSetupModeAuto').onclick=guard(()=>setSetupMode('auto'));
+    $('jointSetupManualAssignments').addEventListener('change',event=>{
+        const select=event.target.closest('[data-manual-device]');
+        if(!select)return;
+        s.manualGuestPoints ||= {};
+        s.manualGuestPoints[select.dataset.manualDevice]=select.value;
+    });
     $('jointGenerateSetups').onclick=guard(generateSetups);
+    $('jointSetupCreateManual').onclick=guard(createManualSetup);
+    $('jointSetupSaveEdit').onclick=guard(()=>{editSelectedSetup();renderMeasureGuide();});
     $('jointSetupList').addEventListener('click',guard(event=>{
         const button=event.target.closest('[data-setup-select]');
-        if(button)selectSetup(Number(button.dataset.setupSelect));
+        if(button){selectSetup(Number(button.dataset.setupSelect));renderMeasureGuide();}
     }));
     $('jointApplySetup').onclick=guard(()=>{applySetup();renderMeasureGuide();});
     $('jointSetupToMeasure').onclick=guard(()=>{
         if(s.setupPlan?.activeIndex!==s.setupPlan?.selectedIndex)
             throw Error('Activa el setup seleccionado antes de medir.');
         tab('Measure');
+    });
+    $('jointInstrumentBack').onclick=guard(()=>{
+        if(running()||s.transaction)throw Error('Detén el ensayo antes de salir del instrumento.');
+        tab('Setups');renderSetups();renderMeasureGuide();
     });
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointDownloadProcessed').onclick=guard(exportProcessedJson);$('jointCsvProcessed').onclick=guard(exportProcessedCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
@@ -287,7 +302,7 @@
                 s.setupPlan.activeIndex=previousIndex;
                 s.setupPlan.selectedIndex=previousIndex;
                 renderPlan();renderDevices();renderSetups();
-                tab(currentValid()?'Measure':'Setups');
+                tab('Setups');
             }else{
                 // Un nuevo setup requiere colocación y activación explícitas.
                 s.setupPlan.activeIndex=null;

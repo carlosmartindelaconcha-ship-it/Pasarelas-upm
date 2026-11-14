@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261114-measure-guide-v1">
+    <link rel="stylesheet" href="style.css?v=20261114-setup-workflow-v1">
 
     <!-- MapLibre -->
     <link
@@ -863,32 +863,41 @@
                 <div id="jointPanelSetups" role="tabpanel" aria-labelledby="jointTabSetups" hidden>
                     <div class="joint-section-head">
                         <div>
-                            <h3>Planificación automática de setups</h3>
-                            <p>Tras la sincronización, el maestro permanece fijo y los participantes se distribuyen para cubrir la estructura.</p>
+                            <h3>Campaña de setups</h3>
+                            <p>Prepara los puntos de medida manualmente o utiliza propuestas automáticas. El maestro permanece fijo.</p>
                         </div>
                     </div>
-                    <p id="jointSetupStatus" class="joint-help" aria-live="polite">Completa primero la sincronización de los móviles.</p>
+                    <p id="jointSetupStatus" class="joint-help" aria-live="polite">Define los puntos y conecta los móviles.</p>
                     <div class="joint-setup-metrics">
                         <div><span>Móviles conectados</span><strong id="jointSetupPhoneCount">0</strong></div>
                         <div><span>Puntos de medida</span><strong id="jointSetupSensorCount">0</strong></div>
+                    </div>
+                    <div class="joint-setup-mode" role="group" aria-label="Modo de planificación">
+                        <button id="jointSetupModeManual" type="button" aria-pressed="false" class="joint-secondary" data-vwoma-icon="edit">Manual</button>
+                        <button id="jointSetupModeAuto" type="button" aria-pressed="true" class="joint-secondary" data-vwoma-icon="setups">Propuestas automáticas</button>
                     </div>
                     <div class="joint-setup-settings">
                         <label>Sensor fijo del maestro
                             <select id="jointSetupMaster" aria-label="Sensor de referencia fijo del maestro"></select>
                         </label>
-                        <button id="jointGenerateSetups" type="button" class="vwoma-action" data-vwoma-icon="setups">Generar setups</button>
+                        <div id="jointSetupAutoControls"><button id="jointGenerateSetups" type="button" class="vwoma-action" data-vwoma-icon="setups">Generar propuestas</button></div>
                     </div>
-                    <p class="joint-help">La recomendación del maestro utiliza una aproximación geométrica a los primeros modos longitudinales y penaliza posiciones próximas a nodos y apoyos. No sustituye un análisis modal ni garantiza observar todos los modos.</p>
+                    <div id="jointSetupManualControls" class="joint-setup-manual-controls" hidden>
+                        <h4>Añadir un setup manual</h4>
+                        <p class="joint-help">Elige el punto de cada participante. Puedes dejar móviles en espera y crear los setups de uno en uno.</p>
+                        <div id="jointSetupManualAssignments" class="joint-setup-manual-fields"></div>
+                        <button id="jointSetupCreateManual" type="button" class="vwoma-action" data-vwoma-icon="plus">Añadir setup</button>
+                    </div>
+                    <p id="jointSetupAutoHint" class="joint-help">La propuesta automática estima la cobertura espacial; puedes modificar las asignaciones antes de activar cada setup. No garantiza identificar todos los modos.</p>
                     <p id="jointSetupSummary" class="joint-help" aria-live="polite"></p>
                     <div id="jointSetupPreview" class="joint-setup-preview" aria-label="Distribución espacial del setup seleccionado"></div>
-                    <div id="jointSetupList" class="joint-setup-list"></div>
-                    <div class="joint-actions joint-setup-actions">
-                        <button id="jointApplySetup" type="button" class="vwoma-action" data-vwoma-icon="check">Activar setup seleccionado</button>
-                        <button id="jointSetupToMeasure" type="button" class="joint-secondary" data-vwoma-icon="activity">Pasar a Medir</button>
+                    <div id="jointSetupEditor" class="joint-setup-editor" hidden>
+                        <h4>Editar distribución del setup seleccionado</h4>
+                        <p class="joint-help">El maestro permanece fijo. Puedes reasignar participantes o dejarlos en espera.</p>
+                        <div id="jointSetupEditAssignments" class="joint-setup-manual-fields"></div>
+                        <button id="jointSetupSaveEdit" type="button" class="joint-secondary" data-vwoma-icon="save">Guardar distribución</button>
                     </div>
-                    <p class="joint-help">Los demás móviles quedan en espera si sobran participantes. Recoloca los sensores antes de activar la medida; las asignaciones se comunican a todos los móviles.</p>
-                </div>
-                <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
+                    <div id="jointSetupList" class="joint-setup-list"></div>
                     <div id="jointMeasureSetupGuide" class="joint-measure-guide" aria-label="Guía del setup que se va a medir">
                         <div class="joint-guide-heading">
                             <div><span class="joint-guide-eyebrow">CAMPAÑA DE MEDIDAS</span><h3 id="jointMeasureGuideTitle">Medida conjunta</h3></div>
@@ -914,6 +923,17 @@
                             <button type="button" id="jointMeasureNext" class="vwoma-action" data-vwoma-icon="arrow" hidden>Preparar siguiente setup</button>
                             <button type="button" id="jointMeasureRepeat" class="joint-secondary" data-vwoma-icon="reset" hidden>Repetir este setup</button>
                         </div>
+                    </div>
+                    <div class="joint-actions joint-setup-actions">
+                        <button id="jointApplySetup" type="button" class="vwoma-action" data-vwoma-icon="check">Activar setup seleccionado</button>
+                        <button id="jointSetupToMeasure" type="button" class="joint-secondary" data-vwoma-icon="activity">Abrir instrumento</button>
+                    </div>
+                    <p class="joint-help">Los demás móviles quedan en espera si sobran participantes. Recoloca los sensores antes de activar la medida; las asignaciones se comunican a todos los móviles.</p>
+                </div>
+                <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
+                    <div id="jointInstrumentHead" class="joint-instrument-head">
+                        <strong id="jointInstrumentTitle">Adquisición · VWOMA</strong>
+                        <button id="jointInstrumentBack" type="button" class="joint-secondary" data-vwoma-icon="back">Volver a setups</button>
                     </div>
                     <div class="joint-measure-duration-card">
                         <div class="joint-measure-metric">
@@ -1018,7 +1038,8 @@
     <script defer src="src/signal/spectra.js?v=20261109-modular-spectra-v1"></script>
     <script defer src="app.js?v=20261114-post-test-anchor-v1"></script>
     <script defer src="src/joint/plan-controller.js?v=20261114-plan-steps-v5"></script>
-    <script defer src="src/joint/setup-planner.js?v=20261114-measure-guide-v1"></script>
+    <script defer src="src/joint/setup-symbols.js?v=20261114-phone-status-v1"></script>
+    <script defer src="src/joint/setup-planner.js?v=20261114-setup-workflow-v1"></script>
     <script defer src="src/joint/hotspot-ice.js?v=20261114-hotspot-autocandidate-v1"></script>
     <script defer src="src/joint/webrtc-transport.js?v=20261114-hotspot-autocandidate-v3"></script>
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
@@ -1029,12 +1050,12 @@
     <script defer src="src/joint/exports.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
-    <script defer src="src/joint/tab-navigation.js?v=20261114-setups-v2"></script>
+    <script defer src="src/joint/tab-navigation.js?v=20261114-setup-workflow-v1"></script>
     <script defer src="src/joint/scroll-navigation.js?v=20261114-nav-shell-v1"></script>
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
-    <script defer src="src/joint/ui-events.js?v=20261114-measure-guide-v1"></script>
-    <script defer src="src/joint/measure-guide.js?v=20261114-measure-guide-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261114-measure-guide-v1"></script>
+    <script defer src="src/joint/ui-events.js?v=20261114-setup-workflow-v1"></script>
+    <script defer src="src/joint/measure-guide.js?v=20261114-phone-status-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261114-setup-workflow-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-setups-v2"></script>
 
 
