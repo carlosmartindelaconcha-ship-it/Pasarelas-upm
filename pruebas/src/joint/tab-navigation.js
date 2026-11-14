@@ -6,6 +6,43 @@
   const NAMES=Object.freeze(['Plan','Devices','Sync','Measure','Results','Compare']);
   function createNavigation({$,window,raf,renderComparison,onMeasureVisible=()=>{},isRecording=()=>false,onChange=()=>{}}) {
     let current=null;
+    // Safari iOS deja ver el contenido que pasa por la zona SUPERIOR a la
+    // barra sticky. Una máscara fija blanca sigue exactamente el borde superior
+    // de las pestañas. El sentinel distingue barra fija de barra en su sitio.
+    const tabs=$('jointTabs'),topMask=$('jointTabsTopMask'),sentinel=$('jointTabsTopSentinel');
+    let maskScheduled=false;
+    function refreshTopMask(){
+      maskScheduled=false;
+      if(!tabs||!topMask||!sentinel)return;
+      const workspace=$('jointWorkspace'),app=$('jointApp');
+      if(workspace?.hidden||app?.hidden||
+          (typeof document!=='undefined'&&document.body.classList.contains('joint-measure-fixed'))){
+        topMask.style.visibility='hidden';
+        topMask.style.height='0px';
+        return;
+      }
+      const bar=tabs.getBoundingClientRect(),edge=sentinel.getBoundingClientRect();
+      // Sin desplazamiento: los dos empiezan juntos. Cuando la barra se pega
+      // arriba, el sentinel sube y deja de coincidir con ella.
+      const stuck=edge.top<bar.top-1;
+      const height=stuck?Math.max(0,Math.ceil(bar.top)):0;
+      topMask.style.height=height+'px';
+      topMask.style.visibility=stuck&&height>0?'visible':'hidden';
+    }
+    function scheduleTopMask(){
+      if(maskScheduled)return;
+      maskScheduled=true;
+      if(typeof raf==='function')raf(refreshTopMask);
+      else refreshTopMask();
+    }
+    if(typeof window?.addEventListener==='function'){
+      window.addEventListener('scroll',scheduleTopMask,{passive:true});
+      window.addEventListener('resize',scheduleTopMask,{passive:true});
+      if(window.visualViewport?.addEventListener){
+        window.visualViewport.addEventListener('scroll',scheduleTopMask,{passive:true});
+        window.visualViewport.addEventListener('resize',scheduleTopMask,{passive:true});
+      }
+    }
     function tab(name) {
       if(!NAMES.includes(name))throw Error('Pestaña desconocida: '+name);
       if(current===name)return false; // Never reflow active content on repeat calls.
@@ -19,6 +56,7 @@
         $('jointTab'+n).tabIndex=n===name?0:-1;
       }
       onChange(name,previous);
+      scheduleTopMask();
       if(name==='Compare')renderComparison();
       if(name==='Measure') {
         // Resize only after the panel is visible (important for Chrome Android).
