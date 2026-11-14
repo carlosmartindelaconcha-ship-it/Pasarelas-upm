@@ -67,3 +67,15 @@ test('medir exige recepción de ambos registros antes de habilitar completado',(
     assert.equal($('jointMeasureNext').hidden,false);
     assert.match($('jointMeasureGuideHistory').innerHTML,/Completado/);
 });
+
+test('la guia muestra los controles antes de las graficas sin alterar la rejilla de registro',()=>{
+    const fs=require('node:fs'),path=require('node:path');
+    const root=path.resolve(__dirname,'..');
+    const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+    const css=fs.readFileSync(path.join(root,'style.css'),'utf8');
+    assert.ok(html.indexOf('id="jointMeasureSetupGuide"') < html.indexOf('id="jointStart"'));
+    assert.ok(html.indexOf('id="jointStart"') < html.indexOf('id="jointLive"'));
+    assert.match(html,/src="src\/joint\/measure-guide\.js\?/);
+    assert.match(css,/body\.joint-measure-fixed\.joint-measuring #jointPanelMeasure > #jointMeasureSetupGuide \{display:none!important;\}/);
+    assert.match(css,/grid-template-areas:"duration" "temporal" "spectrum" "controls"/);
+});

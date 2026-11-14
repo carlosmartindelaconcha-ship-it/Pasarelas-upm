@@ -1,0 +1,27 @@
+name: VWOMA measure-guide focused checks
+
+on:
+  push:
+    branches:
+      - "refactor/vwoma-measure-guide-20261114"
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify changed JavaScript
+        run: |
+          node --check pruebas/src/joint/measure-guide.js
+          node --check pruebas/src/joint/setup-planner.js
+          node --check pruebas/src/joint/joint-app.js
+          node --check pruebas/src/joint/ui-events.js
+          node --check pruebas/tests/measure-guide.test.cjs
+      - name: Targeted regression tests
+        run: cd pruebas && node --test tests/measure-guide.test.cjs tests/record-transfer.test.cjs tests/transfer-integration.test.cjs tests/results-view.test.cjs tests/ui-events.test.cjs tests/exports.test.cjs

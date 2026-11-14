@@ -931,6 +931,10 @@
                             <div class="joint-measure-rate-readout"><strong id="jointRate" aria-label="Frecuencia de muestreo observada">—</strong><span>Hz</span></div>
                         </div>
                     </div>
+                    <div class="joint-actions joint-measure-actions">
+                        <button id="jointStart" type="button" data-vwoma-icon="play" class="vwoma-action"><span id="jointStartLabel">Iniciar medida</span></button>
+                        <button id="jointStop" type="button" class="joint-danger" data-vwoma-icon="stop" disabled hidden>Detener medida</button>
+                    </div>
                     <div id="jointMeasureState" class="joint-measure-state" aria-live="off">Preparando dispositivos</div>
                     <progress id="jointProgress" max="1" value="0" aria-label="Progreso del ensayo"></progress>
                     <div class="joint-live-values" aria-hidden="true">
@@ -948,10 +952,6 @@
                         <div class="joint-measure-canvas"><canvas id="jointLiveSpectrum" width="800" height="220" aria-label="Espectro de X, Y, Z en tiempo real"></canvas></div>
                     </section>
                     <p id="jointSoloHint" class="joint-help" hidden>Sin participantes conectados; puedes medir con el maestro.</p>
-                    <div class="joint-actions joint-measure-actions">
-                        <button id="jointStart" type="button" data-vwoma-icon="play" class="vwoma-action"><span id="jointStartLabel">Iniciar medida</span></button>
-                        <button id="jointStop" type="button" class="joint-danger" data-vwoma-icon="stop" disabled hidden>Detener medida</button>
-                    </div>
                 </div>
                 <div id="jointPanelResults" role="tabpanel" aria-labelledby="jointTabResults" hidden>
                     <h3>Registros y resultados</h3><div id="jointResultsList"></div>

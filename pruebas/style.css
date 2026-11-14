@@ -2626,10 +2626,10 @@ body.joint-measure-fixed:not(.joint-measuring) #jointPanelMeasure > .joint-measu
     height:175px;
 }
 body.joint-measure-fixed:not(.joint-measuring) #jointPanelMeasure > .joint-measure-actions {
-    position:sticky;bottom:0;z-index:2;flex:0 0 auto;
-    padding:6px 0 calc(3px + env(safe-area-inset-bottom));
+    position:relative;bottom:auto;flex:0 0 auto;
+    padding:3px 0 5px;
     background:#fff;
-    box-shadow:0 -5px 12px rgba(255,255,255,.96);
+    box-shadow:none;
 }
 @media(max-width:430px) {
     .joint-measure-guide {padding:10px;}
