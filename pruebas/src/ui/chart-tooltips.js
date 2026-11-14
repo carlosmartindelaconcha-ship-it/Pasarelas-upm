@@ -16,7 +16,8 @@
       if(!chart)return false;
       const tip=chart.tooltip?.getActiveElements?.()||[];
       const active=chart.getActiveElements?.()||[];
-      if(!chart.$vwomaValueVisible&&!tip.length&&!active.length)return false;
+      if(!chart.$vwomaValueVisible&&!chart.$vwomaSelectedPoint&&!tip.length&&!active.length)return false;
+      chart.$vwomaSelectedPoint=null;
       chart.setActiveElements?.([]);
       chart.tooltip?.setActiveElements?.([],{x:0,y:0});
       chart.$vwomaValueVisible=false;
@@ -24,6 +25,37 @@
       return true;
     }
     function clearAll(){for(const chart of charts())clearChart(chart);}
+
+    // Chart.js does not consistently paint an active point when the curve has
+    // pointRadius:0 and its hover state is replaced by touch/pointer events.
+    // Draw the selected value marker ourselves in the chart render lifecycle:
+    // it remains visible after chart.update(), zoom and canvas redraws.
+    // This does NOT register, cancel or modify any touch/zoom interactions.
+    function drawSelectedPoint(chart) {
+      const selected=chart?.$vwomaSelectedPoint;
+      if(!selected)return;
+      if(chart.isDatasetVisible?.(selected.datasetIndex)===false)return;
+      const element=chart.getDatasetMeta?.(selected.datasetIndex)
+        ?.data?.[selected.index];
+      if(!element)return;
+      const point=typeof element.getProps==='function'
+        ?element.getProps(['x','y'],true):element;
+      const x=point?.x,y=point?.y,area=chart.chartArea,ctx=chart.ctx;
+      if(!ctx||!Number.isFinite(x)||!Number.isFinite(y)||!area||
+        x<area.left||x>area.right||y<area.top||y>area.bottom)return;
+      const dataset=chart.data?.datasets?.[selected.datasetIndex];
+      const color=typeof dataset?.borderColor==='string'
+        ?dataset.borderColor:'#1565c0';
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x,y,5.5,0,Math.PI*2);
+      ctx.fillStyle=color;
+      ctx.fill();
+      ctx.lineWidth=2;
+      ctx.strokeStyle='#fff';
+      ctx.stroke();
+      ctx.restore();
+    }
 
     function localPosition(chart,event) {
       if(Number.isFinite(event?.x)&&Number.isFinite(event?.y)&&event?.vwomaLocal)
@@ -69,6 +101,9 @@
       const item=active[0];
       if(!item?.element)return false;
       clearAll();
+      chart.$vwomaSelectedPoint={
+        datasetIndex:item.datasetIndex,index:item.index
+      };
       chart.setActiveElements?.([item]);
       chart.tooltip?.setActiveElements?.([item],{x:item.element.x,y:item.element.y});
       chart.$vwomaValueVisible=true;
@@ -126,6 +161,9 @@
         if(!state.pointers.size)state.gesture=false;
       }
       function onTouchStart(e) {
+        // A previous pointer gesture must not disable the touch fallback
+        // forever on browsers that sometimes omit pointerup/pointerdown.
+        state.hadPointer=state.pointers.size>0;
         if(e.touches?.length!==1){state.gesture=true;state.ignoreClick=true;clear();return;}
         const touch=e.touches[0];
         state.touch={x:touch.clientX,y:touch.clientY,dragged:false};
@@ -173,14 +211,19 @@
           canvas.removeEventListener?.(type,handler,options);}
       });
     }
-    function detach(chart){attached.get(chart)?.dispose();attached.delete(chart);}
+    function detach(chart){
+      attached.get(chart)?.dispose();
+      chart.$vwomaSelectedPoint=null;
+      attached.delete(chart);
+    }
     function install() {
       if(!Chart)return;
       Chart.defaults.plugins ||= {};
       Chart.defaults.plugins.tooltip ||= {};
       Chart.defaults.plugins.tooltip.enabled=true;
       Chart.defaults.plugins.tooltip.events=[];
-      Chart.register?.({id:'vwoma-gesture-values',afterInit:attach,beforeDestroy:detach});
+      Chart.register?.({id:'vwoma-gesture-values',afterInit:attach,
+        afterDatasetsDraw:drawSelectedPoint,beforeDestroy:detach});
       const outside=e=>{
         const target=e?.target;
         if(!target||!charts().some(chart=>
