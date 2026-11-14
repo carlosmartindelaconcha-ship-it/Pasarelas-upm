@@ -128,6 +128,7 @@
         $('jointPointTableFunction').textContent=filter==='sensor'?'Móvil':filter==='support'?'Condición':filter==='interpolation'?'Estado':'Función';
         const addKind=filter==='all'?'sensor':filter;
         $('jointAddPointInline').textContent='Añadir '+({sensor:'sensor',support:'apoyo',interpolation:'interpolación'}[addKind]);
+        $('jointAddPointInline').hidden=filter==='all';
         const view=planViewport(),g=geometry(view),gridStep=planGridStep(g),labelStep=planLabelStep(g);
         const deckX=g.originX,deckY=g.originY-s.plan.width*g.scale;
         const deckW=s.plan.length*g.scale,deckH=s.plan.width*g.scale;
@@ -194,7 +195,9 @@
         }
         $('jointPlan').innerHTML=svg;
         $('jointPlanHelp').textContent=s.role==='host'?
-            'Doble toque en el tablero para añadir '+({sensor:'un sensor',support:'un apoyo',interpolation:'un punto de interpolación',all:'un sensor'}[filter])+'. Arrastra puntos o el plano; pellizca para ampliar. El filtro no borra los demás puntos.':
+            (filter==='all'?'Vista conjunta de todos los puntos. Elige una categoría para añadir puntos.':
+             'Doble toque en el tablero para añadir '+({sensor:'un sensor',support:'un apoyo',interpolation:'un punto de interpolación'}[filter])+'.')+
+             ' Arrastra puntos o el plano; pellizca para ampliar. El filtro no borra los demás puntos.':
             'El maestro edita el plano. Selecciona un tipo para consultar los puntos y su posición.';
         const devices=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
@@ -238,7 +241,8 @@
         return {x,y};
     }
     function addPoint(x,y) {
-        requireHostEdit();if(s.plan.points.length>=MAX_POINTS)throw Error('Máximo 64 puntos por plano.');
+        requireHostEdit();if(planFilter()==='all')throw Error('Selecciona Sensores, Apoyos o Interpolación para añadir un punto.');
+        if(s.plan.points.length>=MAX_POINTS)throw Error('Máximo 64 puntos por plano.');
         const kind=planFilter()==='all'?'sensor':planFilter();
         const prefix={sensor:'S',support:'A',interpolation:'I'}[kind];
         let n=1;while(s.plan.points.some(p=>p.id===prefix+n))n++;
