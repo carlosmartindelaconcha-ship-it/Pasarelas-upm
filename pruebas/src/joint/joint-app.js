@@ -241,7 +241,7 @@
     const calibrationMath=globalThis.VWOMACalibrationMath.createMath({
         median, finite, sampleRate
     });
-    const {renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture}=
+    const {renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, beginSyncExample, showSyncReady, cancelSyncExample, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture}=
         globalThis.VWOMACalibration.createController({
             s, $, escape, now, toMaster, finite, sampleRate, tell,
             renderDevices:(...args)=>renderDevices(...args),
@@ -460,7 +460,7 @@
         resetPlanView, download, deletePlanPoint, updatePlanPoint, svgPosition, planViewport,
         geometry, zoomPlanAt, snapPlanPosition, renderPlan, localStatus, renderDevices,
         broadcast, enableSensor, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
-        startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
+        startSyncGesture, beginSyncExample, showSyncReady, cancelSyncExample, startSync, startRun, stopRun, exportSession, exportCsv,
         exportProcessedJson, exportProcessedCsv, sendRecord, recover, renderComparison, validComparisonExport,
         requestWake, incident, running
     });

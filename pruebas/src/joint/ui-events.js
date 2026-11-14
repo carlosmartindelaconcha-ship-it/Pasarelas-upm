@@ -12,7 +12,7 @@
         resetPlanView, download, deletePlanPoint, updatePlanPoint, svgPosition, planViewport,
         geometry, zoomPlanAt, snapPlanPosition, renderPlan, localStatus, renderDevices,
         broadcast, enableSensor, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
-        startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
+        startSyncGesture, beginSyncExample, showSyncReady, cancelSyncExample, startSync, startRun, stopRun, exportSession, exportCsv,
         exportProcessedJson, exportProcessedCsv, sendRecord, recover, renderComparison, validComparisonExport,
         requestWake, incident, running
     }) {
@@ -226,9 +226,13 @@
     $('jointManualPlus').onclick=guard(()=>setManualCalibration(1));
     $('jointManualMinus').onclick=guard(()=>setManualCalibration(-1));
     $('jointSyncStart').onclick=guard(startSyncCalibration);
-    $('jointSyncGestureX').onclick=guard(()=>startSyncGesture('x'));
-    $('jointSyncGestureY').onclick=guard(()=>startSyncGesture('y'));
-    $('jointSyncGestureZ').onclick=guard(()=>startSyncGesture('z'));
+    $('jointSyncGestureX').onclick=guard(()=>beginSyncExample('x'));
+    $('jointSyncGestureY').onclick=guard(()=>beginSyncExample('y'));
+    $('jointSyncGestureZ').onclick=guard(()=>beginSyncExample('z'));
+    $('jointSyncContinue').onclick=guard(showSyncReady);
+    $('jointSyncReplay').onclick=guard(()=>beginSyncExample(s.syncCalibration.demo?.axis));
+    $('jointSyncBack').onclick=guard(cancelSyncExample);
+    $('jointSyncBegin').onclick=guard(()=>startSyncGesture(s.syncCalibration.demo?.axis));
     $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Comprobando el enlace con 24 intercambios. Esto no cambia la calibración física ya validada.');});
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointDownloadProcessed').onclick=guard(exportProcessedJson);$('jointCsvProcessed').onclick=guard(exportProcessedCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);

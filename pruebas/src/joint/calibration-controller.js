@@ -12,6 +12,9 @@
         const correctedVector=(values,calibration=s.calibration)=>
             math.correctedVector(values,calibration);
         const CAL_CYCLE_MS=2000, CAL_GESTURE_MS=2600, CAL_INTRO_MS=5000, CAL_OBSERVE_MS=1100;
+        const SYNC_GESTURE_MS=6000, SYNC_READY_MS=3000;
+        const syncAsset=(axis,kind)=>'assets/joint/telefono-sincronizacion-eje-'+axis.toUpperCase()+'-tabla-madera-'+kind+'.svg?v=20261114-physical-sync-board-v1';
+        let syncDemoSequence=0;
         const CAL_REST='assets/calibration/telefono-ejes-reposo.svg';
         const cycleSrc=axis=>'assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg?v=20261113-speed3';
         function updateCalibrationIllustration() {
@@ -62,6 +65,7 @@
             $('jointSyncBurst').hidden=true;
             $('jointSyncGestureActions').hidden=true;
             $('jointSyncCountdown').hidden=true;
+            $('jointSyncGuide').hidden=true;
             $('jointSyncSummary').innerHTML='<p class="joint-help">Sin participantes conectados: se registra únicamente el maestro.</p>';
             return;
         }
@@ -85,16 +89,57 @@
             const d=gestureMasterNow-gesture.start;
             box.hidden=false;
             if(d<0){box.classList.remove('go');box.textContent=Math.max(1,Math.ceil(-d/1000));}
-            else {box.classList.add('go');box.textContent='¡AHORA!';}
+            else {box.classList.add('go');box.textContent=d<550?'¡AHORA!':'MIDE · '+Math.max(0,(gesture.end-gestureMasterNow)/1000).toFixed(1)+' s';}
         }
         const syncImage=$('jointSyncImage'),syncInstruction=$('jointSyncInstruction'),gestureActions=$('jointSyncGestureActions');
-        const axis=gesture?.axis||['x','y','z'].find(key=>!state.results?.[s.id]?.axes?.[key])||'x';
-        const syncSrc='assets/calibration/telefono-eje-'+axis+'.svg';
-        // No reasignar src en cada refresco: reinicia la animación SVG en Safari.
+        const demo=s.role==='host'&&state.phase==='gesture-ready'?state.demo:null;
+        const example=demo?.phase==='example',ready=demo?.phase==='ready';
+        const active=state.phase==='gesture'&&!!gesture;
+        const capturing=active&&gesture.phase!=='finished'&&finite(gestureMasterNow)&&gestureMasterNow>=gesture.start&&gestureMasterNow<gesture.end;
+        const axis=gesture?.axis||(example||ready?demo.axis:null)||['x','y','z'].find(key=>!state.results?.[s.id]?.axes?.[key])||'x';
+        const syncSrc=example?syncAsset(axis,'7_5s')+'&example='+demo.sequence:
+            capturing?syncAsset(axis,'medida-6s')+'&gesture='+Math.round(gesture.start):
+            syncAsset(axis,'reposo');
+        // Do not reassign SVG src on each 250 ms refresh: Safari restarts animation.
         if(syncImage.getAttribute('src')!==syncSrc)syncImage.setAttribute('src',syncSrc);
-        syncImage.alt='Gesto de sincronización en el eje '+axis.toUpperCase();
-        syncInstruction.textContent=gesture?(gesture.phase==='finished'?'Gesto '+axis.toUpperCase()+' capturado. Esperando resultados…':gestureMasterNow<gesture.start?'Quieto hasta la cuenta atrás.':'Mueve el conjunto en '+axis.toUpperCase()+' · ida · vuelta · ida durante 6 s.'):state.phase==='gesture-ready'?'El maestro elige el siguiente eje.':'Primero calibra los relojes.';
-        gestureActions.hidden=state.phase!=='gesture-ready';
+        syncImage.alt=example?'Ejemplo de dos móviles sobre una tabla moviéndose según '+axis.toUpperCase():
+            capturing?'Dos móviles sobre la tabla: gesto de medida '+axis.toUpperCase():
+            'Dos móviles sobre una tabla, quietos en el origen de '+axis.toUpperCase();
+        const guide=$('jointSyncGuide'),title=$('jointSyncGuideTitle'),copy=$('jointSyncGuideText'),time=$('jointSyncGuideTime');
+        const back=$('jointSyncBack'),replay=$('jointSyncReplay'),next=$('jointSyncContinue'),begin=$('jointSyncBegin'),progress=$('jointSyncProgress');
+        guide.hidden=!(example||ready||active||state.phase==='processing');
+        back.hidden=!(example||ready);replay.hidden=!ready;next.hidden=!example;begin.hidden=!ready;
+        begin.disabled=!ready||s.role!=='host';
+        progress.hidden=!active;
+        progress.value=capturing?Math.min(1,Math.max(0,(gestureMasterNow-gesture.start)/SYNC_GESTURE_MS)):
+            gesture?.phase==='finished'?1:0;
+        if(example){
+            title.textContent='Ejemplo · eje '+axis.toUpperCase();
+            copy.textContent='Observa cómo la tabla de madera y los dos móviles se mueven juntos, sin girar, siguiendo el eje '+axis.toUpperCase()+'. Después pulsa «Continuar».';
+            time.textContent='Ejemplo · 7,5 s';
+        }else if(ready){
+            title.textContent='Ahora hazlo tú · eje '+axis.toUpperCase();
+            copy.textContent='Sujeta ambos móviles paralelos sobre la tabla. Pulsa «Iniciar medida», mantén el conjunto quieto 3 s y, al ver «¡AHORA!», mueve la tabla durante los 6 s de registro.';
+            time.textContent='3 s quieto + 6 s medida';
+        }else if(active){
+            title.textContent=gesture.phase==='finished'?'Gesto capturado · '+axis.toUpperCase():capturing?'Midiendo · eje '+axis.toUpperCase():'Preparados · eje '+axis.toUpperCase();
+            copy.textContent=gesture.phase==='finished'?'Esperando resultados del maestro. Mantén ambos móviles visibles.':
+                capturing?'Mueve la tabla con ambos móviles a la vez en la dirección '+axis.toUpperCase()+'. No gires el conjunto.':
+                'Mantén la tabla inmóvil durante la cuenta atrás, hasta que aparezca «¡AHORA!».';
+            time.textContent=gesture.phase==='finished'?'Procesando':capturing?Math.max(0,(gesture.end-gestureMasterNow)/1000).toFixed(1)+' s':
+                'Comienza en '+Math.max(1,Math.ceil((gesture.start-gestureMasterNow)/1000))+' s';
+        }else if(state.phase==='processing'){
+            title.textContent='Procesando gesto';
+            copy.textContent='Esperando la comparación de las aceleraciones de ambos móviles.';
+            time.textContent='';
+        }
+        syncInstruction.textContent=example?'Observa el ejemplo y pulsa «Continuar».':
+            ready?'El conjunto permanece quieto hasta comenzar la medida.':
+            gesture?(gesture.phase==='finished'?'Gesto '+axis.toUpperCase()+' capturado. Esperando resultados…':
+                gestureMasterNow<gesture.start?'Quieto durante la cuenta atrás.':
+                'Mueve la tabla con los dos móviles en '+axis.toUpperCase()+' durante 6 s.'):
+            state.phase==='gesture-ready'?'Elige X, Y o Z para ver el ejemplo.':'Primero calibra los relojes.';
+        gestureActions.hidden=state.phase!=='gesture-ready'||example||ready;
         for(const key of ['x','y','z']){const control=$('jointSyncGesture'+key.toUpperCase()),done=!!state.results?.[s.id]?.axes?.[key];control.hidden=s.role!=='host';control.disabled=s.role!=='host'||done||state.phase!=='gesture-ready';control.classList.toggle('done',done);}
         const localRows=[];
         const own=state.results?.[s.id];
@@ -246,6 +291,28 @@
         s.calibration.feedback='Eje '+axis.toUpperCase()+' reconocido ('+rows.length+' muestras, pico '+peak.toFixed(2)+' m/s²). Factor '+factor+'.'+(s.calibration.complete?' Calibración completa.':' Continúa con el siguiente eje.');
         tell(s.calibration.feedback);renderCalibration();renderDevices();
     }
+    function beginSyncExample(axis) {
+        requireHostEdit();
+        const state=s.syncCalibration;
+        if(state.phase!=='gesture-ready'||!['x','y','z'].includes(axis)||state.results?.[s.id]?.axes?.[axis])return;
+        state.demo={phase:'example',axis,sequence:++syncDemoSequence};
+        renderSyncCalibration();
+        revealActionTarget('jointSyncGuide','start');
+    }
+    function showSyncReady() {
+        const state=s.syncCalibration,demo=state.demo;
+        if(s.role!=='host'||state.phase!=='gesture-ready'||demo?.phase!=='example')return;
+        state.demo={...demo,phase:'ready'};
+        renderSyncCalibration();
+        revealActionTarget('jointSyncGuide','start');
+    }
+    function cancelSyncExample() {
+        const state=s.syncCalibration;
+        if(s.role!=='host'||state.phase!=='gesture-ready'||!state.demo)return;
+        state.demo=null;
+        renderSyncCalibration();
+        revealActionTarget('jointSyncGestureActions','start');
+    }
     function armSyncGesture(payload,model=s.syncModel) {
         s.syncCalibration.phase='gesture';s.syncCalibration.gesture={id:payload.id,axis:payload.axis,start:payload.start,end:payload.end,model:structuredClone(model),samples:[],sent:false};
         tab('Sync');renderSyncCalibration();
@@ -269,7 +336,8 @@
     function startSyncGesture(axis) {
         requireHostEdit();const state=s.syncCalibration;
         if(state.phase!=='gesture-ready'||!['x','y','z'].includes(axis)||state.results?.[s.id]?.axes?.[axis])return;
-        const start=now()+3000,end=start+6000,payload={type:'SYNC_GESTURE_ARM',id:state.id,axis,start,end};
+        const start=now()+SYNC_READY_MS,end=start+SYNC_GESTURE_MS,payload={type:'SYNC_GESTURE_ARM',id:state.id,axis,start,end};
+        state.demo=null;
         armSyncGesture(payload,{offset:0,drift:0,reference:0,count:0,rtt:0});broadcast(payload);
         revealActionTarget('jointSyncAnimation','start');
         tell('Gesto '+axis.toUpperCase()+' preparado: quietos durante la cuenta atrás.');
@@ -315,7 +383,7 @@
         tell('Sincronización física validada. Ya puedes pasar a Medir.');renderSyncCalibration();renderDevices();
     }
 
-        return Object.freeze({renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture});
+        return Object.freeze({renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, beginSyncExample, showSyncReady, cancelSyncExample, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture});
     }
     const api=Object.freeze({createController});
     if(typeof module==='object'&&module.exports) module.exports=api;

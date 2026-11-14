@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261113-calibration-mobile-overflow-v13">
+    <link rel="stylesheet" href="style.css?v=20261114-physical-sync-board-v1">
 
     <!-- MapLibre -->
     <link
@@ -38,6 +38,9 @@
     <link rel="preload" as="image" href="assets/calibration/telefono-eje-x-un-ciclo.svg?v=20261113-speed3">
     <link rel="preload" as="image" href="assets/calibration/telefono-eje-y-un-ciclo.svg?v=20261113-speed3">
     <link rel="preload" as="image" href="assets/calibration/telefono-eje-z-un-ciclo.svg?v=20261113-speed3">
+    <link rel="preload" as="image" href="assets/joint/telefono-sincronizacion-eje-X-tabla-madera-7_5s.svg?v=20261114-physical-sync-board-v1">
+    <link rel="preload" as="image" href="assets/joint/telefono-sincronizacion-eje-Y-tabla-madera-7_5s.svg?v=20261114-physical-sync-board-v1">
+    <link rel="preload" as="image" href="assets/joint/telefono-sincronizacion-eje-Z-tabla-madera-7_5s.svg?v=20261114-physical-sync-board-v1">
 </head>
 
 
@@ -765,7 +768,30 @@
   </div>
   <p class="joint-help">Cada gesto: 3 s quieto y 2,6 s de registro (una ida y vuelta y un pequeño margen). No gires el móvil; desplázalo en línea recta siguiendo el eje.</p>
 </section>
-                    <section class="joint-physical-sync" aria-labelledby="jointPhysicalSyncTitle"><h4 id="jointPhysicalSyncTitle">Validar sincronía física</h4><p>Fija los móviles paralelos sobre una tablilla rígida, separados 5–10 cm para evitar NFC. Se correlacionan exclusivamente X–X, Y–Y y Z–Z.</p><button id="jointSyncStart" type="button" data-vwoma-icon="sync" class="vwoma-action">Calibrar relojes</button><div id="jointSyncBurst" class="joint-sync-burst" hidden><strong>Ráfaga de reloj</strong><progress id="jointSyncBurstProgress" max="200" value="0"></progress><span id="jointSyncBurstCount">0 / 200 respuestas</span></div><p id="jointSyncHelp" class="joint-help">El maestro inicia una ráfaga de 200 intercambios a 20 Hz (10 s). Después guiará cada gesto con una cuenta atrás común. Mantén ambas pantallas visibles.</p><figure id="jointSyncAnimation" class="joint-calibration-animation joint-sync-animation"><img id="jointSyncImage" src="assets/calibration/telefono-eje-x.svg" alt="Gesto de sincronización"><div id="jointSyncCountdown" class="joint-calibration-countdown joint-countdown-overlay" hidden aria-live="assertive"></div><figcaption id="jointSyncInstruction">Primero calibra los relojes.</figcaption></figure><div id="jointSyncGestureActions" class="joint-calibration-actions" hidden><button id="jointSyncGestureX" type="button" class="joint-axis-x">Gesto X</button><button id="jointSyncGestureY" type="button" class="joint-axis-y">Gesto Y</button><button id="jointSyncGestureZ" type="button" class="joint-axis-z">Gesto Z</button></div><div id="jointSyncSummary" class="joint-sync-summary" aria-live="polite"></div></section>
+                    <section class="joint-physical-sync" aria-labelledby="jointPhysicalSyncTitle"><h4 id="jointPhysicalSyncTitle">Validar sincronía física</h4><p>Fija los móviles paralelos sobre una tablilla rígida, separados 5–10 cm para evitar NFC. Se correlacionan exclusivamente X–X, Y–Y y Z–Z.</p><button id="jointSyncStart" type="button" data-vwoma-icon="sync" class="vwoma-action">Calibrar relojes</button><div id="jointSyncBurst" class="joint-sync-burst" hidden><strong>Ráfaga de reloj</strong><progress id="jointSyncBurstProgress" max="200" value="0"></progress><span id="jointSyncBurstCount">0 / 200 respuestas</span></div><p id="jointSyncHelp" class="joint-help">El maestro inicia una ráfaga de 200 intercambios a 20 Hz (10 s). Después guiará cada gesto con una cuenta atrás común. Mantén ambas pantallas visibles.</p>
+<div id="jointSyncGestureActions" class="joint-calibration-actions" hidden>
+  <button id="jointSyncGestureX" type="button" class="joint-axis-x">Gesto X</button>
+  <button id="jointSyncGestureY" type="button" class="joint-axis-y">Gesto Y</button>
+  <button id="jointSyncGestureZ" type="button" class="joint-axis-z">Gesto Z</button>
+</div>
+<div id="jointSyncGuide" class="joint-sync-demo-card" hidden>
+  <div class="joint-sync-demo-heading"><strong id="jointSyncGuideTitle">Ejemplo</strong><span id="jointSyncGuideTime" aria-live="off"></span></div>
+  <p id="jointSyncGuideText" class="joint-sync-demo-copy"></p>
+  <div class="joint-sync-demo-actions">
+    <button id="jointSyncBack" type="button" class="joint-secondary" hidden>Cambiar eje</button>
+    <button id="jointSyncReplay" type="button" class="joint-secondary" hidden>Repetir ejemplo</button>
+    <button id="jointSyncContinue" type="button" class="vwoma-action" hidden>Continuar</button>
+    <button id="jointSyncBegin" type="button" class="vwoma-action" hidden>Iniciar medida (6 s)</button>
+  </div>
+  <progress id="jointSyncProgress" class="joint-sync-progress" max="1" value="0" hidden aria-label="Progreso del gesto"></progress>
+</div>
+<figure id="jointSyncAnimation" class="joint-calibration-animation joint-sync-animation">
+  <div class="joint-sync-visual">
+    <img id="jointSyncImage" src="assets/joint/telefono-sincronizacion-eje-X-tabla-madera-reposo.svg?v=20261114-physical-sync-board-v1" alt="Dos móviles sobre una tabla de madera">
+    <div id="jointSyncCountdown" class="joint-calibration-countdown joint-countdown-overlay" hidden aria-live="assertive"></div>
+  </div>
+  <figcaption id="jointSyncInstruction">Primero calibra los relojes.</figcaption>
+</figure><div id="jointSyncSummary" class="joint-sync-summary" aria-live="polite"></div></section>
                 </div>
                 <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
                     <h3>Adquisición coordinada</h3><div class="joint-fields"><label>Duración (s)<input id="jointDuration" type="number" min="5" max="1800" step="1" value="60"></label></div>
@@ -847,15 +873,15 @@
     <script defer src="src/joint/persistence.js?v=20261109-modular-persistence-v1"></script>
     <script defer src="src/joint/acquisition.js?v=20261113-acquisition-solo-v3"></script>
     <script defer src="src/joint/calibration-math.js?v=20261112-calibration-math-v1"></script>
-    <script defer src="src/joint/calibration-controller.js?v=20261113-reveal-actions-v9"></script>
+    <script defer src="src/joint/calibration-controller.js?v=20261114-physical-sync-board-v1"></script>
     <script defer src="src/joint/exports.js?v=20261112-exports-v1"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
     <script defer src="src/joint/tab-navigation.js?v=20261113-android-tabs-v2"></script>
     <script defer src="src/joint/scroll-navigation.js?v=20261113-reveal-actions-v1"></script>
     <script defer src="src/joint/session-state.js?v=20261113-joint-state-v1"></script>
-    <script defer src="src/joint/ui-events.js?v=20261113-joint-ui-events-v4"></script>
-    <script defer src="src/joint/joint-app.js?v=20261113-reveal-actions-v16"></script>
+    <script defer src="src/joint/ui-events.js?v=20261114-physical-sync-board-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261114-physical-sync-board-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261108-mobile-header-v9"></script>
 
 

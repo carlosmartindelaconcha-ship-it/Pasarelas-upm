@@ -361,3 +361,44 @@ test('los botones llevan al usuario a la ilustracion, el selector o el gesto ini
   sync.ctl.startSyncGesture('x');
   assert.ok(sync.reveals.some(([id])=>id==='jointSyncAnimation'));
 });
+
+test('board demonstration, ready and measurement keep the intended sync timings',()=>{
+ const f=fixture();
+ f.s.syncCalibration.phase='gesture-ready';
+ f.s.syncCalibration.results[f.s.id]={axes:{}};
+ f.ctl.beginSyncExample('y');
+ assert.equal(f.s.syncCalibration.demo.phase,'example');
+ assert.match(f.node('jointSyncImage').getAttribute('src'),/eje-Y-tabla-madera-7_5s.svg/);
+ assert.equal(f.node('jointSyncContinue').hidden,false);
+ const src=f.node('jointSyncImage').getAttribute('src');
+ f.ctl.renderSyncCalibration();assert.equal(f.node('jointSyncImage').getAttribute('src'),src);
+ f.ctl.showSyncReady();
+ assert.equal(f.s.syncCalibration.demo.phase,'ready');
+ assert.match(f.node('jointSyncImage').getAttribute('src'),/-reposo.svg/);
+ assert.equal(f.node('jointSyncBegin').hidden,false);
+ f.ctl.startSyncGesture('y');
+ const g=f.s.syncCalibration.gesture;
+ assert.equal(g.start,4000);assert.equal(g.end,10000);
+ assert.equal(f.node('jointSyncGuide').hidden,false);
+ f.setTime(5000);f.ctl.renderSyncCalibration();
+ const moving=f.node('jointSyncImage').getAttribute('src');
+ assert.match(moving,/eje-Y-tabla-madera-medida-6s.svg/);
+ f.setTime(5500);f.ctl.renderSyncCalibration();
+ assert.equal(f.node('jointSyncImage').getAttribute('src'),moving);
+ assert.ok(f.node('jointSyncProgress').value>0);
+ f.setTime(10001);f.ctl.renderSyncCalibration();
+ assert.match(f.node('jointSyncImage').getAttribute('src'),/-reposo.svg/);
+});
+test('participant shows same board animation for the gesture from host',()=>{
+ const f=fixture();f.s.role='guest';
+ f.ctl.armSyncGesture({id:'sync1',axis:'z',start:4000,end:10000},{offset:0,drift:0,reference:0,count:20});
+ f.setTime(5000);f.ctl.renderSyncCalibration();
+ assert.match(f.node('jointSyncImage').getAttribute('src'),/eje-Z-tabla-madera-medida-6s.svg/);
+});
+test('changing axis cancels demo without changing synchronization measurements',()=>{
+ const f=fixture();
+ f.s.syncCalibration.phase='gesture-ready';f.s.syncCalibration.results[f.s.id]={axes:{}};
+ f.ctl.beginSyncExample('x');f.ctl.showSyncReady();f.ctl.cancelSyncExample();
+ assert.equal(f.s.syncCalibration.demo,null);
+ assert.equal(f.node('jointSyncGestureActions').hidden,false);
+});
