@@ -1734,6 +1734,83 @@ body.joint-workspace-active #jointWorkspace {
 .joint-factor-x.ready { border-color:#a8d0f2; background:#eff7ff; }.joint-factor-y.ready { border-color:#edb8b8; background:#fff3f3; }.joint-factor-z.ready { border-color:#add9ba; background:#f0faF3; }
 .joint-axis-x { background:#e8f3ff; color:#1269ad; border:1px solid #9fcdf4; }.joint-axis-y { background:#fff0f0; color:#b83f45; border:1px solid #efb7bb; }.joint-axis-z { background:#eaf7ef; color:#247a50; border:1px solid #a8d9bd; }
 .joint-calibration-actions button.done::after { content:' ✓'; }.joint-calibration-actions button:disabled { opacity:.55; }
+/* Setups: tarjeta compacta con distribución física y selección del ensayo.
+   No se cambian las tablas ni los canvas de adquisición. */
+.joint-setup-metrics {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    margin:12px 0;
+}
+.joint-setup-metrics > div {
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:3px;
+    min-width:0;
+    padding:11px 13px;
+    border:1px solid #dae5ee;
+    border-radius:9px;
+    background:#f7fafc;
+}
+.joint-setup-metrics span {font-size:.76rem;font-weight:600;color:#597188;}
+.joint-setup-metrics strong {font-size:1.24rem;font-variant-numeric:tabular-nums;color:#173d60;}
+.joint-setup-settings {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:9px;
+    align-items:end;
+    margin:13px 0;
+}
+.joint-setup-settings label {margin:0;min-width:0;}
+.joint-setup-settings select {width:100%;}
+.joint-setup-settings button {align-self:end;white-space:nowrap;}
+.joint-setup-preview {
+    margin:12px 0 16px;
+    padding:9px 9px 5px;
+    border:1px solid #d9e5ee;
+    border-radius:10px;
+    background:#fff;
+}
+.joint-setup-preview:empty {display:none;}
+.joint-setup-preview svg {width:100%;height:auto;display:block;}
+.joint-setup-preview p {margin:0 6px 7px;color:#607487;font-size:.74rem;line-height:1.4;}
+.joint-setup-list {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,265px),1fr));gap:10px;margin:12px 0;}
+.joint-setup-card {
+    min-width:0;
+    border:1px solid #d8e4ed;
+    border-radius:10px;
+    background:#fff;
+    padding:8px;
+}
+.joint-setup-card.selected {border-color:#427eab;background:#f4f9fd;}
+.joint-setup-card.active {border-left:4px solid #167f8b;}
+.joint-app .joint-setup-card .joint-setup-select {
+    display:flex;
+    justify-content:space-between;
+    gap:6px;
+    width:100%;
+    min-width:0;
+    margin:0;
+    padding:9px 11px;
+    border:1px solid #d4e3ed;
+    border-radius:7px;
+    text-align:left;
+    background:#eef5fb;
+    color:#204d72;
+}
+.joint-app .joint-setup-card.selected .joint-setup-select {background:#173d66;color:#fff;border-color:#173d66;}
+.joint-setup-assignments {margin:10px 4px 3px;padding-left:22px;list-style:disc;}
+.joint-setup-assignments li {padding:3px 0;line-height:1.35;font-size:.84rem;}
+.joint-setup-assignments small {color:#668094;}
+.joint-setup-card p.joint-help {margin:7px 4px 3px;}
+.joint-setup-actions {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px;}
+.joint-app .joint-setup-actions button {width:100%;min-width:0;line-height:1.2;}
+@media(max-width:450px){
+    .joint-setup-settings {grid-template-columns:minmax(0,1fr);}
+    .joint-setup-settings button {width:100%;min-width:0;}
+    .joint-setup-actions {grid-template-columns:1fr;}
+}
 .joint-axis-compare { margin:18px 0; }
 /* Instrumento fijo en MEDIR, desde que se abre la pestaña y no solo al grabar.
    No altera ni el flujo de medida individual ni las demás pestañas. */
@@ -1788,7 +1865,7 @@ body.joint-measure-fixed #jointWorkspace {
 }
 body.joint-measure-fixed #jointTabs {
     display:grid;
-    grid-template-columns:repeat(6,minmax(0,1fr));
+    grid-template-columns:repeat(7,minmax(0,1fr));
     flex:0 0 auto;
     position:relative;
     top:auto;
