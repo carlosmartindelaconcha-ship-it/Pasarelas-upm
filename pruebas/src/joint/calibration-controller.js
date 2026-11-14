@@ -366,28 +366,6 @@
         s.calibration.feedback='Eje '+axis.toUpperCase()+' reconocido ('+rows.length+' muestras, pico '+peak.toFixed(2)+' m/s²). Factor '+factor+'.'+(s.calibration.complete?' Calibración completa.':' Continúa con el siguiente eje.');
         tell(s.calibration.feedback);renderCalibration();renderDevices();
     }
-    function beginSyncExample(axis) {
-        requireHostEdit();
-        const state=s.syncCalibration;
-        if(state.phase!=='gesture-ready'||!['x','y','z'].includes(axis)||state.results?.[s.id]?.axes?.[axis])return;
-        state.demo={phase:'example',axis,sequence:++syncDemoSequence};
-        renderSyncCalibration();
-        revealActionTarget('jointSyncGuide','start');
-    }
-    function showSyncReady() {
-        const state=s.syncCalibration,demo=state.demo;
-        if(s.role!=='host'||state.phase!=='gesture-ready'||demo?.phase!=='example')return;
-        state.demo={...demo,phase:'ready'};
-        renderSyncCalibration();
-        revealActionTarget('jointSyncGuide','start');
-    }
-    function cancelSyncExample() {
-        const state=s.syncCalibration;
-        if(s.role!=='host'||state.phase!=='gesture-ready'||!state.demo)return;
-        state.demo=null;
-        renderSyncCalibration();
-        revealActionTarget('jointSyncGestureActions','start');
-    }
     function armSyncGesture(payload,model=s.syncModel) {
         s.syncCalibration.phase='gesture';s.syncCalibration.gesture={id:payload.id,axis:payload.axis,start:payload.start,end:payload.end,model:structuredClone(model),samples:[],sent:false};
         tab('Sync');renderSyncCalibration();
@@ -402,9 +380,26 @@
         // El estado se exporta con el ensayo: guarda IDs, nunca objetos RTCPeerConnection.
         const id=uid();s.syncCalibration={phase:'network',accepted:false,gesture:null,results:{},models:{},correctionMs:0,id,peerIds:peers.map(p=>p.id)};tab('Sync');renderSyncCalibration();
         tell('Midiendo 200 intercambios de reloj a 20 Hz por participante (unos 10 s)…');
-        await Promise.all(peers.map(p=>startSync(p,200,50,'precal',id)));
-        await pause(500);
-        for(const p of peers){const rows=p.samples.filter(row=>row.runId===id&&row.phase==='precal');if(rows.length<185)throw Error('Solo se completaron '+rows.length+' de 200 intercambios con '+p.name+'. Repite la calibración.');const model=clockFit(rows);if(!model)throw Error('No se pudo ajustar el reloj de '+p.name+'.');p.model=model;p.startModel=structuredClone(model);s.syncCalibration.models[p.id]=structuredClone(model);send(p,{type:'CLOCK_MODEL',model});}
+        try {
+            await Promise.all(peers.map(p=>startSync(p,200,50,'precal',id)));
+            await pause(500);
+            for(const p of peers){
+                const rows=p.samples.filter(row=>row.runId===id&&row.phase==='precal');
+                if(rows.length<185)throw Error('Solo se completaron '+rows.length+' de 200 intercambios con '+p.name+'. Repite la calibración.');
+                const model=clockFit(rows);
+                if(!model)throw Error('No se pudo ajustar el reloj de '+p.name+'.');
+                p.model=model;p.startModel=structuredClone(model);
+                s.syncCalibration.models[p.id]=structuredClone(model);
+                send(p,{type:'CLOCK_MODEL',model});
+            }
+        }catch(error){
+            if(s.syncCalibration.id===id){
+                s.syncCalibration.phase='failed';
+                renderSyncCalibration();
+            }
+            throw error;
+        }
+        if(s.syncCalibration.id!==id)return;
         s.syncCalibration.phase='gesture-ready';s.syncCalibration.results[s.id]={axes:{},accepted:true,correctionMs:0};
         broadcast({type:'SYNC_GUIDE_BEGIN',id});
         tell('Relojes listos. Sigue las instrucciones y observa el ejemplo.');
@@ -431,7 +426,13 @@
         for(const p of peers){const result=state.results[p.id];if(!result?.windows?.[axis]){missing.push(p.name);continue;}
             result.axes??={};result.axes[axis]=estimateGestureAxis(masterSamples,result.windows[axis],axis,masterCalibration,result.calibration,g.start,g.end);
         }
-        if(missing.length){state.phase='gesture-ready';state.gesture=null;tell('No llegó la ventana de '+axis.toUpperCase()+' de '+missing.join(', ')+'. Repite solo ese gesto.',true);renderSyncCalibration();return;}
+        if(missing.length){
+            state.phase='gesture-ready';state.gesture=null;
+            state.lastFeedback='No llegaron todos los datos de '+axis.toUpperCase()+'. Repite ese eje.';
+            for(const p of peers)send(p,{type:'SYNC_AXIS_RETRY',id,axis});
+            tell('No llegó la ventana de '+axis.toUpperCase()+' de '+missing.join(', ')+'. Repite solo ese gesto.',true);
+            renderSyncCalibration();return;
+        }
         const failedAxis=peers.filter(p=>state.results[p.id]?.axes?.[axis]?.error);
         if(failedAxis.length){
             const details=failedAxis.map(p=>{
@@ -439,6 +440,8 @@
                 return p.name+': '+error+' (maestro '+masterSamples.length+' muestras, participante '+(result.windows[axis]?.length||0)+')';
             }).join('; ');
             state.phase='gesture-ready';state.gesture=null;
+            state.lastFeedback='No se validó el eje '+axis.toUpperCase()+'. Repite ese gesto.';
+            for(const p of peers)send(p,{type:'SYNC_AXIS_RETRY',id,axis});
             tell('No se validó el gesto '+axis.toUpperCase()+': '+details+'. Repite solo este eje.',true);
             renderSyncCalibration();return;
         }
@@ -455,6 +458,8 @@
             const retry=['x','y','z'].sort((a,b)=>disagreement[b]-disagreement[a])[0];
             for(const p of peers){delete state.results[p.id].axes[retry];delete state.results[p.id].windows?.[retry];state.results[p.id].accepted=false;delete state.results[p.id].error;}
             delete state.results[s.id].axes[retry];state.phase='gesture-ready';state.gesture=null;
+            state.lastFeedback='El eje '+retry.toUpperCase()+' debe repetirse para validar la sincronización.';
+            for(const p of peers)send(p,{type:'SYNC_AXIS_RETRY',id,axis:retry});
             tell('El gesto '+retry.toUpperCase()+' es el menos coherente entre móviles. Repite solo ese eje.',true);renderSyncCalibration();return;
         }
         state.phase='accepted';state.accepted=true;state.lastFeedback='✓ Sincronización completa.';
@@ -462,7 +467,7 @@
         tell('Sincronización física validada. Ya puedes pasar a Medir.');renderSyncCalibration();renderDevices();
     }
 
-        return Object.freeze({renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, receiveSyncGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, beginSyncExample, showSyncReady, cancelSyncExample, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture});
+        return Object.freeze({renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, receiveSyncGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture});
     }
     const api=Object.freeze({createController});
     if(typeof module==='object'&&module.exports) module.exports=api;
