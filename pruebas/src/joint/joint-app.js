@@ -389,11 +389,49 @@
             clampTemporalXAxis,keepTemporalYAxisCentered,formatYAxisTick
         });
 
+    // Mantiene la leyenda NATIVA de Chart.js (recuadros y tachado al ocultar).
+    // Un solo clic en X/Y/Z debe cambiar ambas graficas a la vez.
+    function toggleJointAxis(event, legendItem, legend) {
+        const axis=legendItem.datasetIndex;
+        if(!Number.isInteger(axis)||axis<0||axis>2)return;
+        const visible=!legend.chart.isDatasetVisible(axis);
+        for(const chart of [s.jointCharts.time,s.jointCharts.spectrum]){
+            if(!chart)continue;
+            chart.setDatasetVisibility(axis,visible);
+            chart.update('none');
+        }
+    }
     function ensureJointCharts() {
         if(typeof Chart==='undefined')return false;
-        const common={responsive:true,maintainAspectRatio:false,animation:false,events:['click'],parsing:false,plugins:{legend:{position:'top',labels:{boxWidth:28,font:{size:12}}}},scales:{x:{type:'linear',grid:{color:'rgba(0,0,0,.08)'}},y:{grid:{color:'rgba(0,0,0,.08)'}}}};
-        if(!s.jointCharts.time)s.jointCharts.time=new Chart($('jointLive').getContext('2d'),{type:'line',data:{datasets:[{label:'X',data:[],borderColor:'#1565c0',borderWidth:2,pointRadius:0},{label:'Y',data:[],borderColor:'#c62828',borderWidth:2,pointRadius:0},{label:'Z',data:[],borderColor:'#2e7d32',borderWidth:2,pointRadius:0}]},options:{...common,scales:{x:{...common.scales.x,min:0,max:5,title:{display:true,text:'Tiempo (s)'}},y:{...common.scales.y,title:{display:true,text:'Aceleración (m/s²)'}}}}});
-        if(!s.jointCharts.spectrum)s.jointCharts.spectrum=new Chart($('jointLiveSpectrum').getContext('2d'),{type:'line',data:{datasets:[{label:'X',data:[],borderColor:'#1565c0',borderWidth:2,pointRadius:0},{label:'Y',data:[],borderColor:'#c62828',borderWidth:2,pointRadius:0},{label:'Z',data:[],borderColor:'#2e7d32',borderWidth:2,pointRadius:0}]},options:{...common,scales:{x:{...common.scales.x,min:0,max:30,title:{display:true,text:'Frecuencia (Hz)'}},y:{...common.scales.y,min:0,title:{display:true,text:'Amplitud'}}}}});
+        const common={
+            responsive:true,
+            maintainAspectRatio:false,
+            animation:false,
+            events:['click'],
+            parsing:false,
+            plugins:{legend:{position:'top',onClick:toggleJointAxis,labels:{boxWidth:28,font:{size:12}}}},
+            scales:{x:{type:'linear',grid:{color:'rgba(0,0,0,.08)'}},y:{grid:{color:'rgba(0,0,0,.08)'}}}
+        };
+        const datasets=()=>[
+            {label:'X',data:[],borderColor:'#1565c0',borderWidth:2,pointRadius:0},
+            {label:'Y',data:[],borderColor:'#c62828',borderWidth:2,pointRadius:0},
+            {label:'Z',data:[],borderColor:'#2e7d32',borderWidth:2,pointRadius:0}
+        ];
+        if(!s.jointCharts.time)s.jointCharts.time=new Chart($('jointLive').getContext('2d'),{
+            type:'line',data:{datasets:datasets()},
+            options:{...common,scales:{
+                x:{...common.scales.x,min:0,max:5,title:{display:true,text:'Tiempo (s)'}},
+                y:{...common.scales.y,title:{display:true,text:'Aceleración (m/s²)'}}
+            }}
+        });
+        if(!s.jointCharts.spectrum)s.jointCharts.spectrum=new Chart($('jointLiveSpectrum').getContext('2d'),{
+            type:'line',data:{datasets:datasets()},
+            options:{...common,plugins:{...common.plugins,legend:{display:false}},
+                scales:{
+                    x:{...common.scales.x,min:0,max:30,title:{display:true,text:'Frecuencia (Hz)'}},
+                    y:{...common.scales.y,min:0,title:{display:true,text:'Amplitud'}}
+                }}
+        });
         return true;
     }
     function drawPreview() {
@@ -455,7 +493,14 @@
             }
             if(t>r.end+1000)finishRun().catch(e=>tell(e.message,true));
         }
-        $('jointSampleCount').textContent=r?.samples.length||0;$('jointRate').textContent=localStatus().sensor?sampleRate().toFixed(1)+' Hz':'—';
+        $('jointSampleCount').textContent=r?.samples.length||0;
+        // Tasa observada de DeviceMotion, no la solicitada al sensor.
+        // Actualización aprox. una vez por segundo; borrar valores caducados.
+        const freshSamples=s.sensorEnabled&&s.sensor&&now()-s.lastSample<1200;
+        if(s.uiTick%4===0||!freshSamples){
+            const hz=freshSamples?sampleRate():0;
+            $('jointRate').textContent=Number.isFinite(hz)&&hz>0?hz.toFixed(1):'—';
+        }
         // Hidden canvases must not redraw or resize while another tab is active.
         if(!$('jointPanelMeasure').hidden){
             drawPreview();
