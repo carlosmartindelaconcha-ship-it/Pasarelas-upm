@@ -45,27 +45,35 @@
             const measure=name==='Measure';
             document.body.classList.toggle('joint-measure-fixed',measure);
             document.body.classList.toggle('joint-measuring',measure&&(!!running()||!!s.transaction));
-            if(measure&&typeof window.scrollTo==='function')window.scrollTo({top:0,behavior:'instant'});
+            // La pestaña Medir ya es una pantalla fija que ocupa 100dvh.
+            // NO mover el documento subyacente: Android puede devolver al
+            // usuario arriba al cerrar el ensayo y volver a Resultados.
         }
     });
     function open() {
         if (typeof isRecording!=='undefined' && isRecording) throw Error('Detén primero el ensayo individual.');
-        if (root.hidden) {
+        const firstOpen=root.hidden;
+        if (firstOpen) {
             s.returnTo=[...document.querySelectorAll('main > section, main > form')].find(el=>el!==root && getComputedStyle(el).display!=='none');
             for (const el of document.querySelectorAll('main > section, main > form')) if(el!==root) el.style.display='none';
         }
         root.hidden=false;
         document.documentElement.classList.add('joint-workspace-active');
         document.body.classList.add('joint-workspace-active');
-        // Only this initial, explicit entry is allowed to reset page position.
-        window.scrollTo({top:0});
+        // Abrir la aplicación explícitamente sí desplaza al inicio.
+        // Las llamadas repetidas mientras ya está abierta NO lo hacen.
+        if(firstOpen)window.scrollTo({top:0});
     }
     function workspace() {
+        const firstWorkspace=$('jointWorkspace').hidden;
         $('jointLanding').hidden=true; $('jointWorkspace').hidden=false;
         $('jointRole').textContent=s.role==='host'?'Maestro':'Participante';
         $('jointPair').hidden=s.role!=='host'; $('jointSessionLabel').textContent=s.session.slice(0,8);
         $('jointDeviceName').value=s.name;
-        renderPlan(); renderDevices(); tab('Plan');
+        renderPlan(); renderDevices();
+        // Una actualización de QR o red no debe devolver a Plano ni
+        // desmontar Resultados mientras el usuario intenta desplazarse.
+        if(firstWorkspace)tab('Plan');
     }
     function requireHostEdit() {
         if (s.role!=='host') throw Error('El plano lo edita el maestro.');
