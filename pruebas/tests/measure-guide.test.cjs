@@ -22,15 +22,18 @@ function fixture() {
             channel:{readyState:'open'},status:{sensor:true,visible:true,calibrated:true}}]]),
         sensor:true,calibration:{complete:true},results:new Map(),run:null};
 }
-test('maestro verde, esclavo azul, restantes sensores grises y apoyos visibles',()=>{
+test('teléfonos enteros: maestro rojo, esclavo azul, pendientes grises y apoyos',()=>{
     const s=fixture(),v=viewModel(s,true),svg=planSvg(v,esc);
     assert.equal(v.devices[0].code,'M');
     assert.equal(v.devices[1].code,'S1');
-    assert.equal((svg.match(/<circle /g)||[]).length,4);
-    assert.match(svg, /#16824e/);
+    assert.equal((svg.match(/class="joint-phone-marker joint-setup-phone"/g)||[]).length,4);
+    assert.match(svg, /data-status="master"/);
+    assert.match(svg, /data-status="slave"/);
+    assert.match(svg, /data-status="pending"/);
+    assert.match(svg, /#cc3b47/);
     assert.match(svg, /#176bb0/);
-    assert.match(svg, /#cdd6df/);
-    assert.match(svg, /#f4d8b3/);
+    assert.match(svg, /#99a8b6/);
+    assert.match(svg, /#f6e6d5/);
     assert.match(svg, /I1|<rect x=/);
     assert.match(svg, /M · P2/);
     assert.match(svg, /S1 · P3/);
@@ -68,14 +71,32 @@ test('medir exige recepción de ambos registros antes de habilitar completado',(
     assert.match($('jointMeasureGuideHistory').innerHTML,/Completado/);
 });
 
-test('la guia muestra los controles antes de las graficas sin alterar la rejilla de registro',()=>{
+test('la guia pertenece a Setups y el instrumento no altera la rejilla de registro',()=>{
     const fs=require('node:fs'),path=require('node:path');
     const root=path.resolve(__dirname,'..');
     const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
     const css=fs.readFileSync(path.join(root,'style.css'),'utf8');
-    assert.ok(html.indexOf('id="jointMeasureSetupGuide"') < html.indexOf('id="jointStart"'));
+    assert.ok(html.indexOf('id="jointMeasureSetupGuide"') < html.indexOf('id="jointPanelMeasure"'));
+    assert.ok(html.indexOf('id="jointInstrumentBack"') > html.indexOf('id="jointPanelMeasure"'));
     assert.ok(html.indexOf('id="jointStart"') < html.indexOf('id="jointLive"'));
     assert.match(html,/src="src\/joint\/measure-guide\.js\?/);
-    assert.match(css,/body\.joint-measure-fixed\.joint-measuring #jointPanelMeasure > #jointMeasureSetupGuide \{display:none!important;\}/);
+    assert.match(css,/#jointTabMeasure \{display:none!important;\}/);
     assert.match(css,/grid-template-areas:"duration" "temporal" "spectrum" "controls"/);
+});
+
+test('el verde indica otro punto medido y no cambia el rojo del maestro fijo',()=>{
+    const s=fixture();
+    const completed={index:1,assignments:[
+        {deviceId:'host',pointId:'P2'}, {deviceId:'guest',pointId:'P1'}
+    ],measuredRunId:'r1',completedRunId:'r1'};
+    s.setupPlan.setups.unshift(completed);
+    s.setupPlan.setups[1].index=2;
+    s.setupPlan.activeIndex=1;
+    s.setupPlan.selectedIndex=1;
+    const svg=planSvg(viewModel(s,true),esc);
+    assert.match(svg,/data-status="master"/);
+    assert.match(svg,/data-status="slave"/);
+    assert.match(svg,/data-status="measured"/);
+    assert.match(svg,/data-status="pending"/);
+    assert.match(svg,/#16824e/);
 });
