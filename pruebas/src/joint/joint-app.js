@@ -149,6 +149,32 @@
             if(m.exchange){s.syncLog.push(m.exchange);if(s.syncLog.length>MAX_SYNC_SAMPLES)s.syncLog.shift();}
             return;
         }
+        if(m.type==='SYNC_GUIDE_BEGIN'&&s.role==='guest'){
+            if(typeof m.id!=='string'||!localStatus().sensor||!s.calibration.complete)return;
+            receiveSyncGuide(m.id);
+            tab('Sync');
+            tell('Relojes preparados. Observa el ejemplo antes de comenzar.');
+            return;
+        }
+        if(m.type==='SYNC_AXIS_PROGRESS'&&s.role==='guest'){
+            if(s.syncCalibration.id!==m.id||!['x','y','z'].includes(m.axis)||!finite(m.lag)||!finite(m.correlation))return;
+            const state=s.syncCalibration;
+            state.results[s.id]??={axes:{},accepted:false,correctionMs:0};
+            state.results[s.id].axes[m.axis]={axis:m.axis,lag:m.lag,correlation:m.correlation};
+            state.phase='gesture-ready';state.guidePhase='ready';state.gesture=null;
+            state.lastFeedback='✓ Eje '+m.axis.toUpperCase()+' sincronizado. Espera al siguiente gesto.';
+            renderSyncCalibration();
+            return;
+        }
+        if(m.type==='SYNC_AXIS_RETRY'&&s.role==='guest'){
+            if(s.syncCalibration.id!==m.id||!['x','y','z'].includes(m.axis))return;
+            const state=s.syncCalibration;
+            if(state.results?.[s.id]?.axes)delete state.results[s.id].axes[m.axis];
+            state.phase='gesture-ready';state.guidePhase='ready';state.gesture=null;
+            state.lastFeedback='Repetir eje '+m.axis.toUpperCase()+'. Espera al maestro.';
+            renderSyncCalibration();
+            return;
+        }
         if(m.type==='SYNC_GESTURE_ARM'&&s.role==='guest') {
             if(typeof m.id!=='string'||!finite(m.start)||!finite(m.end)||m.end-m.start<6000||!localStatus().sensor||!s.calibration.complete){send(p,{type:'SYNC_GESTURE_REJECT',id:m.id,reason:'Sensor o calibración de ejes no disponibles.'});return;}
             armSyncGesture(m,s.syncModel);send(p,{type:'SYNC_GESTURE_READY',id:m.id});tell('Prueba física preparada. Sigue la cuenta atrás junto al maestro.');return;
@@ -164,7 +190,7 @@
             result.windows[m.axis]=m.samples;result.calibration=m.calibration;s.syncCalibration.results[p.id]=result;renderSyncCalibration();return;
         }
         if(m.type==='SYNC_GESTURE_APPLY'&&s.role==='guest') {
-            if(s.syncCalibration.gesture?.id!==m.id||!finite(m.correctionMs)||!m.axes)return;
+            if(s.syncCalibration.id!==m.id||!finite(m.correctionMs)||!m.axes)return;
             s.syncCalibration.results[s.id]={axes:m.axes,correctionMs:m.correctionMs,accepted:true};s.syncCalibration.correctionMs=m.correctionMs;s.syncCalibration.accepted=true;s.syncCalibration.phase='accepted';
             tell('Sincronización física validada: corrección fija '+m.correctionMs.toFixed(2)+' ms.');renderSyncCalibration();renderDevices();return;
         }
@@ -241,7 +267,7 @@
     const calibrationMath=globalThis.VWOMACalibrationMath.createMath({
         median, finite, sampleRate
     });
-    const {renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, beginSyncExample, showSyncReady, cancelSyncExample, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture}=
+    const {renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, receiveSyncGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture}=
         globalThis.VWOMACalibration.createController({
             s, $, escape, now, toMaster, finite, sampleRate, tell,
             renderDevices:(...args)=>renderDevices(...args),
@@ -460,7 +486,7 @@
         resetPlanView, download, deletePlanPoint, updatePlanPoint, svgPosition, planViewport,
         geometry, zoomPlanAt, snapPlanPosition, renderPlan, localStatus, renderDevices,
         broadcast, enableSensor, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
-        startSyncGesture, beginSyncExample, showSyncReady, cancelSyncExample, startSync, startRun, stopRun, exportSession, exportCsv,
+        startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
         exportProcessedJson, exportProcessedCsv, sendRecord, recover, renderComparison, validComparisonExport,
         requestWake, incident, running
     });
