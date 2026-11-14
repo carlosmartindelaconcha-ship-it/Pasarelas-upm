@@ -2018,6 +2018,6 @@ main button:not(:where(
 .joint-sync-progress[hidden] {display:none !important;}
 .joint-sync-animation {min-width:0; max-width:100%; box-sizing:border-box;}
 .joint-sync-visual {position:relative; width:100%; max-width:526.89203px; margin:0 auto;}
-#jointSyncImage {display:block; width:100%; max-width:526.89203px; height:auto; aspect-ratio:940 / 690; object-fit:contain;}
+#jointSyncImage {display:block; width:100%; max-width:526.89203px; height:auto; object-fit:contain;}
 #jointSyncCountdown.joint-countdown-overlay {position:absolute; z-index:2; top:12px; right:12px; left:auto; bottom:auto; margin:0; transform:none; width:max-content; min-width:0; max-width:calc(50% - 14px); box-sizing:border-box; padding:8px 11px; border-radius:10px; font-size:clamp(.88rem,3.5vw,1.08rem); line-height:1.2; font-variant-numeric:tabular-nums; white-space:nowrap; animation:none; pointer-events:none;}
 @media (max-width:390px) {.joint-sync-demo-card {padding:11px;} .joint-sync-demo-actions {display:grid; grid-template-columns:minmax(0,1fr);} .joint-app .joint-sync-demo-actions > button {width:100%;}}
