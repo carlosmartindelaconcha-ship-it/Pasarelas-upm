@@ -32,7 +32,7 @@
         }
     </script>
 
-    <link rel="stylesheet" href="vwoma-identity.css?v=20261108-bridge-link-fix-v2">
+    <link rel="stylesheet" href="vwoma-identity.css?v=20261114-setups-sensors-icon-v1">
     <link rel="stylesheet" href="vwoma-i18n.css?v=20261109-compact-flags-v12">
     <!-- Control de tipos autocontenido: impide que los estilos globales conviertan
          los selectores en botones de acción y desorganicen la fila en Safari. -->
@@ -772,7 +772,7 @@
                     <button type="button" id="jointTabPlan" role="tab" aria-controls="jointPanelPlan" aria-selected="true" data-joint-tab="Plan" data-vwoma-icon="map">Plano</button>
                     <button type="button" id="jointTabDevices" role="tab" aria-label="Dispositivos" aria-controls="jointPanelDevices" aria-selected="false" data-joint-tab="Devices" data-vwoma-icon="phone"><span class="joint-tab-full">Dispositivos</span><span class="joint-tab-compact" aria-hidden="true">Móviles</span></button>
                     <button type="button" id="jointTabSync" role="tab" aria-label="Sincronizar" aria-controls="jointPanelSync" aria-selected="false" data-joint-tab="Sync" data-vwoma-icon="calibration"><span class="joint-tab-full">Sincronizar</span><span class="joint-tab-compact" aria-hidden="true">Sincro</span></button>
-                    <button type="button" id="jointTabSetups" role="tab" aria-controls="jointPanelSetups" aria-selected="false" data-joint-tab="Setups" data-vwoma-icon="layers">Setups</button>
+                    <button type="button" id="jointTabSetups" role="tab" aria-controls="jointPanelSetups" aria-selected="false" data-joint-tab="Setups" data-vwoma-icon="setups">Setups</button>
                     <button type="button" id="jointTabMeasure" role="tab" aria-controls="jointPanelMeasure" aria-selected="false" data-joint-tab="Measure" data-vwoma-icon="activity">Medir</button>
                     <button type="button" id="jointTabResults" role="tab" aria-label="Resultados" aria-controls="jointPanelResults" aria-selected="false" data-joint-tab="Results" data-vwoma-icon="chart"><span class="joint-tab-full">Resultados</span><span class="joint-tab-compact" aria-hidden="true">Datos</span></button>
                     <button type="button" id="jointTabCompare" role="tab" aria-controls="jointPanelCompare" aria-selected="false" data-joint-tab="Compare" data-vwoma-icon="compare">Comparar</button>
@@ -876,7 +876,7 @@
                         <label>Sensor fijo del maestro
                             <select id="jointSetupMaster" aria-label="Sensor de referencia fijo del maestro"></select>
                         </label>
-                        <button id="jointGenerateSetups" type="button" class="vwoma-action" data-vwoma-icon="layers">Generar setups</button>
+                        <button id="jointGenerateSetups" type="button" class="vwoma-action" data-vwoma-icon="setups">Generar setups</button>
                     </div>
                     <p class="joint-help">La recomendación del maestro utiliza una aproximación geométrica a los primeros modos longitudinales y penaliza posiciones próximas a nodos y apoyos. No sustituye un análisis modal ni garantiza observar todos los modos.</p>
                     <p id="jointSetupSummary" class="joint-help" aria-live="polite"></p>
