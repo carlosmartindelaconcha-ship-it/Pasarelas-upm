@@ -9,7 +9,7 @@
         tab, renderResults, renderSyncCalibration, createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
-        resetPlanView, download, deletePlanPoint, updatePlanPoint, svgPosition, planViewport,
+        resetPlanView, download, deletePlanPoint, updatePlanPoint, setPlanFilter, svgPosition, planViewport,
         geometry, zoomPlanAt, snapPlanPosition, renderPlan, localStatus, renderDevices,
         broadcast, enableSensor, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
         startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
@@ -45,8 +45,13 @@
         s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();
         savePlan();tell('Dimensiones guardadas. Vista del plano reajustada.');
     });
+    $('jointPointFilters').addEventListener('click',guard(e=>{
+        const button=e.target.closest('[data-point-filter]');
+        if(!button)return;
+        setPlanFilter(button.dataset.pointFilter);
+    }));
     $('jointAddPointInline').onclick=guard(()=>{requireHostEdit();addPoint();});
-    $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');s.plan.points=s.plan.points.filter(p=>p.id!==s.selected);s.selected=s.plan.points[0]?.id;savePlan();});
+    $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');deletePlanPoint(s.selected,false);});
     $('jointResetView').onclick=guard(()=>{requireHostEdit();resetPlanView();});
     $('jointSavePlan').onclick=()=>download('plano_puntos.json',{schema:'pasarelas-upm-plan-v1',...s.plan,points:s.plan.points.map(p=>({...p,device:null}))});
     // Safari y demás navegadores gestionan el gesto horizontal con CSS Scroll Snap:
@@ -210,7 +215,7 @@
            Math.hypot(e.clientX-prev.x,e.clientY-prev.y)<=PLAN_DOUBLE_TAP_MAX_GAP_PX){
             s.lastPlanTap=null;
             e.preventDefault();
-            addPoint(pos.x,pos.y);
+            if(s.planFilter!=='all')addPoint(pos.x,pos.y);
         }
     }));
     // Impide el comportamiento nativo de doble clic; la creación se realiza en pointerup.
