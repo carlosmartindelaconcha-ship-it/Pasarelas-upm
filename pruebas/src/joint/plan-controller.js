@@ -140,7 +140,9 @@
             .map(p=>({x:p.x,y:p.y}))
             .sort((a,b)=>a.x-b.x||a.y-b.y);
         const capacity=Math.min(10,MAX_POINTS-s.plan.points.length);
-        if(anchors.length<2||capacity<=0)return [];
+        const hasSupport=s.plan.points.some(p=>pointKind(p)==='support');
+        const hasSensor=s.plan.points.some(p=>pointKind(p)==='sensor');
+        if(anchors.length<2||!hasSupport||!hasSensor||capacity<=0)return [];
         // En un vano convencional los puntos suelen compartir alineación Y.
         // Para un trazado oblicuo se usa interpolación lineal de Y entre anclas.
         const ordered=s.plan.points.map(p=>({x:p.x,y:p.y})).sort((a,b)=>a.x-b.x||a.y-b.y);
@@ -237,7 +239,7 @@
         $('jointDiscardInterpolation').hidden=!edit||suggestions.length===0;
         const proposalText=suggestions.length?
             suggestions.length+' ubicaciones propuestas (círculos discontinuos). Revisa el plano antes de añadirlas.':
-            'Se sugerirán posiciones en los mayores huecos entre apoyos y sensores. Necesitas al menos dos puntos de referencia.';
+            'Para proponer posiciones, define primero al menos un apoyo y un sensor. Las sugerencias no calculan el modo.';
         const message=$('jointProposalMessage');if(message.textContent!==proposalText)message.textContent=proposalText;
         const view=planViewport(),g=geometry(view),gridStep=planGridStep(g),labelStep=planLabelStep(g);
         const deckX=g.originX,deckY=g.originY-s.plan.width*g.scale;
