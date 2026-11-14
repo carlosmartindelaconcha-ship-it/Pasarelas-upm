@@ -20,7 +20,7 @@
     $('openJointButton').addEventListener('click',guard(open));
     $('standaloneTestButton').addEventListener('click',guard(openStandaloneTest));
     $('jointExit').addEventListener('click',resetSession);
-    document.querySelectorAll('[data-joint-tab]').forEach(b=>b.onclick=()=>{tab(b.dataset.jointTab);if(b.dataset.jointTab==='Results')renderResults();if(b.dataset.jointTab==='Sync')renderSyncCalibration();});
+    document.querySelectorAll('[data-joint-tab]').forEach(b=>b.onclick=()=>{tab(b.dataset.jointTab,{fromUser:true});if(b.dataset.jointTab==='Results')renderResults();if(b.dataset.jointTab==='Sync')renderSyncCalibration();});
     $('jointCreate').onclick=guard(createJointSession);
     $('jointJoin').onclick=()=>openPair();$('jointPair').onclick=guard(()=>pairingAction(invite));
     $('jointRetryPair').onclick=guard(retryPair);
