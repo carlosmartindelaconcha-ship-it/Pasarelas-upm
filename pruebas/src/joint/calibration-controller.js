@@ -136,6 +136,7 @@
                 'Activa y calibra los ejes X, Y y Z. Después puedes medir con un solo móvil.';
             const summary=$('jointSyncSummary'),html='<p class="joint-help">Sin participantes conectados: se registra únicamente el maestro.</p>';
             if(summary.innerHTML!==html)summary.innerHTML=html;
+            summary.hidden=false;
             return;
         }
         const axesReady=s.calibration.complete&&peers.every(p=>p.status?.calibrated);
@@ -149,7 +150,7 @@
             const counts=peers.map(p=>p.samples.filter(row=>row.runId===state.id&&row.phase==='precal').length);
             const count=counts.length?Math.min(...counts):0;
             $('jointSyncBurstProgress').value=Math.min(200,count);
-            $('jointSyncBurstCount').textContent=Math.min(200,count)+' / 200 respuestas confirmadas';
+            $('jointSyncBurstCount').textContent=Math.min(200,count)+' / 200 comprobaciones completadas';
         }
         const gesture=state.gesture;
         const masterNow=gesture?(s.role==='host'?now():toMaster(now(),gesture.model||s.syncModel)):null;
@@ -219,12 +220,14 @@
         }
         const summary=$('jointSyncSummary'),markup=localRows.length?localRows.join(''):'<p class="joint-help">Activa y calibra todos los acelerómetros antes de validar la sincronización.</p>';
         if(summary.innerHTML!==markup)summary.innerHTML=markup;
+        const hasAxes=Object.keys(state.results?.[s.id]?.axes||{}).length>0;
+        summary.hidden=!hasAxes||!['gesture-ready','accepted'].includes(phase);
         if(phase==='accepted')$('jointSyncHelp').textContent='Sincronización validada. Puedes pasar a Medir.';
         else if(phase==='gesture-ready')$('jointSyncHelp').textContent=ready?
             (s.role==='host'?'Elige un eje. Tras 3 s quieto, mueve el conjunto durante 6 s. Si falla, repite ese eje.':'Espera a que el maestro inicie cada gesto.'):
             guide==='demo'?'Observa el ejemplo; después comenzarán los gestos.':
             'Lee las instrucciones y observa el movimiento antes de empezar.';
-        else if(phase==='failed')$('jointSyncHelp').textContent='La prueba no se ha validado. Pulsa «Calibrar relojes» para repetir.';
+        else if(phase==='failed')$('jointSyncHelp').textContent='La prueba no se ha validado. Pulsa «Preparar sincronización» para repetir.';
         else if(!axesReady)$('jointSyncHelp').textContent='Calibra los tres ejes en todos los móviles antes de empezar.';
     }
     function axisResultMarkup(axes) {return ['x','y','z'].map(axis=>{const a=axes[axis];return a?.error?`${axis.toUpperCase()}: ${escape(a.error)}`:a&&finite(a.lag)?`${axis.toUpperCase()}: ${a.lag.toFixed(2)} ms · r ${a.correlation.toFixed(3)}`:`${axis.toUpperCase()}: —`;}).join('<br>');}
