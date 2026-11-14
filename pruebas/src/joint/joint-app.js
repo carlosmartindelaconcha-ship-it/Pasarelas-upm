@@ -103,7 +103,11 @@
         // Only one primary control is displayed; the tabs remain visible
         // but cannot navigate away from an active measurement.
         $('jointStart').hidden=s.role!=='host'||measuring;
-        $('jointStart').disabled=measuring||!s.calibration.complete||(hasParticipants&&!s.syncCalibration.accepted);
+        const needsSetupActivation=!!s.setupPlan&&
+            (s.setupPlan.activeIndex===null||!currentValid()||
+             s.setupPlan.masterPointId!==s.setupMasterChoice);
+        $('jointStart').disabled=measuring||needsSetupActivation||
+            !s.calibration.complete||(hasParticipants&&!s.syncCalibration.accepted);
         $('jointStartLabel').textContent='Iniciar medida';
         $('jointStop').hidden=!measuring;
         for(const b of document.querySelectorAll('#jointTabs [data-joint-tab]'))
