@@ -69,7 +69,7 @@
     }
     /* Plane and point management are isolated from WebRTC/clock synchronization.
        Keep injected callbacks wired to this application's existing state. */
-    const { checkPlan, savePlan, pointFor, deviceName, deviceCode, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, renderPlan, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint } = globalThis.VWOMAPlan.createController({
+    const { checkPlan, savePlan, pointFor, deviceName, deviceCode, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, renderPlan, setPlanFilter, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint } = globalThis.VWOMAPlan.createController({
         s, finite, MAX_POINTS, running, $, tell, broadcast: (...args) => broadcast(...args),
         storageKey:'upm-joint-plan-vwoma-preview-v1', escape, requireHostEdit, renderDevices
     });
@@ -547,7 +547,7 @@
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
         stopJointSensor();stopDuringSync();document.body.classList.remove('recording-lock','joint-measure-fixed','joint-measuring');releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
-        s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();
+        s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planFilter='sensor';s.planPointers.clear();
         s.calibration={map:{},active:null,complete:false,guidePhase:'idle'};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
@@ -564,16 +564,26 @@
     function createJointSession() {
         open();s.id=uid();s.role='host';s.name='Maestro';s.session=uid();
         try{const stored=localStorage.getItem('upm-joint-plan-vwoma-preview-v1');if(stored)s.plan=checkPlan(JSON.parse(stored));}catch(e){tell('No se pudo recuperar el plano anterior.',true);}
-        if(!s.plan.points.length)s.plan.points=[{id:'P1',name:'P1',x:s.plan.length/2,y:s.plan.width/2,axis:'z',angle:0,device:s.id},{id:'P2',name:'P2',x:s.plan.length/4,y:s.plan.width/2,axis:'z',angle:0,device:null}];
-        else {s.plan.points.forEach(p=>p.device=null);s.plan.points[0].device=s.id;}
-        s.selected=s.plan.points[0].id;workspace();tell('Define el plano y pulsa Invitar móvil para incorporar un participante.');
+        if(!s.plan.points.length)s.plan.points=[
+            {id:'P1',name:'P1',x:s.plan.length/2,y:s.plan.width/2,axis:'z',angle:0,kind:'sensor',device:s.id},
+            {id:'P2',name:'P2',x:s.plan.length/4,y:s.plan.width/2,axis:'z',angle:0,kind:'sensor',device:null}
+        ];
+        else{
+            s.plan.points.forEach(p=>p.device=null);
+            // Los apoyos e interpolaciones nunca se asocian a un móvil.
+            const firstSensor=s.plan.points.find(p=>(p.kind||'sensor')==='sensor');
+            if(firstSensor)firstSensor.device=s.id;
+        }
+        s.planFilter='sensor';
+        s.selected=s.plan.points.find(p=>(p.kind||'sensor')==='sensor')?.id||null;
+        workspace();tell('Define el plano con sensores, apoyos y puntos de interpolación.');
     }
     globalThis.VWOMAUIEvents.bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
         tab, renderResults, renderSyncCalibration, createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
-        resetPlanView, download, deletePlanPoint, updatePlanPoint, svgPosition, planViewport,
+        resetPlanView, download, deletePlanPoint, updatePlanPoint, setPlanFilter, svgPosition, planViewport,
         geometry, zoomPlanAt, snapPlanPosition, renderPlan, localStatus, renderDevices,
         broadcast, enableSensor, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
         startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
