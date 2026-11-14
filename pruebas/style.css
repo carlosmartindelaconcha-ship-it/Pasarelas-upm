@@ -1445,12 +1445,20 @@ body.recording-lock main {
 .joint-options article { border: 1px solid #d4e0ea; border-radius: 10px; padding: 20px; }
 .joint-options button { width: 100%; }
 .joint-badge { display: inline-block; background: #e2f2ef; color: #11695e; border-radius: 12px; padding: 5px 10px; font-size: .8rem; font-weight: 700; }
-/* Cabecera única y opaca. La franja superior forma parte del elemento
-   sticky: al desplazar la página NO existe ninguna capa fija que pueda tapar
-   formularios o crear una mancha blanca a medio recorrido. */
+/* Navegación sticky sin reservar espacio: el fondo pertenece a la propia
+   barra. La cobertura del área de estado aparece SOLAMENTE al pegarse,
+   anclada a la barra y nunca como una capa fija independiente. */
+.joint-navigation-sentinel {
+    position:relative;
+    display:block;
+    height:1px;
+    margin-bottom:-1px;
+    pointer-events:none;
+}
 .joint-navigation-shell {
+    --joint-nav-status-inset:0px;
     position:sticky;
-    top:0;
+    top:var(--joint-nav-status-inset);
     z-index:40;
     display:block;
     box-sizing:border-box;
@@ -1458,16 +1466,21 @@ body.recording-lock main {
     background:#fff;
     isolation:isolate;
 }
-.joint-navigation-safe {
-    height:0;
-    pointer-events:none;
+.joint-navigation-shell.is-stuck::before {
+    content:"";
+    position:absolute;
+    top:calc(-1 * var(--joint-nav-status-inset));
+    left:calc(50% - 50vw);
+    width:100vw;
+    height:var(--joint-nav-status-inset);
     background:#fff;
+    pointer-events:none;
 }
-/* iOS muestra la hora y la barra de estado por encima del contenido web.
-   Se reserva espacio blanco DENTRO de la cabecera, no sobre el viewport. */
 @supports (-webkit-touch-callout: none) {
     @media (max-width:600px) {
-        .joint-navigation-safe {height:max(54px,env(safe-area-inset-top,0px));}
+        .joint-navigation-shell {
+            --joint-nav-status-inset:max(44px,env(safe-area-inset-top,0px));
+        }
     }
 }
 .joint-tabs {
@@ -1743,9 +1756,9 @@ body.joint-measure-fixed #jointApp {
 body.joint-measure-fixed #jointApp > .joint-heading,
 body.joint-measure-fixed #jointApp > #jointNotice,
 body.joint-measure-fixed #jointWorkspace > .joint-toolbar {display:none !important;}
-/* En Medir, el margen seguro ya lo gestiona #jointApp y la cabecera
-   está dentro de un instrumento fijo de altura 100dvh. */
+/* Medir tiene su propia zona segura; no duplicarla ni aplicar sticky. */
 body.joint-measure-fixed #jointNavShell {
+    --joint-nav-status-inset:0px;
     position:relative;
     top:auto;
     z-index:auto;
@@ -1753,7 +1766,7 @@ body.joint-measure-fixed #jointNavShell {
     width:100%;
     min-width:0;
 }
-body.joint-measure-fixed .joint-navigation-safe {display:none;}
+body.joint-measure-fixed #jointNavShell::before {display:none;}
 body.joint-measure-fixed #jointWorkspace {
     display:flex !important;
     flex:1 1 auto;
