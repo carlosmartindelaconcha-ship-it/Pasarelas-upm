@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261114-plan-filter-v1">
+    <link rel="stylesheet" href="style.css?v=20261114-plan-3tabs-v3">
 
     <!-- MapLibre -->
     <link
@@ -34,6 +34,63 @@
 
     <link rel="stylesheet" href="vwoma-identity.css?v=20261108-bridge-link-fix-v2">
     <link rel="stylesheet" href="vwoma-i18n.css?v=20261109-compact-flags-v12">
+    <!-- Control de tipos autocontenido: impide que los estilos globales conviertan
+         los selectores en botones de acción y desorganicen la fila en Safari. -->
+    <style id="joint-plan-filter-critical">
+      body.vwoma-brand #jointApp #jointPointFilters {
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        align-items:stretch;
+        width:100%;
+        box-sizing:border-box;
+        gap:5px;
+        padding:4px;
+        margin:12px 0 10px;
+        background:#eff4f9;
+        border:1px solid #d6e4ef;
+        border-radius:11px;
+        overflow:hidden;
+      }
+      body.vwoma-brand #jointApp #jointPointFilters > button {
+        display:flex;
+        box-sizing:border-box;
+        flex:0 1 auto;
+        align-items:center;
+        justify-content:center;
+        width:100%;
+        max-width:100%;
+        min-width:0;
+        min-height:43px;
+        margin:0;
+        padding:8px 3px;
+        border:1px solid transparent;
+        border-radius:8px;
+        background:#f7f9fc;
+        background-image:none;
+        box-shadow:none;
+        color:#395a79;
+        font-size:clamp(10px,2.85vw,13px);
+        font-weight:700;
+        line-height:1.2;
+        white-space:nowrap;
+        word-break:normal;
+        overflow-wrap:normal;
+        cursor:pointer;
+        touch-action:manipulation;
+        -webkit-tap-highlight-color:transparent;
+      }
+      body.vwoma-brand #jointApp #jointPointFilters > button[aria-pressed="true"] {
+        color:#fff;
+        border-color:#1a4c7e;
+        background:#21476e;
+        background-image:linear-gradient(105deg,#113460,#205384);
+      }
+      body.vwoma-brand #jointApp #jointPointFilters > button:focus-visible {
+        outline:2px solid #e4a142;
+        outline-offset:-2px;
+      }
+    </style>
+
     <meta name="theme-color" content="#ffffff">
     <link rel="preload" as="image" href="assets/calibration/telefono-eje-x-un-ciclo.svg?v=20261113-speed3">
     <link rel="preload" as="image" href="assets/calibration/telefono-eje-y-un-ciclo.svg?v=20261113-speed3">
@@ -720,7 +777,6 @@
                         <button type="button" data-point-filter="sensor" aria-pressed="true">Sensores</button>
                         <button type="button" data-point-filter="support" aria-pressed="false">Apoyos</button>
                         <button type="button" data-point-filter="interpolation" aria-pressed="false">Interpolación</button>
-                        <button type="button" data-point-filter="all" aria-pressed="false">Todos</button>
                     </div>
                     <div class="joint-plan-wrap"><svg id="jointPlan" viewBox="0 0 800 440" role="group" aria-label="Plano editable: doble toque o doble clic para añadir un punto del tipo seleccionado"></svg></div>
                     <p class="joint-help" id="jointPlanHelp">Doble toque o doble clic en una zona libre del tablero para añadir un punto. Arrastra para mover puntos o desplazar el plano; rueda o pellizca para ampliar dentro de la ventana.</p>
@@ -893,7 +949,7 @@
     <script defer src="src/signal/preprocessing.js?v=20261109-modular-preprocessing-v1"></script>
     <script defer src="src/signal/spectra.js?v=20261109-modular-spectra-v1"></script>
     <script defer src="app.js?v=20261113-start-first-v4"></script>
-    <script defer src="src/joint/plan-controller.js?v=20261114-plan-filter-v1"></script>
+    <script defer src="src/joint/plan-controller.js?v=20261114-plan-3tabs-v3"></script>
     <script defer src="src/joint/hotspot-ice.js?v=20261114-hotspot-autocandidate-v1"></script>
     <script defer src="src/joint/webrtc-transport.js?v=20261114-hotspot-autocandidate-v3"></script>
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
@@ -906,9 +962,9 @@
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
     <script defer src="src/joint/tab-navigation.js?v=20261114-measure-fixed-v1"></script>
     <script defer src="src/joint/scroll-navigation.js?v=20261113-reveal-actions-v1"></script>
-    <script defer src="src/joint/session-state.js?v=20261114-plan-filter-v1"></script>
-    <script defer src="src/joint/ui-events.js?v=20261114-plan-filter-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261114-plan-filter-v1"></script>
+    <script defer src="src/joint/session-state.js?v=20261114-plan-3tabs-v3"></script>
+    <script defer src="src/joint/ui-events.js?v=20261114-plan-3tabs-v3"></script>
+    <script defer src="src/joint/joint-app.js?v=20261114-plan-3tabs-v3"></script>
     <script defer src="vwoma-i18n.js?v=20261108-mobile-header-v9"></script>
 
 
