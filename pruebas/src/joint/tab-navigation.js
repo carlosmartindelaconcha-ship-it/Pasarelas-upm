@@ -6,8 +6,50 @@
   const NAMES=Object.freeze(['Plan','Devices','Sync','Measure','Results','Compare']);
   function createNavigation({$,window,raf,renderComparison,onMeasureVisible=()=>{},isRecording=()=>false,onChange=()=>{}}) {
     let current=null;
-    // El fondo blanco y la zona segura pertenecen al contenedor sticky
-    // #jointNavShell. No hay eventos de scroll ni máscaras JS.
+    const shell=$('jointNavShell'),sentinel=$('jointNavSentinel');
+    // IntersectionObserver solo activa el fondo que forma parte de la barra
+    // cuando la barra realmente alcanza su posición sticky. NO crea bloques
+    // blancos ni modifica dimensiones o posición durante el scroll.
+    const inset=()=>{
+      const v=parseFloat(window?.getComputedStyle?.(shell)?.top||'0');
+      return Number.isFinite(v)?Math.max(0,v):0;
+    };
+    function updateSticky(){
+      if(!shell||!sentinel)return;
+      const hidden=shell.closest?.('[hidden]')||
+        (typeof document!=='undefined'&&document.body.classList.contains('joint-measure-fixed'));
+      const stuck=!hidden&&shell.getBoundingClientRect().height>0&&
+        sentinel.getBoundingClientRect().top < inset()-.5;
+      shell.classList.toggle('is-stuck',!!stuck);
+    }
+    let observer=null,observedInset=null,rafPending=false;
+    function scheduleSticky(){
+      if(rafPending)return;
+      rafPending=true;
+      const update=()=>{rafPending=false;updateSticky();};
+      if(typeof raf==='function')raf(update);
+      else update();
+    }
+    function observeSticky(){
+      if(!shell||!sentinel)return;
+      const targetInset=inset();
+      if(observer&&observedInset===targetInset){scheduleSticky();return;}
+      if(observer)observer.disconnect();
+      observedInset=targetInset;
+      if(typeof window?.IntersectionObserver==='function'){
+        observer=new window.IntersectionObserver(scheduleSticky,{
+          root:null,rootMargin:`-${targetInset}px 0px 0px 0px`,threshold:0
+        });
+        observer.observe(sentinel);
+      }else if(!observer&&typeof window?.addEventListener==='function'){
+        // Solo para navegadores muy antiguos sin IntersectionObserver.
+        window.addEventListener('scroll',scheduleSticky,{passive:true});
+      }
+      scheduleSticky();
+    }
+    observeSticky();
+    if(typeof window?.addEventListener==='function')
+      window.addEventListener('resize',observeSticky,{passive:true});
     function tab(name) {
       if(!NAMES.includes(name))throw Error('Pestaña desconocida: '+name);
       if(current===name)return false; // Never reflow active content on repeat calls.
@@ -21,6 +63,7 @@
         $('jointTab'+n).tabIndex=n===name?0:-1;
       }
       onChange(name,previous);
+      scheduleSticky();
       if(name==='Compare')renderComparison();
       if(name==='Measure') {
         // Resize only after the panel is visible (important for Chrome Android).
@@ -42,8 +85,9 @@
           // su franja blanca superior debe permanecer dentro del viewport.
           const el=$('jointNavShell');
           if(!el?.getBoundingClientRect)return;
-          const y=Math.max(0,(window.scrollY||0)+el.getBoundingClientRect().top);
+          const y=Math.max(0,(window.scrollY||0)+el.getBoundingClientRect().top-inset());
           window.scrollTo({top:y,behavior:'instant'});
+          scheduleSticky();
         };
         if(typeof raf==='function')raf(align);else align();
       }
