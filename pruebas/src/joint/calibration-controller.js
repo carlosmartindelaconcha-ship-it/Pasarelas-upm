@@ -5,7 +5,7 @@
  */
 (function registerCalibrationController(root) {
     'use strict';
-    function createController({s, $, escape, now, toMaster, finite, sampleRate, tell, renderDevices, tab, requireHostEdit, localStatus, startSync, pause, clockFit, send, broadcast, uid, structuredClone, setTimeout, median, math, revealActionTarget=()=>{}}) {
+    function createController({s, $, escape, now, toMaster, finite, sampleRate, tell, renderDevices, tab, requireHostEdit, localStatus, startSync, pause, clockFit, send, broadcast, uid, structuredClone, setTimeout, median, math, revealActionTarget=()=>{}, onSyncAccepted=()=>{}}) {
         const {linearDetrend, lowPassCalibration, calibrationLobes,
                filteredGestureSeries, interpolateGesture, correlationAt,
                estimateGestureAxis}=math;
@@ -467,7 +467,7 @@
         }
         state.phase='accepted';state.accepted=true;state.lastFeedback='✓ Sincronización completa.';
         for(const p of peers){const result=state.results[p.id];p.syncCalibration=structuredClone(result);send(p,{type:'SYNC_GESTURE_APPLY',id,correctionMs:result.correctionMs,axes:result.axes});}
-        tell('Sincronización física validada. Ya puedes pasar a Medir.');renderSyncCalibration();renderDevices();
+        tell('Sincronización física validada. Revisa los setups antes de medir.');renderSyncCalibration();renderDevices();onSyncAccepted();
     }
 
         return Object.freeze({renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, receiveSyncGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture});
