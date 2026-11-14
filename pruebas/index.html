@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261114-nav-locales-v2">
+    <link rel="stylesheet" href="style.css?v=20261114-nav-shell-v1">
 
     <!-- MapLibre -->
     <link
@@ -764,17 +764,18 @@
             </div>
             <div id="jointWorkspace" hidden>
                 <div class="joint-toolbar"><span id="jointRole" class="joint-badge"></span><span id="jointSessionLabel"></span><button id="jointPair" type="button" class="joint-secondary" data-vwoma-icon="link">Invitar móvil</button></div>
-                <!-- Pantalla blanca al desplazarse: tapa el contenido que asoma
-                     por encima de la navegación fija en Safari iOS. -->
-                <div id="jointTabsTopMask" class="joint-tabs-top-mask" aria-hidden="true"></div>
-                <div id="jointTabsTopSentinel" class="joint-tabs-top-sentinel" aria-hidden="true"></div>
-                <div class="joint-tabs" id="jointTabs" role="tablist" aria-label="Medida conjunta">
+                <!-- Una sola cabecera sticky con fondo opaco y zona segura propia.
+                     No utiliza máscaras fixed ni modifica la página al hacer scroll. -->
+                <div id="jointNavShell" class="joint-navigation-shell">
+                    <div class="joint-navigation-safe" aria-hidden="true"></div>
+                    <div class="joint-tabs" id="jointTabs" role="tablist" aria-label="Medida conjunta">
                     <button type="button" id="jointTabPlan" role="tab" aria-controls="jointPanelPlan" aria-selected="true" data-joint-tab="Plan" data-vwoma-icon="map">Plano</button>
                     <button type="button" id="jointTabDevices" role="tab" aria-label="Dispositivos" aria-controls="jointPanelDevices" aria-selected="false" data-joint-tab="Devices" data-vwoma-icon="phone"><span class="joint-tab-full">Dispositivos</span><span class="joint-tab-compact" aria-hidden="true">Móviles</span></button>
                     <button type="button" id="jointTabSync" role="tab" aria-label="Sincronizar" aria-controls="jointPanelSync" aria-selected="false" data-joint-tab="Sync" data-vwoma-icon="calibration"><span class="joint-tab-full">Sincronizar</span><span class="joint-tab-compact" aria-hidden="true">Sincro</span></button>
                     <button type="button" id="jointTabMeasure" role="tab" aria-controls="jointPanelMeasure" aria-selected="false" data-joint-tab="Measure" data-vwoma-icon="activity">Medir</button>
                     <button type="button" id="jointTabResults" role="tab" aria-label="Resultados" aria-controls="jointPanelResults" aria-selected="false" data-joint-tab="Results" data-vwoma-icon="chart"><span class="joint-tab-full">Resultados</span><span class="joint-tab-compact" aria-hidden="true">Datos</span></button>
                     <button type="button" id="jointTabCompare" role="tab" aria-controls="jointPanelCompare" aria-selected="false" data-joint-tab="Compare" data-vwoma-icon="compare">Comparar</button>
+                    </div>
                 </div>
                 <div id="jointPanelPlan" role="tabpanel" aria-labelledby="jointTabPlan">
                     <div class="joint-section-head"><div><h3>Plano de puntos del modelo</h3><p>Coordenadas en metros. Origen en la esquina inferior izquierda.</p></div><button id="jointSavePlan" type="button" class="joint-secondary" data-vwoma-icon="download">Exportar plano</button></div>
@@ -972,8 +973,8 @@
     <script defer src="src/joint/exports.js?v=20261112-exports-v1"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
-    <script defer src="src/joint/tab-navigation.js?v=20261114-nav-locales-v2"></script>
-    <script defer src="src/joint/scroll-navigation.js?v=20261113-reveal-actions-v1"></script>
+    <script defer src="src/joint/tab-navigation.js?v=20261114-nav-shell-v1"></script>
+    <script defer src="src/joint/scroll-navigation.js?v=20261114-nav-shell-v1"></script>
     <script defer src="src/joint/session-state.js?v=20261114-plan-steps-v5"></script>
     <script defer src="src/joint/ui-events.js?v=20261114-plan-steps-v5"></script>
     <script defer src="src/joint/joint-app.js?v=20261114-plan-steps-v5"></script>
