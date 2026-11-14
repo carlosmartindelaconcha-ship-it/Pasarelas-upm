@@ -1469,7 +1469,7 @@ body.recording-lock main {
 .joint-navigation-shell.is-stuck::before {
     content:"";
     position:absolute;
-    top:calc(-1 * var(--joint-nav-status-inset));
+    top:calc(0px - var(--joint-nav-status-inset));
     left:calc(50% - 50vw);
     width:100vw;
     height:var(--joint-nav-status-inset);
