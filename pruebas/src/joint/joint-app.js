@@ -54,7 +54,11 @@
             s.returnTo=[...document.querySelectorAll('main > section, main > form')].find(el=>el!==root && getComputedStyle(el).display!=='none');
             for (const el of document.querySelectorAll('main > section, main > form')) if(el!==root) el.style.display='none';
         }
-        root.hidden=false; window.scrollTo({top:0});
+        root.hidden=false;
+        document.documentElement.classList.add('joint-workspace-active');
+        document.body.classList.add('joint-workspace-active');
+        // Only this initial, explicit entry is allowed to reset page position.
+        window.scrollTo({top:0});
     }
     function workspace() {
         $('jointLanding').hidden=true; $('jointWorkspace').hidden=false;
@@ -545,7 +549,10 @@
         if(s.run){if(running())s.run.state='cancelled';persist();}
         stopScan();if($('jointPairDialog').open)$('jointPairDialog').close();
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
-        stopJointSensor();stopDuringSync();document.body.classList.remove('recording-lock','joint-measure-fixed','joint-measuring');releaseWake();
+        stopJointSensor();stopDuringSync();
+        document.body.classList.remove('recording-lock','joint-measure-fixed','joint-measuring','joint-workspace-active');
+        document.documentElement.classList.remove('joint-workspace-active');
+        releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
         s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planFilter='support';s.planPointers.clear();
         s.calibration={map:{},active:null,complete:false,guidePhase:'idle'};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
