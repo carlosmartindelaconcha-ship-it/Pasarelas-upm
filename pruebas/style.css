@@ -2569,9 +2569,10 @@ main button:not(:where(
 .joint-guide-legend {display:flex;flex-wrap:wrap;gap:6px 12px;padding:9px 1px 3px;}
 .joint-guide-legend > span {display:inline-flex;align-items:center;gap:5px;font-size:.72rem;color:#537089;white-space:nowrap;}
 .joint-guide-dot {display:inline-block;flex:0 0 11px;width:11px;height:11px;border-radius:50%;background:#cdd6df;border:1px solid #aebdcc;box-sizing:border-box;}
-.joint-guide-dot.master {background:#16824e;border-color:#16824e;}
+.joint-guide-dot.master {background:#cc3b47;border-color:#cc3b47;}
 .joint-guide-dot.slave {background:#176bb0;border-color:#176bb0;}
-.joint-guide-dot.inactive {background:#cdd6df;border-color:#aebdcc;}
+.joint-guide-dot.inactive {background:#99a8b6;border-color:#99a8b6;}
+.joint-guide-dot.measured {background:#16824e;border-color:#16824e;}
 .joint-guide-triangle {display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid #bf8952;}
 .joint-guide-subtitle {margin:13px 0 6px;font-size:.79rem;font-weight:800;color:#244b6b;}
 .joint-guide-devices {list-style:none;margin:0;padding:0;display:grid;gap:5px;}
@@ -2670,8 +2671,7 @@ body.joint-measure-fixed:not(.joint-measuring) #jointPanelMeasure > .joint-measu
 /* La guía operativa queda dentro de Setups; la planta principal es la
    del setup seleccionado. Se evita duplicar las dos plantas. */
 #jointPanelSetups .joint-measure-guide {margin:15px 0;padding:12px;}
-#jointPanelSetups #jointMeasureGuidePlan,
-#jointPanelSetups .joint-guide-legend {display:none;}
+#jointPanelSetups #jointMeasureGuidePlan {display:none;}
 #jointPanelSetups .joint-guide-heading h3 {font-size:1rem;}
 #jointPanelSetups #jointMeasureGoSetups {display:none!important;}
 #jointPanelSetups .joint-guide-buttons button {min-width:130px;}
