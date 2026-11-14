@@ -287,7 +287,7 @@
     }
     function markMeasured(){
       const plan=s.setupPlan;
-      if(!plan||!s.run?.finished||plan.activeIndex===null)return;
+      if(!plan||!s.run?.finished||s.run.state!=='finished'||plan.activeIndex===null)return;
       const setup=plan.setups[plan.activeIndex];
       if(setup&&s.run.plan.points.some(p=>p.device===s.id&&p.id===plan.masterPointId)){
         setup.measuredRunId=s.run.id;
