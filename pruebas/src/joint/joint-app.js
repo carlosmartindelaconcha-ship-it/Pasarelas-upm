@@ -40,7 +40,13 @@
         $,window,raf:typeof requestAnimationFrame==='function'?requestAnimationFrame:null,
         renderComparison:()=>renderComparison(),
         onMeasureVisible:()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},
-        isRecording:()=>document.body?.classList?.contains('recording-lock')||false
+        isRecording:()=>!!running()||!!s.transaction||document.body?.classList?.contains('recording-lock')||false,
+        onChange:(name)=>{
+            const measure=name==='Measure';
+            document.body.classList.toggle('joint-measure-fixed',measure);
+            document.body.classList.toggle('joint-measuring',measure&&(!!running()||!!s.transaction));
+            if(measure&&typeof window.scrollTo==='function')window.scrollTo({top:0,behavior:'instant'});
+        }
     });
     function open() {
         if (typeof isRecording!=='undefined' && isRecording) throw Error('Detén primero el ensayo individual.');
@@ -79,13 +85,21 @@
         if(s.role==='guest'&&s.syncModel.count) html+=`<p class="joint-help">Mi reloj respecto al maestro: ${s.syncModel.offset.toFixed(2)} ms (estimado). RTT mínimo: ${s.syncModel.rtt.toFixed(2)} ms.</p>`;
         $('jointDevices').innerHTML=html;
         const hasParticipants=[...s.peers.values()].some(p=>p.channel?.readyState==='open');
-        $('jointStart').hidden=s.role!=='host'; $('jointSync').hidden=s.role!=='host';
-        $('jointStart').disabled=!!running()||!!s.transaction||!s.calibration.complete||(hasParticipants&&!s.syncCalibration.accepted);
-        $('jointStartLabel').textContent=hasParticipants?'Preparar e iniciar':'Iniciar solo con el maestro';
+        const measuring=!!running()||!!s.transaction;
+        // Only one primary control is displayed; the tabs remain visible
+        // but cannot navigate away from an active measurement.
+        $('jointStart').hidden=s.role!=='host'||measuring;
+        $('jointStart').disabled=measuring||!s.calibration.complete||(hasParticipants&&!s.syncCalibration.accepted);
+        $('jointStartLabel').textContent='Iniciar medida';
+        $('jointStop').hidden=!measuring;
+        for(const b of document.querySelectorAll('#jointTabs [data-joint-tab]'))
+            b.disabled=measuring&&b.dataset.jointTab!=='Measure';
+        document.body.classList.toggle('joint-measuring',$('jointPanelMeasure').hidden===false&&measuring);
+        $('jointSync').hidden=s.role!=='host';
         $('jointSoloHint').hidden=s.role!=='host'||hasParticipants;
         $('jointDuration').disabled=s.role!=='host'||!!running()||!!s.transaction;
         $('jointEnableSensor').disabled=s.sensorEnabled;
-        $('jointStop').disabled=!running()&&!s.transaction;
+        $('jointStop').disabled=!measuring;
         $('jointPair').disabled=!!running()||!!s.transaction;
         renderSyncCalibration();
     }
@@ -326,7 +340,7 @@
         preparing:()=>{tab('Measure');$('jointMeasureState').textContent='Confirmando dispositivos…';renderPlan();renderDevices();},
         preparationInterrupted:()=>{$('jointMeasureState').textContent='Preparación interrumpida';},
         refresh:()=>{renderDevices();renderPlan();},
-        exitRecording:()=>{document.body.classList.remove('recording-lock');},
+        exitRecording:()=>{document.body.classList.remove('recording-lock');document.body.classList.remove('joint-measuring');},
         closing:()=>{$('jointMeasureState').textContent='Cerrando registro…';},
         finished:()=>{tab('Results');renderPlan();renderDevices();renderResults();}
     };
@@ -455,7 +469,7 @@
         if(s.run){if(running())s.run.state='cancelled';persist();}
         stopScan();if($('jointPairDialog').open)$('jointPairDialog').close();
         for(const p of s.peers.values())disposePeer(p);s.peers.clear();s.currentInvite=null;
-        stopJointSensor();stopDuringSync();document.body.classList.remove('recording-lock');releaseWake();
+        stopJointSensor();stopDuringSync();document.body.classList.remove('recording-lock','joint-measure-fixed','joint-measuring');releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
         s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planPointers.clear();
         s.calibration={map:{},active:null,complete:false,guidePhase:'idle'};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
