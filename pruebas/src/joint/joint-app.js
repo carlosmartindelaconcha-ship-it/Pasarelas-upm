@@ -81,6 +81,12 @@
         s, finite, MAX_POINTS, running, $, tell, broadcast: (...args) => broadcast(...args),
         storageKey:'upm-joint-plan-vwoma-preview-v1', escape, requireHostEdit, renderDevices
     });
+    // Planificación espacial desacoplada de los gestos del plano, WebRTC,
+    // las gráficas y la adquisición. La sincronización se conserva entre setups.
+    const {renderSetups,generateSetups,selectSetup,applySetup,markMeasured,
+           syncReady,currentValid} = globalThis.VWOMASetupPlanner.createController({
+        s,$,escape,requireHostEdit,running,savePlan,tell,tab,renderDevices
+    });
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
     function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}
     function renderDevices() {
@@ -110,6 +116,7 @@
         $('jointStop').disabled=!measuring;
         $('jointPair').disabled=!!running()||!!s.transaction;
         renderSyncCalibration();
+        if(!$('jointPanelSetups').hidden)renderSetups();
     }
 
     /* WebRTC transport and QR signaling are separate from acquisition and clocks.
@@ -216,7 +223,12 @@
             s.syncCalibration.results[s.id]={axes:m.axes,correctionMs:m.correctionMs,accepted:true};s.syncCalibration.correctionMs=m.correctionMs;s.syncCalibration.accepted=true;s.syncCalibration.phase='accepted';
             tell('Sincronización física validada: corrección fija '+m.correctionMs.toFixed(2)+' ms.');renderSyncCalibration();renderDevices();return;
         }
-        if(m.type==='PLAN'&&s.role==='guest'&&!running()) {s.plan=checkPlan(m.plan);s.selected=pointFor()?.id||s.plan.points[0]?.id;renderPlan();return;}
+        if(m.type==='PLAN'&&s.role==='guest'&&!running()) {
+            s.plan=checkPlan(m.plan);
+            s.selected=pointFor()?.id||s.plan.points[0]?.id;
+            renderPlan();renderDevices();
+            return;
+        }
         if(m.type==='PREPARE'&&s.role==='guest') {
             let reason='';
             if(running())reason='Ya hay un ensayo activo.';
@@ -297,7 +309,8 @@
             startSync:(...args)=>startSync(...args), pause, clockFit,
             send:(...args)=>send(...args),
             broadcast:(...args)=>broadcast(...args),
-            uid, structuredClone, setTimeout, median, math:calibrationMath, revealActionTarget
+            uid, structuredClone, setTimeout, median, math:calibrationMath, revealActionTarget,
+            onSyncAccepted:()=>{renderSetups();tab('Setups');}
         });
 
     function motion(event) {
@@ -365,7 +378,7 @@
             $('jointDurationLabel').textContent='Duración';
         },
         closing:()=>{$('jointMeasureState').textContent='Cerrando registro…';},
-        finished:()=>{tab('Results');renderPlan();renderDevices();renderResults();}
+        finished:()=>{markMeasured();tab('Results');renderPlan();renderDevices();renderResults();}
     };
     const {appendSample,startDuringSync,stopDuringSync,requestWake,releaseWake,
            beginRun,startRun,stopRun,finishRun} =
@@ -384,7 +397,7 @@
         });
 
     function runMeta(run) {
-        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,networkClock:run.networkClock||run.initialClock,finalClock:run.finalClock,syncModels:run.syncModels||{},synchronizationCalibration:run.synchronizationCalibration||null,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj robusto fijado al inicio del ensayo más la corrección física fija de la tablilla; los intercambios posteriores solo diagnostican su estabilidad.',userAgent:navigator.userAgent};
+        return {schema:'pasarelas-upm-joint-v1',id:run.id,session:run.session,created:run.created,state:run.state,device:run.device,plan:run.plan,setup:run.setup||null,windowMasterMs:{start:run.start,end:run.end,plannedEnd:run.plannedEnd},initialClock:run.initialClock,networkClock:run.networkClock||run.initialClock,finalClock:run.finalClock,syncModels:run.syncModels||{},synchronizationCalibration:run.synchronizationCalibration||null,synchronization:run.sync||[],incidents:run.incidents,sampleColumns:['sequence','eventTimeMs','receiptTimeMs','ax','ay','az','reportedIntervalMs','usedTimeMs','masterTimeAtCaptureMs'],acceleration:'includingGravity',units:'m/s²',timestampMeaning:'DOM event/receipt times; not certified hardware acquisition times',clockFormula:'masterMs = localMs - offset - drift * (localMs - reference)',clockCorrection:'masterTimeAtCaptureMs usa el modelo de reloj robusto fijado al inicio del ensayo más la corrección física fija de la tablilla; los intercambios posteriores solo diagnostican su estabilidad.',userAgent:navigator.userAgent};
     }
     function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
     /* Binary file download, validated exports and common-grid interpolation. */
@@ -558,7 +571,7 @@
         document.documentElement.classList.remove('joint-workspace-active');
         releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
-        s.role=null;s.session=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planFilter='support';s.planPointers.clear();
+        s.role=null;s.session=null;s.setupPlan=null;s.setupMasterChoice=null;s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planFilter='support';s.planPointers.clear();
         s.calibration={map:{},active:null,complete:false,guidePhase:'idle'};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
@@ -574,6 +587,7 @@
     }
     function createJointSession() {
         open();s.id=uid();s.role='host';s.name='Maestro';s.session=uid();
+        s.setupPlan=null;s.setupMasterChoice=null;
         try{const stored=localStorage.getItem('upm-joint-plan-vwoma-preview-v1');if(stored)s.plan=checkPlan(JSON.parse(stored));}catch(e){tell('No se pudo recuperar el plano anterior.',true);}
         if(!s.plan.points.length)s.plan.points=[
             {id:'P1',name:'P1',x:s.plan.length/2,y:s.plan.width/2,axis:'z',angle:0,kind:'sensor',device:s.id},
@@ -591,7 +605,8 @@
     }
     globalThis.VWOMAUIEvents.bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
-        tab, renderResults, renderSyncCalibration, createJointSession, openPair, pairingAction,
+        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, selectSetup, applySetup,
+        createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
         resetPlanView, download, deletePlanPoint, updatePlanPoint, setPlanFilter, pointAtPlanEdge, svgPosition, planViewport,
