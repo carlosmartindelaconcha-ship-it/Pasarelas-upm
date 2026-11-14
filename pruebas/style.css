@@ -2256,20 +2256,6 @@ main button:not(:where(
     color: #fff;
 }
 
-/* Los canvas conservan los gestos originales de chartjs-plugin-zoom:
-   pinza X/Y y desplazamiento de las curvas. No forzar touch-action:pan-y,
-   porque impide a Hammer.js reconocer correctamente los gestos táctiles.
-   El desplazamiento de la página se realiza fuera de las gráficas. */
-#testForm.showing-results {
-    overflow-anchor:none;
-}
-html.vwoma-post-test,
-html.vwoma-post-test body {
-    overflow-anchor:none;
-}
-html.vwoma-post-test {
-    scroll-behavior:auto;
-}
 #testForm:not(.measurement-active) #recordButton {display:block;width:100%;min-height:54px;margin:0 0 18px;}
 
 /* Calibración guiada: una sola animación por gesto, reposo permanente al terminar. */
