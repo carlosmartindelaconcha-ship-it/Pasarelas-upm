@@ -252,7 +252,15 @@
         s.run=null;s.results.clear();$('jointProgress').value=0;$('jointMeasureState').textContent='Preparando dispositivos';$('jointRunTime').textContent='00:00.0';renderPlan();renderDevices();tab('Devices');
     });
     const blockMeasurementTouch=event=>{
-        if(running()&&!event.target.closest('#jointStop'))event.preventDefault();
+        if(!running())return;
+        // Bloquear desplazamientos durante el registro, pero NO las pulsaciones
+        // sobre la leyenda de Chart.js (dibujada dentro de jointLive).
+        if(event.type==='touchmove'){
+            event.preventDefault();
+            return;
+        }
+        if(event.target?.closest?.('#jointStop, #jointLive, #jointLiveSpectrum'))return;
+        event.preventDefault();
     };
     document.addEventListener('touchstart',blockMeasurementTouch,{capture:true,passive:false});
     document.addEventListener('touchmove',blockMeasurementTouch,{capture:true,passive:false});
