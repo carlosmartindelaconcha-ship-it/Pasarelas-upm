@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261114-measure-legend-v1">
+    <link rel="stylesheet" href="style.css?v=20261114-live-timer-v1">
 
     <!-- MapLibre -->
     <link
@@ -787,17 +787,19 @@
                 <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
                     <div class="joint-measure-duration-card">
                         <div class="joint-measure-metric">
-                            <label for="jointDuration">Duración</label>
+                            <label for="jointDuration" id="jointDurationLabel">Duración</label>
                             <div class="joint-measure-duration-input">
                                 <input id="jointDuration" type="number" min="5" max="1800" step="1" value="60" aria-label="Duración del ensayo en segundos">
                                 <span aria-hidden="true">s</span>
+                            </div>
+                            <div class="joint-measure-countdown" role="timer" aria-label="Cuenta atrás del ensayo">
+                                <strong id="jointRunTime">00:00.0</strong>
                             </div>
                         </div>
                         <div class="joint-measure-metric joint-measure-frequency" title="Frecuencia de muestreo observada">
                             <span class="joint-measure-metric-label">Frecuencia de muestreo</span>
                             <div class="joint-measure-rate-readout"><strong id="jointRate" aria-label="Frecuencia de muestreo observada">—</strong><span>Hz</span></div>
                         </div>
-                        <span class="joint-measure-elapsed" aria-label="Tiempo transcurrido">Transcurrido <strong id="jointRunTime">00:00.0</strong></span>
                     </div>
                     <div id="jointMeasureState" class="joint-measure-state" aria-live="off">Preparando dispositivos</div>
                     <progress id="jointProgress" max="1" value="0" aria-label="Progreso del ensayo"></progress>
@@ -899,8 +901,8 @@
     <script defer src="src/joint/tab-navigation.js?v=20261114-measure-fixed-v1"></script>
     <script defer src="src/joint/scroll-navigation.js?v=20261113-reveal-actions-v1"></script>
     <script defer src="src/joint/session-state.js?v=20261113-joint-state-v1"></script>
-    <script defer src="src/joint/ui-events.js?v=20261114-measure-fixed-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261114-measure-legend-v1"></script>
+    <script defer src="src/joint/ui-events.js?v=20261114-live-timer-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261114-live-timer-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261108-mobile-header-v9"></script>
 
 
