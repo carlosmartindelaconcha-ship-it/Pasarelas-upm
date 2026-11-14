@@ -1445,6 +1445,33 @@ body.recording-lock main {
 .joint-options article { border: 1px solid #d4e0ea; border-radius: 10px; padding: 20px; }
 .joint-options button { width: 100%; }
 .joint-badge { display: inline-block; background: #e2f2ef; color: #11695e; border-radius: 12px; padding: 5px 10px; font-size: .8rem; font-weight: 700; }
+/* La navegación sticky necesita una banda BLANCA entre ella y el borde
+   superior del viewport. En iOS el espacio puede crecer con las barras del
+   navegador: se ajusta desde tab-navigation.js sin interceptar pulsaciones. */
+#jointTabsTopMask {
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    width:100%;
+    height:0;
+    box-sizing:border-box;
+    background:#fff;
+    opacity:1;
+    visibility:hidden;
+    pointer-events:none;
+    z-index:29;
+}
+#jointTabsTopSentinel {
+    display:block;
+    position:relative;
+    height:0;
+    margin:0;
+    padding:0;
+    border:0;
+    pointer-events:none;
+}
+body.joint-measure-fixed #jointTabsTopMask {display:none !important;}
 .joint-tabs { display:flex; gap:6px; overflow-x:auto; padding:12px 0; position:sticky; top:0; z-index:30; background:#fff; border-bottom:1px solid #dce7ef; -webkit-overflow-scrolling:touch; scrollbar-width:none; overscroll-behavior-x:contain; scroll-padding:0 10px; }
 .joint-tabs::-webkit-scrollbar { display:none; }
 .joint-tabs button { flex:0 0 auto; white-space:nowrap; background:#edf3f9; color:#445e7b; }
