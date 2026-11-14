@@ -8,7 +8,7 @@
         return {
         id: uid(), name: 'Mi móvil', role: null, session: null, peers: new Map(),
         plan: {length:30, width:3, name:'Ensayo multipunto', points:[]}, selected:null, planFilter:'support',
-        setupMasterChoice:null,setupPlan:null,
+        setupMasterChoice:null,setupPlan:null,setupMarkupCache:null,
         sensor:false, sensorEnabled:false, sensorSource:'', lastSample:0, recent:[], rateTimes:[],
         calibration:{map:{},active:null,complete:false,guidePhase:'idle'},
         run:null, pending:null, results:new Map(), preview:[], transfer:null,
