@@ -2512,6 +2512,8 @@ async function startRecording() {
 
     isRecording =
         true;
+    // The document is scroll-locked only for an active recording.
+    document.documentElement.classList.remove('vwoma-post-test');
 
     testForm.classList.remove(
         "showing-results"
@@ -3517,6 +3519,9 @@ function stopRecording() {
         testForm.classList.add(
             "showing-results"
         );
+        // Chart sizes and statistics may still settle after stopping.
+        // Do not allow automatic scroll anchoring to fight the user's finger.
+        document.documentElement.classList.add('vwoma-post-test');
 
 
         /*
@@ -4149,6 +4154,7 @@ const { calculateWelchPsd, calculateSpectrum } = globalThis.VWOMASpectra;
 newTestButton.addEventListener(
     "click",
     function () {
+        document.documentElement.classList.remove('vwoma-post-test');
 
         testForm.classList.remove(
             "showing-results"
