@@ -197,7 +197,7 @@
         if(!POINT_TYPES[filter])throw Error('Vista de puntos desconocida.');
         if(planFilter()===filter)return;
         s.planFilter=filter;
-        s.interpolationSuggestions=filter==='interpolation'?calculateInterpolationCandidates():[];
+        s.interpolationSuggestions=filter==='interpolation'&&s.role==='host'?calculateInterpolationCandidates():[];
         const visible=filteredPoints();
         if(!visible.some(p=>p.id===s.selected))s.selected=visible[0]?.id||null;
         s.lastPlanTap=null;
@@ -211,6 +211,7 @@
         $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
         const visible=filteredPoints(),filter=planFilter();
         if(s.selected&&!visible.some(p=>p.id===s.selected))s.selected=visible[0]?.id||null;
+        $('jointRemovePoint').disabled=!edit||!s.selected;
         for(const button of document.querySelectorAll('#jointPointFilters [data-point-filter]')){
             const selected=button.dataset.pointFilter===filter;
             if(button.getAttribute('aria-pressed')!==String(selected))button.setAttribute('aria-pressed',String(selected));
@@ -395,11 +396,12 @@
         let position;
         if(x===undefined&&y===undefined){
             if(kind==='support'){
-                const supports=s.plan.points.filter(p=>pointKind(p)==='support').length;
                 const anchors=[{x:0,y:0},{x:s.plan.length,y:0},
                     {x:0,y:s.plan.width},{x:s.plan.length,y:s.plan.width},
                     {x:s.plan.length/2,y:0},{x:s.plan.length/2,y:s.plan.width}];
-                position=anchors[supports%anchors.length];
+                position=anchors.find(candidate=>!s.plan.points.some(p=>pointKind(p)==='support'&&
+                    Math.hypot(p.x-candidate.x,p.y-candidate.y)<.15))||
+                    {x:s.plan.length/2,y:s.plan.width/2};
             }else{
                 let i=1;
                 position=suggestedPointPosition(i);
