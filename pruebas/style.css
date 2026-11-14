@@ -1475,6 +1475,81 @@ body.recording-lock main {
 .joint-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; align-items: center; }
 .joint-file { padding: 8px; border: 1px dashed #b4c9dc; border-radius: 6px; }
 .joint-file input { font-size: .78rem; border: 0; padding: 4px; max-width: 210px; }
+/* Vista segmentada de puntos: el plano y la tabla muestran el mismo filtro.
+   Los cuatro estilos no interfieren con el carril táctil de borrado. */
+.joint-point-filters {
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:6px;
+    margin:14px 0 10px;
+    padding:4px;
+    background:#eff5fa;
+    border:1px solid #d8e4ed;
+    border-radius:11px;
+}
+.joint-app .joint-point-filters button {
+    display:flex;
+    box-sizing:border-box;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    min-width:0;
+    min-height:43px;
+    margin:0;
+    padding:8px 5px;
+    white-space:normal;
+    overflow-wrap:normal;
+    line-height:1.15;
+    font-weight:700;
+    font-size:clamp(.7rem,2.75vw,.87rem);
+    color:#385d7a;
+    border:1px solid transparent;
+    border-radius:8px;
+    background:transparent;
+    touch-action:manipulation;
+    transition:background-color .12s ease,color .12s ease,border-color .12s ease;
+}
+.joint-app .joint-point-filters button[aria-pressed="true"] {
+    color:#fff;
+    border-color:#1f659d;
+    background:var(--vwoma-blue);
+    box-shadow:0 1px 3px rgba(21,61,96,.12);
+}
+.joint-app .joint-point-filters button:focus-visible {outline:3px solid #f4a938;outline-offset:2px;}
+#jointPlan .joint-point.selected .joint-support-marker path:first-child,
+#jointPlan .joint-point:focus-visible .joint-support-marker path:first-child,
+#jointPlan .joint-point.selected .joint-interpolation-marker circle,
+#jointPlan .joint-point:focus-visible .joint-interpolation-marker circle {
+    stroke:#f3a832;
+    stroke-width:4px;
+}
+.joint-point-code.support {color:#945120;border-color:#d9a676;background:#fff6ec;}
+.joint-point-code.interpolation {color:#6748a5;border-color:#c6b3e8;background:#f7f3ff;}
+.joint-point-static-cell {
+    display:flex;
+    min-width:0;
+    min-height:34px;
+    box-sizing:border-box;
+    align-items:center;
+    justify-content:center;
+    margin:6px 7px;
+    padding:6px 4px;
+    border:1px solid #dde7ef;
+    border-radius:6px;
+    background:#f6f9fc;
+    color:#506678;
+    white-space:nowrap;
+    font-size:clamp(.68rem,2.4vw,.81rem);
+    font-weight:700;
+    text-align:center;
+}
+.joint-point-static-cell.support {color:#995422;border-color:#efd5bd;background:#fff8f0;}
+.joint-point-static-cell.interpolation {color:#7653b2;border-color:#dfd4f0;background:#faf7ff;}
+@media (max-width:360px) {
+    .joint-point-filters {gap:3px;padding:3px;}
+    .joint-app .joint-point-filters button {padding:6px 2px;font-size:.68rem;min-height:42px;}
+    .joint-point-static-cell {margin:5px 3px;font-size:.68rem;}
+}
 .joint-points-section { margin-top: 18px; border: 1px solid #d8e4ed; border-radius: 12px; overflow: hidden; background: #fff; }
 .joint-points-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:#f2f7fc; border-bottom:1px solid #d8e4ed; isolation:isolate; }
 .joint-points-head h4 { margin:0; color:#203d59; }
