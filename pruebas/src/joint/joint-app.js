@@ -310,7 +310,14 @@
             send:(...args)=>send(...args),
             broadcast:(...args)=>broadcast(...args),
             uid, structuredClone, setTimeout, median, math:calibrationMath, revealActionTarget,
-            onSyncAccepted:()=>{renderSetups();tab('Setups');}
+            onSyncAccepted:()=>{
+                // Al completar el protocolo X/Y/Z, generar automáticamente el
+                // reparto con los sensores y móviles conectados en ese momento.
+                if(!s.run&&s.plan.points.filter(p=>(p.kind||'sensor')==='sensor').length>=2&&syncReady()){
+                    try{generateSetups();}catch(error){tell(error.message,true);renderSetups();}
+                }else renderSetups();
+                tab('Setups');
+            }
         });
 
     function motion(event) {
