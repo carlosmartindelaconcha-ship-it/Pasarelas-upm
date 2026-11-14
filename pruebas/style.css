@@ -1730,7 +1730,23 @@ body.joint-measure-fixed .joint-measure-rate-readout strong {
     line-height:1.2;
 }
 body.joint-measure-fixed .joint-measure-rate-readout span {font-size:.78rem;font-weight:700;color:#526d80;}
-body.joint-measure-fixed.joint-measuring .joint-measure-metric:first-child > label {visibility:hidden;}
+/* El tiempo de medida ocupa la propia casilla de duración. No se dibuja
+   sobre las señales, y la anchura de las tarjetas permanece estable. */
+body.joint-measure-fixed .joint-measure-countdown {display:none;}
+body.joint-measure-fixed .joint-measure-countdown strong {
+    display:block;
+    min-height:35px;
+    box-sizing:border-box;
+    padding:5px 8px 4px;
+    color:#173d60;
+    font-size:clamp(1.02rem,4.5vw,1.35rem);
+    font-weight:800;
+    line-height:1.25;
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+}
+body.joint-measure-fixed.joint-measuring .joint-measure-duration-input {display:none;}
+body.joint-measure-fixed.joint-measuring .joint-measure-countdown {display:block;}
 body.joint-measure-fixed .joint-measure-duration-card label {
     min-width:0;
     margin:0;
@@ -1773,26 +1789,6 @@ body.joint-measure-fixed .joint-measure-duration-input input {
     -webkit-user-select:text;
 }
 body.joint-measure-fixed .joint-measure-duration-input span {font-size:.84rem;font-weight:700;}
-body.joint-measure-fixed .joint-measure-elapsed {
-    display:none;
-    position:absolute;
-    left:10px;
-    top:8px;
-    white-space:nowrap;
-    font-size:clamp(.68rem,2.7vw,.8rem);
-    line-height:1.2;
-    font-weight:700;
-    color:#47627a;
-}
-body.joint-measure-fixed .joint-measure-elapsed strong {
-    display:inline;
-    margin-left:4px;
-    font-size:inherit;
-    font-weight:700;
-    color:#173d60;
-    font-variant-numeric:tabular-nums;
-}
-body.joint-measure-fixed.joint-measuring .joint-measure-elapsed {display:block;}
 body.joint-measure-fixed #jointPanelMeasure > .joint-measurement-chart {
     display:flex;
     flex-direction:column;
