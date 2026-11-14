@@ -152,7 +152,8 @@
     };
     const currentValid=()=>!!s.setupPlan&&s.setupPlan.signature===currentSignature();
     function renderSetups(){
-      const status=$('jointSetupStatus'),list=$('jointSetupList'),summary=$('jointSetupSummary');
+      const status=$('jointSetupStatus'),list=$('jointSetupList'),
+        summary=$('jointSetupSummary'),preview=$('jointSetupPreview');
       const masterInput=$('jointSetupMaster'),generateButton=$('jointGenerateSetups');
       const applyButton=$('jointApplySetup'),measureButton=$('jointSetupToMeasure');
       const participants=peers();
@@ -178,11 +179,12 @@
       const index=Number.isInteger(plan?.selectedIndex)?plan.selectedIndex:0;
       const selected=fresh?plan.setups[index]:null;
       applyButton.disabled=!host||!ready||!fresh||!selected||!!running()||!!s.transaction||!!s.run;
-      measureButton.disabled=!fresh||active===null||!!running()||!!s.transaction;
+      measureButton.disabled=!host||!ready||!fresh||active===null||
+        active!==index||!!running()||!!s.transaction;
       if(!host){
         status.textContent='El maestro organiza los setups. Este móvil permanecerá en espera hasta que le asigne un punto.';
         summary.textContent='Tu punto se actualizará automáticamente al activar cada setup.';
-        list.innerHTML='';return;
+        list.innerHTML='';preview.innerHTML='';return;
       }
       if(!participants.length)status.textContent='Conecta al menos un participante para distribuir los sensores manteniendo el maestro fijo.';
       else if(!ready)status.textContent='Completa primero la calibración y la sincronización física de todos los móviles conectados.';
@@ -190,17 +192,42 @@
       else status.textContent='Sincronización válida. El maestro permanecerá en un mismo sensor durante todos los setups.';
       if(!plan){
         summary.textContent='Elige el sensor del maestro o deja la recomendación automática y pulsa «Generar setups».';
-        list.innerHTML='';return;
+        list.innerHTML='';preview.innerHTML='';return;
       }
       if(!fresh){
         summary.textContent='El plano, los móviles, la sincronización o la referencia han cambiado. Vuelve a generar los setups.';
-        list.innerHTML='';return;
+        list.innerHTML='';preview.innerHTML='';return;
       }
       summary.textContent=plan.setups.length+' setups · referencia M en '+plan.masterPointId+
         ' · '+(participants.length+1)+' móviles conectados · '+available.length+' sensores. '+
         'La puntuación modal es orientativa: las formas reales todavía se desconocen.';
       const devices=new Map(connected().map((d,i)=>[d.id,{...d,code:i===0?'M':'S'+i}]));
       const points=new Map(s.plan.points.map(p=>[p.id,p]));
+      if(selected){
+        const length=Math.max(EPS,s.plan.length),width=Math.max(EPS,s.plan.width);
+        const sx=p=>40+560*p.x/length,sy=p=>27+142*(1-p.y/width);
+        const selectedDevices=new Map(selected.assignments.map((a,i)=>
+          [a.pointId,i===0?'M':'S'+i]));
+        let shapes='<rect x="40" y="27" width="560" height="142" rx="4" fill="#eff4f9" stroke="#7898ae" stroke-width="1.5"/>';
+        for(const p of s.plan.points.filter(x=>x.kind==='support')){
+          shapes+='<path d="M '+sx(p)+' '+(sy(p)-7)+' l -7 14 h 14 Z" fill="#e4af72" stroke="#9b5f24" stroke-width="1.5"/>';
+        }
+        for(const p of available){
+          const code=selectedDevices.get(p.id),isMaster=code==='M',selected=!!code;
+          const color=isMaster?'#153e68':selected?'#16878c':'#a4b3bf';
+          const x=sx(p),y=sy(p);
+          shapes+='<circle cx="'+x+'" cy="'+y+'" r="'+(selected?8:4.5)+
+            '" fill="'+color+'" stroke="#fff" stroke-width="1.5"/>';
+          if(selected)shapes+='<text x="'+x+'" y="'+(y-12)+
+            '" fill="#153e68" font-size="12" font-weight="700" text-anchor="middle">'+
+            escape(code)+' · '+escape(p.id)+'</text>';
+        }
+        preview.innerHTML='<svg viewBox="0 0 640 194" role="img" aria-label="Vista de planta del setup '+(index+1)+
+          ', con maestro fijo y sensores participantes">' +shapes+
+          '<text x="40" y="188" fill="#547087" font-size="11">X = 0</text>'+
+          '<text x="600" y="188" fill="#547087" font-size="11" text-anchor="end">X = '+s.plan.length+' m</text></svg>'+
+          '<p>Azul: maestro fijo · Turquesa: participantes · Gris: puntos aún sin medir · Triángulos: apoyos. Distribución esquemática normalizada.</p>';
+      }else preview.innerHTML='';
       const signature=plan.setups.map((setup,i)=>{
         const isSelected=i===index,applied=i===active;
         const assignments=setup.assignments.map((entry,j)=>{
@@ -264,6 +291,8 @@
       const setup=plan.setups[plan.activeIndex];
       if(setup&&s.run.plan.points.some(p=>p.device===s.id&&p.id===plan.masterPointId)){
         setup.measuredRunId=s.run.id;
+        const next=plan.setups.findIndex(x=>!x.measuredRunId);
+        if(next>=0)plan.selectedIndex=next;
       }
       if(!$('jointPanelSetups').hidden)renderSetups();
     }
