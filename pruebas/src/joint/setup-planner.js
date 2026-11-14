@@ -153,6 +153,14 @@
         calibrated.every((id,i)=>id===participants.map(p=>p.id).sort()[i]);
     };
     const currentValid=()=>!!s.setupPlan&&s.setupPlan.signature===currentSignature();
+    // Cachear el marcado de los setups para que los mensajes STATUS no
+    // reconstruyan la vista, provoquen parpadeos ni desplacen la página.
+    function setMarkup(element,key,markup){
+      const cache=s.setupMarkupCache||(s.setupMarkupCache={});
+      if(cache[key]===markup)return;
+      element.innerHTML=markup;
+      cache[key]=markup;
+    }
     function renderSetups(){
       const status=$('jointSetupStatus'),list=$('jointSetupList'),
         summary=$('jointSetupSummary'),preview=$('jointSetupPreview');
@@ -168,7 +176,7 @@
       const options=available.map(p=>
         '<option value="'+escape(p.id)+'">'+escape(p.id)+' · ('+p.x+', '+p.y+') m'+
         (p.id===proposed?' · recomendado':'')+'</option>').join('');
-      if(masterInput.innerHTML!==options)masterInput.innerHTML=options;
+      setMarkup(masterInput,'options',options);
       masterInput.value=s.setupMasterChoice||'';
       $('jointSetupPhoneCount').textContent=String(1+participants.length);
       $('jointSetupSensorCount').textContent=String(available.length);
@@ -186,7 +194,7 @@
       if(!host){
         status.textContent='El maestro organiza los setups. Este móvil permanecerá en espera hasta que le asigne un punto.';
         summary.textContent='Tu punto se actualizará automáticamente al activar cada setup.';
-        list.innerHTML='';preview.innerHTML='';return;
+        setMarkup(list,'list','');setMarkup(preview,'preview','');return;
       }
       if(!participants.length)status.textContent='Conecta al menos un participante para distribuir los sensores manteniendo el maestro fijo.';
       else if(!ready)status.textContent='Completa primero la calibración y la sincronización física de todos los móviles conectados.';
@@ -194,11 +202,11 @@
       else status.textContent='Sincronización válida. El maestro permanecerá en un mismo sensor durante todos los setups.';
       if(!plan){
         summary.textContent='Elige el sensor del maestro o deja la recomendación automática y pulsa «Generar setups».';
-        list.innerHTML='';preview.innerHTML='';return;
+        setMarkup(list,'list','');setMarkup(preview,'preview','');return;
       }
       if(!fresh){
         summary.textContent='El plano, los móviles, la sincronización o la referencia han cambiado. Vuelve a generar los setups.';
-        list.innerHTML='';preview.innerHTML='';return;
+        setMarkup(list,'list','');setMarkup(preview,'preview','');return;
       }
       summary.textContent=plan.setups.length+' setups · referencia M en '+plan.masterPointId+
         ' · '+(participants.length+1)+' móviles conectados · '+available.length+' sensores. '+
@@ -224,12 +232,13 @@
             '" fill="#153e68" font-size="12" font-weight="700" text-anchor="middle">'+
             escape(code)+' · '+escape(p.id)+'</text>';
         }
-        preview.innerHTML='<svg viewBox="0 0 640 194" role="img" aria-label="Vista de planta del setup '+(index+1)+
+        const previewMarkup='<svg viewBox="0 0 640 194" role="img" aria-label="Vista de planta del setup '+(index+1)+
           ', con maestro fijo y sensores participantes">' +shapes+
           '<text x="40" y="188" fill="#547087" font-size="11">X = 0</text>'+
           '<text x="600" y="188" fill="#547087" font-size="11" text-anchor="end">X = '+s.plan.length+' m</text></svg>'+
           '<p>Azul: maestro fijo · Turquesa: participantes · Gris: puntos aún sin medir · Triángulos: apoyos. Distribución esquemática normalizada.</p>';
-      }else preview.innerHTML='';
+        setMarkup(preview,'preview',previewMarkup);
+      }else setMarkup(preview,'preview','');
       const signature=plan.setups.map((setup,i)=>{
         const isSelected=i===index,applied=i===active;
         const assignments=setup.assignments.map((entry,j)=>{
@@ -247,7 +256,7 @@
             (setup.measuredRunId?'<p class="joint-help">Ensayo registrado · '+escape(setup.measuredRunId.slice(0,8))+'</p>':'')+
           '</article>';
       }).join('');
-      if(list.innerHTML!==signature)list.innerHTML=signature;
+      setMarkup(list,'list',signature);
     }
     function generateSetups(){
       requireHostEdit();
