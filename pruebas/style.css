@@ -1467,7 +1467,7 @@ body.recording-lock main {
    Se reserva espacio blanco DENTRO de la cabecera, no sobre el viewport. */
 @supports (-webkit-touch-callout: none) {
     @media (max-width:600px) {
-        .joint-navigation-safe {height:max(44px,env(safe-area-inset-top,0px));}
+        .joint-navigation-safe {height:max(54px,env(safe-area-inset-top,0px));}
     }
 }
 .joint-tabs {
