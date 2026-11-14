@@ -345,9 +345,8 @@
         }
         $('jointPlan').innerHTML=svg;
         $('jointPlanHelp').textContent=s.role==='host'?
-            'Doble toque en el tablero para añadir '+({support:'un apoyo',sensor:'un sensor',interpolation:'un punto de interpolación'}[filter])+'.'+
-             ' Los bordes se pueden seleccionar con un pequeño margen. Arrastra y pellizca para ampliar hasta 200×. Rejilla métrica; decímetros al ampliar.':
-            'El maestro edita el plano. Selecciona un tipo para consultar los puntos y su posición.';
+            'Doble toque: añadir '+({support:'apoyo',sensor:'sensor',interpolation:'interpolación'}[filter])+'. Arrastra: mover. Pellizca: ampliar hasta 200×. Bordes accesibles. Rejilla de 1 m y 0,1 m al ampliar.':
+            'El maestro edita el plano. Selecciona una categoría para consultar sus puntos.';
         const devices=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
         // Se conserva EXACTAMENTE la estructura de fila/deslizamiento/papelera;
