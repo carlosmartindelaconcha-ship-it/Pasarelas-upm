@@ -9,7 +9,7 @@
         tab, renderResults, renderSyncCalibration, createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
-        resetPlanView, download, deletePlanPoint, updatePlanPoint, setPlanFilter, svgPosition, planViewport,
+        resetPlanView, download, deletePlanPoint, updatePlanPoint, setPlanFilter, proposeInterpolation, acceptInterpolation, discardInterpolation, pointAtPlanEdge, svgPosition, planViewport,
         geometry, zoomPlanAt, snapPlanPosition, renderPlan, localStatus, renderDevices,
         broadcast, enableSensor, beginCalibrationGuide, startCalibration, chooseManualCalibration, setManualCalibration, startSyncCalibration,
         startSyncGesture, startSync, startRun, stopRun, exportSession, exportCsv,
@@ -50,6 +50,9 @@
         if(!button)return;
         setPlanFilter(button.dataset.pointFilter);
     }));
+    $('jointSuggestInterpolation').onclick=guard(proposeInterpolation);
+    $('jointAcceptInterpolation').onclick=guard(acceptInterpolation);
+    $('jointDiscardInterpolation').onclick=guard(discardInterpolation);
     $('jointAddPointInline').onclick=guard(()=>{requireHostEdit();addPoint();});
     $('jointRemovePoint').onclick=guard(()=>{requireHostEdit();if(!s.selected)throw Error('Selecciona un punto.');deletePlanPoint(s.selected,false);});
     $('jointResetView').onclick=guard(()=>{requireHostEdit();resetPlanView();});
@@ -135,7 +138,7 @@
     const PLAN_TAP_MAX_MS=500, PLAN_DOUBLE_TAP_MAX_MS=420;
     const PLAN_TAP_MAX_MOVE_PX=10, PLAN_DOUBLE_TAP_MAX_GAP_PX=28;
     $('jointPlan').addEventListener('pointerdown',guard(e=>{
-        const svg=$('jointPlan'),el=e.target.closest('[data-point]'),pos=svgPosition(e);
+        const svg=$('jointPlan'),el=e.target.closest('[data-point]'),pos=pointAtPlanEdge(svgPosition(e));
         const canEdit=s.role==='host'&&!running()&&!s.transaction;
         const inside=pos&&pos.x>=0&&pos.x<=s.plan.length&&pos.y>=0&&pos.y<=s.plan.width;
         s.planPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -204,8 +207,8 @@
         if(time-tap.at>PLAN_TAP_MAX_MS||Math.hypot(dx,dy)>PLAN_TAP_MAX_MOVE_PX){
             s.lastPlanTap=null;return;
         }
-        const pos=svgPosition(e);
-        if(!pos||pos.x<0||pos.x>s.plan.length||pos.y<0||pos.y>s.plan.width){
+        const pos=pointAtPlanEdge(svgPosition(e));
+        if(!pos){
             s.lastPlanTap=null;return;
         }
         const prev=s.lastPlanTap;
@@ -215,7 +218,7 @@
            Math.hypot(e.clientX-prev.x,e.clientY-prev.y)<=PLAN_DOUBLE_TAP_MAX_GAP_PX){
             s.lastPlanTap=null;
             e.preventDefault();
-            if(s.planFilter!=='all')addPoint(pos.x,pos.y);
+            addPoint(pos.x,pos.y);
         }
     }));
     // Impide el comportamiento nativo de doble clic; la creación se realiza en pointerup.
