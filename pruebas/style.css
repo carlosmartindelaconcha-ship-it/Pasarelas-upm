@@ -1635,22 +1635,30 @@ body.joint-measure-fixed #jointTabs {
     border-bottom:1px solid #dbe6ef;
     touch-action:manipulation;
 }
+#jointTabs .joint-tab-compact {display:none;}
 body.joint-measure-fixed #jointTabs button {
     display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:3px;
     min-width:0;
-    min-height:40px;
+    min-height:43px;
     max-width:100%;
     margin:0;
-    padding:6px 1px;
+    padding:4px 1px;
     box-sizing:border-box;
-    white-space:normal;
-    overflow-wrap:anywhere;
+    white-space:nowrap;
+    overflow-wrap:normal;
+    word-break:normal;
     text-align:center;
-    line-height:1.08;
-    font-size:clamp(.57rem,2.65vw,.77rem);
+    line-height:1.1;
+    font-size:clamp(.56rem,2.35vw,.7rem);
     border-radius:7px;
     touch-action:manipulation;
 }
+body.joint-measure-fixed #jointTabs .joint-tab-full {display:none;}
+body.joint-measure-fixed #jointTabs .joint-tab-compact {display:inline;white-space:nowrap;}
 body.joint-measure-fixed #jointPanelMeasure {
     display:grid !important;
     grid-template-columns:minmax(0,1fr);
@@ -1677,18 +1685,52 @@ body.joint-measure-fixed #jointPanelMeasure > .joint-live-values,
 body.joint-measure-fixed #jointPanelMeasure > .joint-help {display:none !important;}
 body.joint-measure-fixed #jointPanelMeasure .joint-measure-duration-card {
     grid-area:duration;
-    display:flex;
-    justify-content:space-between;
+    position:relative;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
     align-items:center;
-    gap:8px;
+    gap:clamp(6px,2vw,16px);
     min-width:0;
     box-sizing:border-box;
     margin:0;
-    padding:6px 10px;
+    padding:7px 10px;
     border:1px solid #dbe6ef;
     border-radius:9px;
     background:#f7fafc;
 }
+body.joint-measure-fixed .joint-measure-metric {
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+    min-width:0;
+    justify-content:center;
+}
+body.joint-measure-fixed .joint-measure-metric label,
+body.joint-measure-fixed .joint-measure-metric-label {
+    display:block;
+    min-width:0;
+    margin:0;
+    color:#47627a;
+    font-size:clamp(.68rem,2.7vw,.8rem);
+    font-weight:700;
+    line-height:1.2;
+}
+body.joint-measure-fixed .joint-measure-rate-readout {
+    display:flex;
+    align-items:baseline;
+    gap:4px;
+    min-height:35px;
+    padding:4px 8px;
+    box-sizing:border-box;
+    font-variant-numeric:tabular-nums;
+    color:#173d60;
+}
+body.joint-measure-fixed .joint-measure-rate-readout strong {
+    font-size:clamp(1rem,4.5vw,1.35rem);
+    line-height:1.2;
+}
+body.joint-measure-fixed .joint-measure-rate-readout span {font-size:.78rem;font-weight:700;color:#526d80;}
+body.joint-measure-fixed.joint-measuring .joint-measure-metric:first-child > label {visibility:hidden;}
 body.joint-measure-fixed .joint-measure-duration-card label {
     min-width:0;
     margin:0;
@@ -1731,8 +1773,25 @@ body.joint-measure-fixed .joint-measure-duration-input input {
     -webkit-user-select:text;
 }
 body.joint-measure-fixed .joint-measure-duration-input span {font-size:.84rem;font-weight:700;}
-body.joint-measure-fixed .joint-measure-elapsed {display:none;font-size:clamp(.64rem,2.4vw,.78rem);line-height:1.15;color:#46647c;}
-body.joint-measure-fixed .joint-measure-elapsed strong {display:block;text-align:right;color:#173d60;font-size:clamp(.79rem,2.9vw,.95rem);font-variant-numeric:tabular-nums;}
+body.joint-measure-fixed .joint-measure-elapsed {
+    display:none;
+    position:absolute;
+    left:10px;
+    top:8px;
+    white-space:nowrap;
+    font-size:clamp(.68rem,2.7vw,.8rem);
+    line-height:1.2;
+    font-weight:700;
+    color:#47627a;
+}
+body.joint-measure-fixed .joint-measure-elapsed strong {
+    display:inline;
+    margin-left:4px;
+    font-size:inherit;
+    font-weight:700;
+    color:#173d60;
+    font-variant-numeric:tabular-nums;
+}
 body.joint-measure-fixed.joint-measuring .joint-measure-elapsed {display:block;}
 body.joint-measure-fixed #jointPanelMeasure > .joint-measurement-chart {
     display:flex;
@@ -1799,6 +1858,8 @@ body.joint-measure-fixed #jointPanelMeasure .joint-measure-actions > button {
     touch-action:manipulation;
 }
 body.joint-measure-fixed #jointPanelMeasure .joint-measure-actions > button[hidden] {display:none !important;}
+body.joint-measure-fixed #jointStart:disabled {opacity:.62;}
+body.joint-measure-fixed #jointStart:not(:disabled) {opacity:1;}
 @media (max-height:560px) {
     body.joint-measure-fixed #jointApp {padding-top:calc(2px + env(safe-area-inset-top));padding-bottom:calc(3px + env(safe-area-inset-bottom));}
     body.joint-measure-fixed #jointTabs button {min-height:34px;padding:3px 1px;}
