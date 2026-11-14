@@ -48,6 +48,9 @@
         window.visualViewport.addEventListener('resize',scheduleTopMask,{passive:true});
       }
     }
+    $('jointExit')?.addEventListener?.('click',()=>{
+      if(topMask){topMask.style.visibility='hidden';topMask.style.height='0px';}
+    });
     function tab(name) {
       if(!NAMES.includes(name))throw Error('Pestaña desconocida: '+name);
       if(current===name)return false; // Never reflow active content on repeat calls.
