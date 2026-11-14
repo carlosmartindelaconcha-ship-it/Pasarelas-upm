@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261114-android-dom-stable-v2">
+    <link rel="stylesheet" href="style.css?v=20261114-measure-guide-v1">
 
     <!-- MapLibre -->
     <link
@@ -889,6 +889,32 @@
                     <p class="joint-help">Los demás móviles quedan en espera si sobran participantes. Recoloca los sensores antes de activar la medida; las asignaciones se comunican a todos los móviles.</p>
                 </div>
                 <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
+                    <div id="jointMeasureSetupGuide" class="joint-measure-guide" aria-label="Guía del setup que se va a medir">
+                        <div class="joint-guide-heading">
+                            <div><span class="joint-guide-eyebrow">CAMPAÑA DE MEDIDAS</span><h3 id="jointMeasureGuideTitle">Medida conjunta</h3></div>
+                            <span id="jointMeasureGuideStatus" class="joint-guide-state" role="status">Sin planificación</span>
+                        </div>
+                        <p id="jointMeasureGuideHint" class="joint-guide-hint">Genera y activa un setup para preparar el ensayo.</p>
+                        <div id="jointMeasureGuidePlan" class="joint-guide-plan" aria-label="Plano con puntos de medida y apoyos"></div>
+                        <div class="joint-guide-legend" aria-label="Leyenda del plano">
+                            <span><i class="joint-guide-dot master"></i>Maestro</span>
+                            <span><i class="joint-guide-dot slave"></i>Esclavo activo</span>
+                            <span><i class="joint-guide-dot inactive"></i>Sin medir</span>
+                            <span><i class="joint-guide-triangle"></i>Apoyo</span>
+                        </div>
+                        <h4 class="joint-guide-subtitle">Móviles y puntos asignados</h4>
+                        <ul id="jointMeasureGuideDevices" class="joint-guide-devices"></ul>
+                        <p id="jointMeasureGuideWaiting" class="joint-guide-waiting"></p>
+                        <div class="joint-guide-history-head"><h4 class="joint-guide-subtitle">Seguimiento de setups</h4><span id="jointMeasureGuideCounter">Sin campaña</span></div>
+                        <div id="jointMeasureGuideSteps" class="joint-guide-steps" aria-label="Estado de cada setup"></div>
+                        <details class="joint-guide-attempts"><summary>Historial de ensayos</summary><ol id="jointMeasureGuideHistory"></ol></details>
+                        <div class="joint-guide-buttons">
+                            <button type="button" id="jointMeasureGoSetups" class="joint-secondary" data-vwoma-icon="setups">Ver setups</button>
+                            <button type="button" id="jointMeasureComplete" class="vwoma-action" data-vwoma-icon="check" hidden>Marcar completado</button>
+                            <button type="button" id="jointMeasureNext" class="vwoma-action" data-vwoma-icon="arrow" hidden>Preparar siguiente setup</button>
+                            <button type="button" id="jointMeasureRepeat" class="joint-secondary" data-vwoma-icon="reset" hidden>Repetir este setup</button>
+                        </div>
+                    </div>
                     <div class="joint-measure-duration-card">
                         <div class="joint-measure-metric">
                             <label for="jointDuration" id="jointDurationLabel">Duración</label>
@@ -904,6 +930,10 @@
                             <span class="joint-measure-metric-label">Frecuencia de muestreo</span>
                             <div class="joint-measure-rate-readout"><strong id="jointRate" aria-label="Frecuencia de muestreo observada">—</strong><span>Hz</span></div>
                         </div>
+                    </div>
+                    <div class="joint-actions joint-measure-actions">
+                        <button id="jointStart" type="button" data-vwoma-icon="play" class="vwoma-action"><span id="jointStartLabel">Iniciar medida</span></button>
+                        <button id="jointStop" type="button" class="joint-danger" data-vwoma-icon="stop" disabled hidden>Detener medida</button>
                     </div>
                     <div id="jointMeasureState" class="joint-measure-state" aria-live="off">Preparando dispositivos</div>
                     <progress id="jointProgress" max="1" value="0" aria-label="Progreso del ensayo"></progress>
@@ -922,10 +952,6 @@
                         <div class="joint-measure-canvas"><canvas id="jointLiveSpectrum" width="800" height="220" aria-label="Espectro de X, Y, Z en tiempo real"></canvas></div>
                     </section>
                     <p id="jointSoloHint" class="joint-help" hidden>Sin participantes conectados; puedes medir con el maestro.</p>
-                    <div class="joint-actions joint-measure-actions">
-                        <button id="jointStart" type="button" data-vwoma-icon="play" class="vwoma-action"><span id="jointStartLabel">Iniciar medida</span></button>
-                        <button id="jointStop" type="button" class="joint-danger" data-vwoma-icon="stop" disabled hidden>Detener medida</button>
-                    </div>
                 </div>
                 <div id="jointPanelResults" role="tabpanel" aria-labelledby="jointTabResults" hidden>
                     <h3>Registros y resultados</h3><div id="jointResultsList"></div>
@@ -992,7 +1018,7 @@
     <script defer src="src/signal/spectra.js?v=20261109-modular-spectra-v1"></script>
     <script defer src="app.js?v=20261114-post-test-anchor-v1"></script>
     <script defer src="src/joint/plan-controller.js?v=20261114-plan-steps-v5"></script>
-    <script defer src="src/joint/setup-planner.js?v=20261114-setups-v2"></script>
+    <script defer src="src/joint/setup-planner.js?v=20261114-measure-guide-v1"></script>
     <script defer src="src/joint/hotspot-ice.js?v=20261114-hotspot-autocandidate-v1"></script>
     <script defer src="src/joint/webrtc-transport.js?v=20261114-hotspot-autocandidate-v3"></script>
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
@@ -1006,8 +1032,9 @@
     <script defer src="src/joint/tab-navigation.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/scroll-navigation.js?v=20261114-nav-shell-v1"></script>
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
-    <script defer src="src/joint/ui-events.js?v=20261114-setups-v2"></script>
-    <script defer src="src/joint/joint-app.js?v=20261114-android-dom-stable-v2"></script>
+    <script defer src="src/joint/ui-events.js?v=20261114-measure-guide-v1"></script>
+    <script defer src="src/joint/measure-guide.js?v=20261114-measure-guide-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261114-measure-guide-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-setups-v2"></script>
 
 

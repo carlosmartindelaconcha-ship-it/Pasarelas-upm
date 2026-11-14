@@ -128,7 +128,8 @@
         assignments:[{deviceId:hostId,pointId:master.id},
           ...inOrder.map((p,i)=>({deviceId:guestIds[i],pointId:p.id}))],
         quality:Number(coverageQuality(inOrder,master,plan).toFixed(4)),
-        measuredRunId:null
+        measuredRunId:null,
+        completedRunId:null
       };
     });
     return {
@@ -137,7 +138,8 @@
       masterScore:Number(modalScore(master,plan).toFixed(3)),
       setups,
       activeIndex:null,
-      selectedIndex:0
+      selectedIndex:0,
+      history:[]
     };
   }
   function createController({s,$,escape,requireHostEdit,running,savePlan,tell,tab,renderDevices}) {
@@ -235,7 +237,7 @@
         }
         for(const p of available){
           const code=selectedDevices.get(p.id),isMaster=code==='M',selected=!!code;
-          const color=isMaster?'#153e68':selected?'#16878c':'#a4b3bf';
+          const color=isMaster?'#16824e':selected?'#176bb0':'#cdd6df';
           const x=sx(p),y=sy(p);
           shapes+='<circle cx="'+x+'" cy="'+y+'" r="'+(selected?8:4.5)+
             '" fill="'+color+'" stroke="#fff" stroke-width="1.5"/>';
@@ -247,7 +249,7 @@
           ', con maestro fijo y sensores participantes">' +shapes+
           '<text x="40" y="188" fill="#547087" font-size="11">X = 0</text>'+
           '<text x="600" y="188" fill="#547087" font-size="11" text-anchor="end">X = '+s.plan.length+' m</text></svg>'+
-          '<p>Azul: maestro fijo · Turquesa: participantes · Gris: puntos aún sin medir · Triángulos: apoyos. Distribución esquemática normalizada.</p>';
+          '<p>Verde: maestro fijo · Azul: participantes activos · Gris: puntos sin medir · Triángulos: apoyos. Distribución esquemática normalizada.</p>';
         setMarkup(preview,'preview',previewMarkup);
       }else setMarkup(preview,'preview','');
       const signature=plan.setups.map((setup,i)=>{
@@ -261,10 +263,10 @@
         return '<article class="joint-setup-card'+(isSelected?' selected':'')+(applied?' active':'')+'">'+
             '<button type="button" class="joint-setup-select" data-setup-select="'+i+
             '" aria-pressed="'+isSelected+'"><strong>Setup '+(i+1)+'</strong><span>'+
-            (applied?'Activo':setup.measuredRunId?'Medido':'Seleccionar')+'</span></button>'+
+            (applied?'Activo':setup.completedRunId?'Completado':setup.measuredRunId?'Registrado':'Seleccionar')+'</span></button>'+
             '<ul class="joint-setup-assignments">'+assignments+'</ul>'+
             (absent.length?'<p class="joint-help">En reposo: '+absent.map(d=>escape(devices.get(d.id)?.code)).join(', ')+'</p>':'')+
-            (setup.measuredRunId?'<p class="joint-help">Ensayo registrado · '+escape(setup.measuredRunId.slice(0,8))+'</p>':'')+
+            (setup.measuredRunId?'<p class="joint-help">'+(setup.completedRunId===setup.measuredRunId?'Setup completado':'Ensayo registrado, pendiente de confirmar')+' · '+escape(setup.measuredRunId.slice(0,8))+'</p>':'')+
           '</article>';
       }).join('');
       setMarkup(list,'list',signature);
@@ -313,13 +315,35 @@
       const setup=plan.setups[plan.activeIndex];
       if(setup&&s.run.plan.points.some(p=>p.device===s.id&&p.id===plan.masterPointId)){
         setup.measuredRunId=s.run.id;
-        const next=plan.setups.findIndex(x=>!x.measuredRunId);
-        if(next>=0)plan.selectedIndex=next;
+        if(!Array.isArray(plan.history))plan.history=[];
+        if(!plan.history.some(h=>h.runId===s.run.id))plan.history.push({
+          index:setup.index,runId:s.run.id,finishedAt:new Date().toISOString(),completed:false
+        });
+        // Esperar la confirmacion del operador antes de pasar al siguiente.
       }
       if(!$('jointPanelSetups').hidden)renderSetups();
     }
+    function confirmMeasured(){
+      requireHostEdit();
+      const plan=s.setupPlan,run=s.run;
+      if(!plan||plan.activeIndex===null||!run?.finished||run.state!=='finished')
+        throw Error('Termina primero un ensayo válido para confirmar el setup.');
+      const setup=plan.setups[plan.activeIndex];
+      if(!setup||setup.measuredRunId!==run.id||run.setup?.index!==setup.index)
+        throw Error('El ensayo terminado no corresponde al setup activo.');
+      const expected=[...new Set(run.plan.points.filter(p=>sensor(p)&&p.device).map(p=>p.device))];
+      const missing=expected.filter(id=>!s.results.has(id));
+      if(missing.length)throw Error('Faltan '+missing.length+' registros de móviles. Comprueba la transferencia en Resultados.');
+      setup.completedRunId=run.id;
+      const attempt=plan.history?.find(h=>h.runId===run.id);
+      if(attempt)attempt.completed=true;
+      const next=plan.setups.findIndex(x=>!x.completedRunId);
+      if(next>=0)plan.selectedIndex=next;
+      renderSetups();
+      tell('Setup '+setup.index+' completado. Puedes preparar el siguiente ensayo.');
+    }
     return Object.freeze({
-      renderSetups,generateSetups,selectSetup,applySetup,markMeasured,
+      renderSetups,generateSetups,selectSetup,applySetup,markMeasured,confirmMeasured,
       syncReady,currentValid,currentSignature
     });
   }
