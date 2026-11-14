@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261114-post-test-anchor-v1">
+    <link rel="stylesheet" href="style.css?v=20261114-setups-v1">
 
     <!-- MapLibre -->
     <link
@@ -772,6 +772,7 @@
                     <button type="button" id="jointTabPlan" role="tab" aria-controls="jointPanelPlan" aria-selected="true" data-joint-tab="Plan" data-vwoma-icon="map">Plano</button>
                     <button type="button" id="jointTabDevices" role="tab" aria-label="Dispositivos" aria-controls="jointPanelDevices" aria-selected="false" data-joint-tab="Devices" data-vwoma-icon="phone"><span class="joint-tab-full">Dispositivos</span><span class="joint-tab-compact" aria-hidden="true">Móviles</span></button>
                     <button type="button" id="jointTabSync" role="tab" aria-label="Sincronizar" aria-controls="jointPanelSync" aria-selected="false" data-joint-tab="Sync" data-vwoma-icon="calibration"><span class="joint-tab-full">Sincronizar</span><span class="joint-tab-compact" aria-hidden="true">Sincro</span></button>
+                    <button type="button" id="jointTabSetups" role="tab" aria-controls="jointPanelSetups" aria-selected="false" data-joint-tab="Setups" data-vwoma-icon="layers">Setups</button>
                     <button type="button" id="jointTabMeasure" role="tab" aria-controls="jointPanelMeasure" aria-selected="false" data-joint-tab="Measure" data-vwoma-icon="activity">Medir</button>
                     <button type="button" id="jointTabResults" role="tab" aria-label="Resultados" aria-controls="jointPanelResults" aria-selected="false" data-joint-tab="Results" data-vwoma-icon="chart"><span class="joint-tab-full">Resultados</span><span class="joint-tab-compact" aria-hidden="true">Datos</span></button>
                     <button type="button" id="jointTabCompare" role="tab" aria-controls="jointPanelCompare" aria-selected="false" data-joint-tab="Compare" data-vwoma-icon="compare">Comparar</button>
@@ -858,6 +859,34 @@
   <button id="jointSyncGestureZ" type="button" class="joint-axis-z" disabled>Gesto Z</button>
 </div>
 <div id="jointSyncSummary" class="joint-sync-summary" aria-live="polite"></div></section>
+                </div>
+                <div id="jointPanelSetups" role="tabpanel" aria-labelledby="jointTabSetups" hidden>
+                    <div class="joint-section-head">
+                        <div>
+                            <h3>Planificación automática de setups</h3>
+                            <p>Tras la sincronización, el maestro permanece fijo y los participantes se distribuyen para cubrir la estructura.</p>
+                        </div>
+                    </div>
+                    <p id="jointSetupStatus" class="joint-help" aria-live="polite">Completa primero la sincronización de los móviles.</p>
+                    <div class="joint-setup-metrics">
+                        <div><span>Móviles conectados</span><strong id="jointSetupPhoneCount">0</strong></div>
+                        <div><span>Puntos de medida</span><strong id="jointSetupSensorCount">0</strong></div>
+                    </div>
+                    <div class="joint-setup-settings">
+                        <label>Sensor fijo del maestro
+                            <select id="jointSetupMaster" aria-label="Sensor de referencia fijo del maestro"></select>
+                        </label>
+                        <button id="jointGenerateSetups" type="button" class="vwoma-action" data-vwoma-icon="layers">Generar setups</button>
+                    </div>
+                    <p class="joint-help">La recomendación del maestro utiliza una aproximación geométrica a los primeros modos longitudinales y penaliza posiciones próximas a nodos y apoyos. No sustituye un análisis modal ni garantiza observar todos los modos.</p>
+                    <p id="jointSetupSummary" class="joint-help" aria-live="polite"></p>
+                    <div id="jointSetupPreview" class="joint-setup-preview" aria-label="Distribución espacial del setup seleccionado"></div>
+                    <div id="jointSetupList" class="joint-setup-list"></div>
+                    <div class="joint-actions joint-setup-actions">
+                        <button id="jointApplySetup" type="button" class="vwoma-action" data-vwoma-icon="check">Activar setup seleccionado</button>
+                        <button id="jointSetupToMeasure" type="button" class="joint-secondary" data-vwoma-icon="activity">Pasar a Medir</button>
+                    </div>
+                    <p class="joint-help">Los demás móviles quedan en espera si sobran participantes. Recoloca los sensores antes de activar la medida; las asignaciones se comunican a todos los móviles.</p>
                 </div>
                 <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
                     <div class="joint-measure-duration-card">
@@ -963,21 +992,22 @@
     <script defer src="src/signal/spectra.js?v=20261109-modular-spectra-v1"></script>
     <script defer src="app.js?v=20261114-post-test-anchor-v1"></script>
     <script defer src="src/joint/plan-controller.js?v=20261114-plan-steps-v5"></script>
+    <script defer src="src/joint/setup-planner.js?v=20261114-setups-v1"></script>
     <script defer src="src/joint/hotspot-ice.js?v=20261114-hotspot-autocandidate-v1"></script>
     <script defer src="src/joint/webrtc-transport.js?v=20261114-hotspot-autocandidate-v3"></script>
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
     <script defer src="src/joint/persistence.js?v=20261109-modular-persistence-v1"></script>
-    <script defer src="src/joint/acquisition.js?v=20261113-acquisition-solo-v3"></script>
+    <script defer src="src/joint/acquisition.js?v=20261114-setups-v1"></script>
     <script defer src="src/joint/calibration-math.js?v=20261112-calibration-math-v1"></script>
-    <script defer src="src/joint/calibration-controller.js?v=20261114-unified-flow-v2"></script>
+    <script defer src="src/joint/calibration-controller.js?v=20261114-setups-v1"></script>
     <script defer src="src/joint/exports.js?v=20261112-exports-v1"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
-    <script defer src="src/joint/tab-navigation.js?v=20261114-scroll-stable-v1"></script>
+    <script defer src="src/joint/tab-navigation.js?v=20261114-setups-v1"></script>
     <script defer src="src/joint/scroll-navigation.js?v=20261114-nav-shell-v1"></script>
-    <script defer src="src/joint/session-state.js?v=20261114-plan-steps-v5"></script>
-    <script defer src="src/joint/ui-events.js?v=20261114-scroll-stable-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261114-stop-scroll-jumps-v1"></script>
+    <script defer src="src/joint/session-state.js?v=20261114-setups-v1"></script>
+    <script defer src="src/joint/ui-events.js?v=20261114-setups-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261114-setups-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-nav-locales-v3"></script>
 
 
