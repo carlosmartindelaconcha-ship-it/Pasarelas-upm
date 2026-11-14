@@ -78,7 +78,9 @@
     return .45*closest+.37*(totalNear/all.length)+.18*(.65*spanX+.35*spanY);
   }
   function signature(plan,hostId,guestIds,syncId) {
-    const rows=plan.points.filter(sensor).map(p=>[p.id,p.x,p.y,p.axis,p.angle]).sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
+    const rows=plan.points.filter(p=>sensor(p)||p.kind==='support')
+      .map(p=>[p.kind||'sensor',p.id,p.x,p.y,p.axis,p.angle])
+      .sort((a,b)=>String(a[1]).localeCompare(String(b[1])));
     return JSON.stringify([plan.length,plan.width,rows,String(hostId),[...guestIds].sort(),String(syncId||'')]);
   }
   function generate(plan,hostId,guestIds,masterPointId=null) {
