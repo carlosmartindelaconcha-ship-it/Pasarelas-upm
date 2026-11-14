@@ -39,7 +39,7 @@
         const L=s.plan.length,W=s.plan.width;
         const base=candidate||{x:0,y:0,w:L,h:W};
         // Un único factor de zoom en X/Y: no deformar la pasarela.
-        const factor=Math.max(1/20,Math.min(1,Math.min(base.w/L,base.h/W)));
+        const factor=Math.max(1/200,Math.min(1,Math.min(base.w/L,base.h/W)));
         const w=L*factor,h=W*factor;
         return {x:Math.max(0,Math.min(L-w,base.x+(base.w-w)/2)),
                 y:Math.max(0,Math.min(W-h,base.y+(base.h-h)/2)),w,h};
@@ -58,9 +58,26 @@
         const power=10**Math.floor(Math.log10(Math.max(.000001,minimum))),scaled=minimum/power;
         return (scaled<=1?1:scaled<=2?2:scaled<=5?5:10)*power;
     }
-    function planGridStep(g) {return niceMetricStep(20/g.scale);}
+    function planGridStep(g) {
+        // Rejilla principal cada metro en planos normales. Si 1 m ocupa
+        // menos de 5 px se agrupa adaptativamente para no dibujar miles de líneas.
+        return Math.max(1,niceMetricStep(6/g.scale));
+    }
     function planLabelStep(g) {return niceMetricStep(60/g.scale);}
-    function snapPlanPosition(position) {return {x:Math.max(0,Math.min(s.plan.length,Math.round(position.x))),y:Math.max(0,Math.min(s.plan.width,Math.round(position.y)))};}
+    function snapPlanPosition(position) {
+        // Cuadrícula de 0,1 m: redondear SIN desplazar las esquinas 0 y L/W.
+        const snap=v=>Math.round(v*10)/10;
+        return {x:Math.max(0,Math.min(s.plan.length,snap(position.x))),
+                y:Math.max(0,Math.min(s.plan.width,snap(position.y)))};
+    }
+    function pointAtPlanEdge(position,tolerancePx=18) {
+        if(!position||!finite(position.x)||!finite(position.y))return null;
+        const g=geometry(),epsilon=tolerancePx/g.scale;
+        if(position.x< -epsilon||position.x>s.plan.length+epsilon||
+           position.y< -epsilon||position.y>s.plan.width+epsilon)return null;
+        return {x:Math.max(0,Math.min(s.plan.length,position.x)),
+                y:Math.max(0,Math.min(s.plan.width,position.y))};
+    }
     function resetPlanView() {s.planView=null;s.planPan=null;s.planPinch=null;renderPlan();}
     // Los móviles y sus nombres crecen suavemente con el zoom, sin superar el 150 %.
     // 1x: 100 %, 2x: 120 %, 4x: 140 %, 8x o superior: 150 %.
@@ -69,31 +86,46 @@
         const zoom=Math.max(1,s.plan.length/view.w);
         return zoom<=4?1+.2*Math.log2(zoom):Math.min(1.5,1.4+.1*Math.log2(zoom/4));
     }
-    // Conserva el anclaje compacto de la etiqueta en la esquina superior derecha
-    // del móvil. La separación y el espacio anticolisión crecen con el icono.
-    function pointLabelPlacement(x,y,pointId,placedLabels,markerScale=1) {
-        const labelX=x+13*markerScale,labelWidth=Math.max(36,String(pointId).length*15)*markerScale;
-        const preferredY=y-8*markerScale;
-        const spacing=34*markerScale;
-        const offsets=[0,1,-1,2,-2,3,-3,4,-4,5,-5,6,-6,7,-7,8,-8,9,-9];
-        const minBaseline=26*markerScale+3,maxBaseline=422-5*markerScale;
-        let best=null,bestOverlap=Infinity;
-        for(const step of offsets) {
-            const baseline=preferredY+step*spacing;
-            if(baseline<minBaseline||baseline>maxBaseline)continue;
-            const box={left:labelX,top:baseline-26*markerScale,right:labelX+labelWidth,bottom:baseline+5*markerScale};
-            if(box.right>792)continue;
-            const overlaps=placedLabels.reduce((sum,other)=>sum+
-                (box.left<other.right+4&&box.right+4>other.left&&box.top<other.bottom+4&&box.bottom+4>other.top?1:0),0);
-            if(!overlaps) {
-                placedLabels.push(box);
-                return {x:labelX,y:baseline,anchor:'start'};
+    // La etiqueta se sitúa preferentemente junto al punto, pero siempre
+    // dentro de la ventana del plano. En el borde derecho cambia de lado
+    // y en el superior/inferior se desplaza hacia el interior.
+    function pointLabelPlacement(x,y,pointId,placedLabels,markerScale=1,g=geometry()) {
+        const labelWidth=Math.max(32,String(pointId).length*15)*markerScale;
+        const margin=7;
+        const left=g.left+margin,right=g.left+g.w-margin;
+        const top=g.top+margin,bottom=g.top+g.h-margin;
+        const labelHeight=25*markerScale;
+        const baselineMin=top+labelHeight,baselineMax=bottom-4;
+        // Etiquetas hacia la derecha o izquierda del marcador.
+        const options=[{side:'right',x:x+13*markerScale,anchor:'start'},
+                       {side:'left',x:x-13*markerScale,anchor:'end'}];
+        let best=null,bestPenalty=Infinity;
+        const offsets=[0,-1,1,-2,2,-3,3,-4,4];
+        for(const option of options){
+            let lx=option.x;
+            // En un apoyo situado en esquina la etiqueta se mantiene visible.
+            lx=option.anchor==='start'?
+                Math.max(left,Math.min(right-labelWidth,lx)):
+                Math.max(left+labelWidth,Math.min(right,lx));
+            const l=option.anchor==='start'?lx:lx-labelWidth;
+            const rr=l+labelWidth;
+            for(const offset of offsets){
+                const ideal=y-8*markerScale+offset*29*markerScale;
+                const by=Math.max(baselineMin,Math.min(baselineMax,ideal));
+                const box={left:l,top:by-labelHeight,right:rr,bottom:by+4*markerScale};
+                const overlap=placedLabels.reduce((count,prev)=>
+                    count+(box.left<prev.right+4&&box.right+4>prev.left&&box.top<prev.bottom+4&&box.bottom+4>prev.top?1:0),0);
+                const anchorPenalty=option.side==='right'?0:3;
+                const sidePenalty=(option.side==='right'&&x+13*markerScale+labelWidth>right?22:0)+
+                                  (option.side==='left'&&x-13*markerScale-labelWidth<left?22:0);
+                const shiftPenalty=Math.abs(by-ideal)*.06+Math.abs(lx-option.x)*.08;
+                const penalty=overlap*150+anchorPenalty+sidePenalty+shiftPenalty;
+                if(penalty<bestPenalty){bestPenalty=penalty;best={x:lx,y:by,anchor:option.anchor,box};}
             }
-            if(overlaps<bestOverlap) {bestOverlap=overlaps;best={box,baseline};}
         }
-        const baseline=best?best.baseline:Math.max(minBaseline,Math.min(maxBaseline,preferredY));
-        placedLabels.push(best?.box||{left:labelX,top:baseline-26*markerScale,right:labelX+labelWidth,bottom:baseline+5*markerScale});
-        return {x:labelX,y:baseline,anchor:'start'};
+        if(!best)return{x:Math.min(right,Math.max(left,x)),y:Math.min(bottom,Math.max(top,y)),anchor:'middle'};
+        placedLabels.push(best.box);
+        return{x:best.x,y:best.y,anchor:best.anchor};
     }
     const POINT_TYPES=Object.freeze({sensor:'Sensores',support:'Apoyos',interpolation:'Interpolación',all:'Todos'});
     const pointKind=p=>p.kind||'sensor';
@@ -147,18 +179,46 @@
         const minX=Math.max(0,(g.left-g.originX)/g.scale),maxX=Math.min(s.plan.length,(g.left+g.w-g.originX)/g.scale);
         const minY=Math.max(0,(g.originY-g.top-g.h)/g.scale),maxY=Math.min(s.plan.width,(g.originY-g.top)/g.scale);
         const xTicks=[],yTicks=[];
+        // Rejilla decimétrica fina, a trazos, solo cuando la separación
+        // de 0,1 m alcanza 6 px y resulta legible.
+        const showDecimals=g.scale*.1>=6;
+        if(showDecimals){
+            const decimalStep=.1;
+            const lineLimit=1600;
+            const nx=Math.ceil((maxX-minX)/decimalStep),ny=Math.ceil((maxY-minY)/decimalStep);
+            if(nx+ny<lineLimit){
+                for(let i=Math.ceil(minX/decimalStep-1e-7);i<=Math.floor(maxX/decimalStep+1e-7);i++){
+                    if(i%10===0)continue;
+                    const x=i*decimalStep,sx=g.originX+x*g.scale;
+                    svg+=`<line x1="${sx}" y1="${deckY}" x2="${sx}" y2="${deckY+deckH}" stroke="#aebfce" stroke-width=".7" stroke-dasharray="2 3" opacity=".65"/>`;
+                }
+                for(let i=Math.ceil(minY/decimalStep-1e-7);i<=Math.floor(maxY/decimalStep+1e-7);i++){
+                    if(i%10===0)continue;
+                    const y=i*decimalStep,sy=g.originY-y*g.scale;
+                    svg+=`<line x1="${deckX}" y1="${sy}" x2="${deckX+deckW}" y2="${sy}" stroke="#aebfce" stroke-width=".7" stroke-dasharray="2 3" opacity=".65"/>`;
+                }
+            }
+        }
+        // La retícula principal es métrica y de trazo más fuerte; sus cifras
+        // se etiquetan con un paso independiente para evitar solapamientos.
+        const makeTick=(v,step)=>Math.abs(v/step-Math.round(v/step))<1e-6;
         for(let i=Math.ceil(minX/gridStep-1e-7);i<=Math.floor(maxX/gridStep+1e-7);i++){
             const x=Number((i*gridStep).toFixed(6)),sx=g.originX+x*g.scale;
-            svg+=`<line x1="${sx}" y1="${deckY}" x2="${sx}" y2="${deckY+deckH}" stroke="#bdcfdd" stroke-width="1"/>`;
-            if(Math.abs(x/labelStep-Math.round(x/labelStep))<1e-6)xTicks.push({value:x,pixel:sx});
+            svg+=`<line x1="${sx}" y1="${deckY}" x2="${sx}" y2="${deckY+deckH}" stroke="#90a9bf" stroke-width="1.4"/>`;
         }
         for(let i=Math.ceil(minY/gridStep-1e-7);i<=Math.floor(maxY/gridStep+1e-7);i++){
             const y=Number((i*gridStep).toFixed(6)),sy=g.originY-y*g.scale;
-            svg+=`<line x1="${deckX}" y1="${sy}" x2="${deckX+deckW}" y2="${sy}" stroke="#bdcfdd" stroke-width="1"/>`;
-            if(Math.abs(y/labelStep-Math.round(y/labelStep))<1e-6)yTicks.push({value:y,pixel:sy});
+            svg+=`<line x1="${deckX}" y1="${sy}" x2="${deckX+deckW}" y2="${sy}" stroke="#90a9bf" stroke-width="1.4"/>`;
+        }
+        for(let i=Math.ceil(minX/labelStep-1e-7);i<=Math.floor(maxX/labelStep+1e-7);i++){
+            const x=Number((i*labelStep).toFixed(3));
+            xTicks.push({value:x,pixel:g.originX+x*g.scale});
+        }
+        for(let i=Math.ceil(minY/labelStep-1e-7);i<=Math.floor(maxY/labelStep+1e-7);i++){
+            const y=Number((i*labelStep).toFixed(3));
+            yTicks.push({value:y,pixel:g.originY-y*g.scale});
         }
         svg+='</g>';
-        // Las marcas de los ejes se anclan al marco, no al tablero.
         for(const tick of xTicks)svg+=`<line x1="${tick.pixel}" y1="${g.top+g.h}" x2="${tick.pixel}" y2="${g.top+g.h+6}" stroke="#698ba6"/><text class="joint-plan-tick" x="${tick.pixel}" y="${g.top+g.h+25}" text-anchor="middle">${tick.value}</text>`;
         for(const tick of yTicks)svg+=`<line x1="${g.left-6}" y1="${tick.pixel}" x2="${g.left}" y2="${tick.pixel}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${tick.pixel+7}" text-anchor="end">${tick.value}</text>`;
         svg+=`<text class="joint-plan-axis" x="${g.left+g.w/2}" y="${g.top+g.h+62}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
@@ -170,7 +230,7 @@
             if(x<g.left-1e-7||x>g.left+g.w+1e-7||y<g.top-1e-7||y>g.top+g.h+1e-7)continue;
             const kind=pointKind(p);
             const phoneColor=p.device===s.id?'#467c9f':p.device?'#548d85':'#7f8fa1';
-            const label=pointLabelPlacement(x,y,p.id,placedLabels,markerScale);
+            const label=pointLabelPlacement(x,y,p.id,placedLabels,markerScale,g);
             const description=kind==='sensor'?(p.device?deviceName(p.device):'Sensor sin asignar'):
                 kind==='support'?'Apoyo · φ = 0':'Punto de interpolación';
             // Los tres símbolos comparten centro geométrico y hitbox; el teléfono
@@ -310,7 +370,7 @@
     }
 
         return Object.freeze({
-            checkPlan, savePlan, pointFor, deviceName, deviceCode, setPlanFilter, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, renderPlan, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint
+            checkPlan, savePlan, pointFor, deviceName, deviceCode, setPlanFilter, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, pointAtPlanEdge, renderPlan, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint
         });
     }
     const api = Object.freeze({ createController });
