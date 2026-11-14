@@ -1445,34 +1445,46 @@ body.recording-lock main {
 .joint-options article { border: 1px solid #d4e0ea; border-radius: 10px; padding: 20px; }
 .joint-options button { width: 100%; }
 .joint-badge { display: inline-block; background: #e2f2ef; color: #11695e; border-radius: 12px; padding: 5px 10px; font-size: .8rem; font-weight: 700; }
-/* La navegación sticky necesita una banda BLANCA entre ella y el borde
-   superior del viewport. En iOS el espacio puede crecer con las barras del
-   navegador: se ajusta desde tab-navigation.js sin interceptar pulsaciones. */
-#jointTabsTopMask {
-    position:fixed;
+/* Cabecera única y opaca. La franja superior forma parte del elemento
+   sticky: al desplazar la página NO existe ninguna capa fija que pueda tapar
+   formularios o crear una mancha blanca a medio recorrido. */
+.joint-navigation-shell {
+    position:sticky;
     top:0;
-    left:0;
-    right:0;
-    width:100%;
-    height:0;
-    box-sizing:border-box;
-    background:#fff !important;
-    opacity:1;
-    visibility:hidden;
-    pointer-events:none;
-    z-index:9998;
-}
-#jointTabsTopSentinel {
+    z-index:40;
     display:block;
-    position:relative;
-    height:0;
-    margin:0;
-    padding:0;
-    border:0;
-    pointer-events:none;
+    box-sizing:border-box;
+    width:100%;
+    background:#fff;
+    isolation:isolate;
 }
-body.joint-measure-fixed #jointTabsTopMask {display:none !important;}
-.joint-tabs { display:flex; gap:6px; overflow-x:auto; padding:12px 0; position:sticky; top:0; z-index:9999; background:#fff; border-bottom:1px solid #dce7ef; -webkit-overflow-scrolling:touch; scrollbar-width:none; overscroll-behavior-x:contain; scroll-padding:0 10px; }
+.joint-navigation-safe {
+    height:0;
+    pointer-events:none;
+    background:#fff;
+}
+/* iOS muestra la hora y la barra de estado por encima del contenido web.
+   Se reserva espacio blanco DENTRO de la cabecera, no sobre el viewport. */
+@supports (-webkit-touch-callout: none) {
+    @media (max-width:600px) {
+        .joint-navigation-safe {height:max(44px,env(safe-area-inset-top,0px));}
+    }
+}
+.joint-tabs {
+    display:flex;
+    gap:6px;
+    overflow-x:auto;
+    padding:12px 0;
+    position:relative;
+    top:auto;
+    z-index:auto;
+    background:#fff;
+    border-bottom:1px solid #dce7ef;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    overscroll-behavior-x:contain;
+    scroll-padding:0 10px;
+}
 .joint-tabs::-webkit-scrollbar { display:none; }
 .joint-tabs button { flex:0 0 auto; white-space:nowrap; background:#edf3f9; color:#445e7b; }
 .joint-tabs button[aria-selected="true"] { background: var(--vwoma-blue); color: white; }
@@ -1731,6 +1743,17 @@ body.joint-measure-fixed #jointApp {
 body.joint-measure-fixed #jointApp > .joint-heading,
 body.joint-measure-fixed #jointApp > #jointNotice,
 body.joint-measure-fixed #jointWorkspace > .joint-toolbar {display:none !important;}
+/* En Medir, el margen seguro ya lo gestiona #jointApp y la cabecera
+   está dentro de un instrumento fijo de altura 100dvh. */
+body.joint-measure-fixed #jointNavShell {
+    position:relative;
+    top:auto;
+    z-index:auto;
+    flex:0 0 auto;
+    width:100%;
+    min-width:0;
+}
+body.joint-measure-fixed .joint-navigation-safe {display:none;}
 body.joint-measure-fixed #jointWorkspace {
     display:flex !important;
     flex:1 1 auto;
