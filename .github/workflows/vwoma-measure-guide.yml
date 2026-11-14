@@ -1,0 +1,26 @@
+name: VWOMA Medir preview verification
+
+on:
+  push:
+    branches:
+      - "refactor/vwoma-measure-guide-20261114"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: JavaScript syntax check
+        run: |
+          find pruebas/src pruebas/tests -type f \( -name '*.js' -o -name '*.cjs' \) -print0 | xargs -0 -n1 node --check
+          node --check pruebas/app.js
+          node --check pruebas/vwoma-i18n.js
+      - name: VWOMA preview regression tests
+        run: cd pruebas && node --test tests/*.test.cjs

@@ -6,7 +6,7 @@
     'use strict';
     function bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
-        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, selectSetup, applySetup,
+        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, selectSetup, applySetup, confirmMeasured, renderMeasureGuide,
         createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
@@ -247,7 +247,7 @@
         const button=event.target.closest('[data-setup-select]');
         if(button)selectSetup(Number(button.dataset.setupSelect));
     }));
-    $('jointApplySetup').onclick=guard(()=>applySetup());
+    $('jointApplySetup').onclick=guard(()=>{applySetup();renderMeasureGuide();});
     $('jointSetupToMeasure').onclick=guard(()=>{
         if(s.setupPlan?.activeIndex!==s.setupPlan?.selectedIndex)
             throw Error('Activa el setup seleccionado antes de medir.');
@@ -269,21 +269,41 @@
         if(file.size>100000000)throw Error('El ensayo JSON es demasiado grande para abrirlo en el navegador.');
         s.compareExport=validComparisonExport(JSON.parse(await file.text()));e.target.value='';renderComparison();tell('Ensayo conjunto cargado para comparación.');
     });
-    $('jointNewRun').onclick=guard(()=>{
-        if(running()||s.transfer||s.run?.finishing)throw Error('El registro todavía se está cerrando. Espera unos segundos.');
+    // Medir y Resultados comparten la misma transición de ensayo. Se guardan
+    // los datos locales y el historial; nunca se borran las confirmaciones.
+    function prepareAnotherRun(mode='next') {
+        if(running()||s.transaction||s.transfer||s.run?.finishing)
+            throw Error('El registro todavía se está cerrando. Espera a que termine la transferencia.');
         if(s.run&&!confirm('Descarga antes los resultados. ¿Preparar un nuevo ensayo? El registro local seguirá guardado en este navegador.'))return;
+        const previousIndex=s.setupPlan?.activeIndex;
         s.run=null;s.results.clear();
         $('jointProgress').value=0;
         $('jointMeasureState').textContent='Preparando dispositivos';
         $('jointRunTime').textContent='00:00.0';
         $('jointDurationLabel').textContent='Duración';
         if(s.role==='host'&&s.setupPlan){
-            // Los resultados quedan guardados; la referencia no cambia.
-            // Hay que activar explícitamente el siguiente setup tras recolocar.
-            s.setupPlan.activeIndex=null;
-            renderPlan();renderDevices();renderSetups();tab('Setups');
+            if(mode==='repeat'&&Number.isInteger(previousIndex)){
+                // Conserva las mismas asignaciones para una repetición.
+                s.setupPlan.activeIndex=previousIndex;
+                s.setupPlan.selectedIndex=previousIndex;
+                renderPlan();renderDevices();renderSetups();
+                tab(currentValid()?'Measure':'Setups');
+            }else{
+                // Un nuevo setup requiere colocación y activación explícitas.
+                s.setupPlan.activeIndex=null;
+                renderPlan();renderDevices();renderSetups();tab('Setups');
+            }
         }else{renderPlan();renderDevices();tab('Devices');}
+        renderMeasureGuide();
+    }
+    $('jointNewRun').onclick=guard(()=>prepareAnotherRun('next'));
+    $('jointMeasureGoSetups').onclick=guard(()=>{tab('Setups');renderSetups();});
+    $('jointMeasureComplete').onclick=guard(()=>{
+        confirmMeasured();
+        renderMeasureGuide();
     });
+    $('jointMeasureNext').onclick=guard(()=>prepareAnotherRun('next'));
+    $('jointMeasureRepeat').onclick=guard(()=>prepareAnotherRun('repeat'));
     const blockMeasurementTouch=event=>{
         if(!running())return;
         // Bloquear desplazamientos durante el registro, pero NO las pulsaciones

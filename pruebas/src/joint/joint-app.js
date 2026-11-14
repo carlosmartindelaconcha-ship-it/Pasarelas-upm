@@ -42,7 +42,7 @@
     const {tab}=globalThis.VWOMATabNavigation.createNavigation({
         $,window,raf:typeof requestAnimationFrame==='function'?requestAnimationFrame:null,
         renderComparison:()=>renderComparison(),
-        onMeasureVisible:()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();},
+        onMeasureVisible:()=>{s.jointCharts.time?.resize();s.jointCharts.spectrum?.resize();renderMeasureGuide();},
         isRecording:()=>!!running()||!!s.transaction||document.body?.classList?.contains('recording-lock')||false,
         onChange:(name)=>{
             const measure=name==='Measure';
@@ -86,9 +86,12 @@
     });
     // Planificación espacial desacoplada de los gestos del plano, WebRTC,
     // las gráficas y la adquisición. La sincronización se conserva entre setups.
-    const {renderSetups,generateSetups,selectSetup,applySetup,markMeasured,
+    const {renderSetups,generateSetups,selectSetup,applySetup,markMeasured,confirmMeasured,
            syncReady,currentValid} = globalThis.VWOMASetupPlanner.createController({
         s,$,escape,requireHostEdit,running,savePlan,tell,tab,renderDevices
+    });
+    const {renderMeasureGuide} = globalThis.VWOMAMeasureGuide.createController({
+        s,$,escape,currentValid
     });
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
     function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}
@@ -160,6 +163,7 @@
         $('jointPair').disabled=!!running()||!!s.transaction;
         if(!$('jointPanelSync').hidden)renderSyncCalibration();
         if(!$('jointPanelSetups').hidden)renderSetups();
+        if(!$('jointPanelMeasure').hidden && !measuring)renderMeasureGuide();
     }
 
     /* WebRTC transport and QR signaling are separate from acquisition and clocks.
@@ -658,7 +662,7 @@
     }
     globalThis.VWOMAUIEvents.bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
-        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, selectSetup, applySetup,
+        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, selectSetup, applySetup, confirmMeasured, renderMeasureGuide,
         createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
