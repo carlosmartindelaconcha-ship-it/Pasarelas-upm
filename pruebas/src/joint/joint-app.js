@@ -9,6 +9,9 @@
     const $ = id => document.getElementById(id);
     const root = $('jointApp');
     if (!root) return;
+    // Keep Android-specific overscroll handling away from Safari/iPhone.
+    if (typeof navigator!=='undefined' && /Android/i.test(navigator.userAgent||''))
+        document.documentElement?.classList?.add('vwoma-android');
     const VERSION = 4;
     // Only these app-owned endpoints are used; invitation codes cannot inject servers.
     const STUN_SERVERS = [{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}];
@@ -89,6 +92,42 @@
     });
     function localStatus() {return {id:s.id,name:s.name,sensor:s.sensor && now()-s.lastSample<2000,rate:sampleRate(),visible:document.visibilityState==='visible',point:pointFor()?.id||null,state:s.run?.state||'idle',calibrated:s.calibration.complete};}
     function sampleRate() {const a=s.rateTimes; return a.length>2?(a.length-1)*1000/(a[a.length-1]-a[0]):0;}
+    // Keep the actual article/text DOM nodes during live status refreshes.
+    // Replacing jointDevices.innerHTML every second discards Chrome Android's
+    // scroll anchor mid-fling, causing the observed jump to the beginning.
+    function patchDeviceMarkup(container,markup) {
+        if(container.innerHTML===markup)return;
+        const template=document.createElement('template');
+        template.innerHTML=markup;
+        const patch=(parent,next)=>{
+            let current=parent.firstChild;
+            for(let wanted=next.firstChild;wanted;wanted=wanted.nextSibling){
+                if(!current){parent.appendChild(wanted.cloneNode(true));continue;}
+                if(current.nodeType!==wanted.nodeType||current.nodeName!==wanted.nodeName){
+                    const following=current.nextSibling;
+                    parent.replaceChild(wanted.cloneNode(true),current);
+                    current=following;
+                    continue;
+                }
+                if(current.nodeType===3){
+                    if(current.nodeValue!==wanted.nodeValue)current.nodeValue=wanted.nodeValue;
+                }else if(current.nodeType===1){
+                    for(const attr of [...current.attributes])
+                        if(!wanted.hasAttribute(attr.name))current.removeAttribute(attr.name);
+                    for(const attr of [...wanted.attributes])
+                        if(current.getAttribute(attr.name)!==attr.value)current.setAttribute(attr.name,attr.value);
+                    patch(current,wanted);
+                }
+                current=current.nextSibling;
+            }
+            while(current){
+                const following=current.nextSibling;
+                parent.removeChild(current);
+                current=following;
+            }
+        };
+        patch(container,template.content);
+    }
     function renderDevices() {
         const local=localStatus();
         let html=`<article class="joint-device-card"><strong>${escape(s.name)} · ${s.role==='host'?'Maestro':'Este móvil'}</strong><p>${local.sensor?'Sensor activo':'Sensor sin datos recientes'} · ${local.rate?local.rate.toFixed(1)+' Hz':'— Hz'} · ${escape(pointFor()?.name||'Sin punto asignado')}</p><small>${local.calibrated?'Ejes calibrados':'Calibración de ejes pendiente'} · ${local.visible?'Página visible':'Página oculta'}</small></article>`;
@@ -97,7 +136,7 @@
             html+=`<article class="joint-device-card"><strong>${escape(p.name||'Conectando…')}</strong><p>${p.channel?.readyState==='open'?'Conectado':'Desconectado'} · ${st.sensor?'Sensor activo':'Sensor sin confirmar'} · ${finite(st.rate)?st.rate.toFixed(1)+' Hz':'— Hz'}</p><p>${escape(pointFor(p.id)?.name||'Sin punto asignado')} · ${escape(p.route||'Ruta pendiente de comprobar')}</p><small>${st.calibrated?'Ejes calibrados':'Calibración pendiente'} · ${m?.count?'RTT mínimo: '+m.rtt.toFixed(2)+' ms · desfase estimado: '+m.offset.toFixed(2)+' ms · '+m.count+' intercambios':'Relojes pendientes de estimación'}</small></article>`;
         }
         if(s.role==='guest'&&s.syncModel.count) html+=`<p class="joint-help">Mi reloj respecto al maestro: ${s.syncModel.offset.toFixed(2)} ms (estimado). RTT mínimo: ${s.syncModel.rtt.toFixed(2)} ms.</p>`;
-        $('jointDevices').innerHTML=html;
+        patchDeviceMarkup($('jointDevices'),html);
         const hasParticipants=[...s.peers.values()].some(p=>p.channel?.readyState==='open');
         const measuring=!!running()||!!s.transaction;
         // Only one primary control is displayed; the tabs remain visible
@@ -119,7 +158,7 @@
         $('jointEnableSensor').disabled=s.sensorEnabled;
         $('jointStop').disabled=!measuring;
         $('jointPair').disabled=!!running()||!!s.transaction;
-        renderSyncCalibration();
+        if(!$('jointPanelSync').hidden)renderSyncCalibration();
         if(!$('jointPanelSetups').hidden)renderSetups();
     }
 
@@ -530,7 +569,9 @@
                 tell('Ventana del gesto enviada al maestro. Procesando correlaciones…');
             }
         }
-        renderSyncCalibration();
+        // Only the visible calibration panel needs its 250 ms DOM refresh.
+        // A hidden panel must never steal time from a native Android fling.
+        if(!$('jointPanelSync').hidden)renderSyncCalibration();
         if(s.transaction?.phase==='ready'){
             $('jointMeasureState').textContent='Confirmando dispositivos…';
             if(!r){

@@ -1486,6 +1486,13 @@ body.recording-lock main {
     background:#fff;
     pointer-events:none;
 }
+/* Chrome Android: keep native vertical scrolling but prevent the browser from
+   handling a fast overscroll at the bottom/top as a page-level navigation or
+   pull-to-refresh. No scroll locking, no touch interception. */
+html.vwoma-android.joint-workspace-active,
+html.vwoma-android.joint-workspace-active body.joint-workspace-active {
+    overscroll-behavior-y: contain;
+}
 /* Mantener el anclaje nativo de Chrome/Android durante el scroll.
    Los paneles de trabajo pueden actualizar mensajes y datos cada segundo:
    desactivar overflow-anchor en todos los ancestros desplaza el contenido
