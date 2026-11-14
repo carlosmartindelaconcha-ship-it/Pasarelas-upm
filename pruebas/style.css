@@ -2256,6 +2256,17 @@ main button:not(:where(
     color: #fff;
 }
 
+/* Desplazamiento natural tras terminar un ensayo.
+   Hammer.js (chartjs-plugin-zoom) deshabilita la acción táctil nativa
+   del canvas cuando se activa el pan. Priorizar el desplazamiento vertical
+   del documento y conservar el pan horizontal y el zoom con dos dedos. */
+#testForm:not(.measurement-active) .chart-canvas-wrap canvas {
+    touch-action:pan-y !important;
+    -ms-touch-action:pan-y;
+}
+#testForm.showing-results {
+    overflow-anchor:none;
+}
 #testForm:not(.measurement-active) #recordButton {display:block;width:100%;min-height:54px;margin:0 0 18px;}
 
 /* Calibración guiada: una sola animación por gesto, reposo permanente al terminar. */
