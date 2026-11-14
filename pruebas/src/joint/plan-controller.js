@@ -25,6 +25,7 @@
     }
     function savePlan(render=true) {
         s.plan=checkPlan(s.plan);
+        s.interpolationSuggestions=[];
         try {localStorage.setItem(storageKey,JSON.stringify({...s.plan,points:s.plan.points.map(p=>({...p,device:null}))}));} catch(e){tell('Plano en memoria. No se ha podido guardar en este navegador.',true);}
         broadcast({type:'PLAN',plan:s.plan}); if(render)renderPlan();
     }
@@ -127,14 +128,76 @@
         placedLabels.push(best.box);
         return{x:best.x,y:best.y,anchor:best.anchor};
     }
-    const POINT_TYPES=Object.freeze({sensor:'Sensores',support:'Apoyos',interpolation:'Interpolación',all:'Todos'});
+    const POINT_TYPES=Object.freeze({support:'Apoyos',sensor:'Sensores',interpolation:'Interpolación'});
     const pointKind=p=>p.kind||'sensor';
-    const planFilter=()=>POINT_TYPES[s.planFilter]?s.planFilter:'sensor';
-    const filteredPoints=()=>s.plan.points.filter(p=>planFilter()==='all'||pointKind(p)===planFilter());
+    const planFilter=()=>POINT_TYPES[s.planFilter]?s.planFilter:'support';
+    const filteredPoints=()=>s.plan.points.filter(p=>pointKind(p)===planFilter());
+    // Proponer coordenadas, no amplitudes modales: subdividir primero los
+    // mayores huecos espaciales entre apoyos y sensores (más puntos ya dados).
+    // Se usan las coordenadas de todos los puntos para evitar duplicados.
+    function calculateInterpolationCandidates(){
+        const anchors=s.plan.points.filter(p=>pointKind(p)!=='interpolation')
+            .map(p=>({x:p.x,y:p.y}))
+            .sort((a,b)=>a.x-b.x||a.y-b.y);
+        const capacity=Math.min(10,MAX_POINTS-s.plan.points.length);
+        if(anchors.length<2||capacity<=0)return [];
+        // En un vano convencional los puntos suelen compartir alineación Y.
+        // Para un trazado oblicuo se usa interpolación lineal de Y entre anclas.
+        const ordered=s.plan.points.map(p=>({x:p.x,y:p.y})).sort((a,b)=>a.x-b.x||a.y-b.y);
+        const segments=[];
+        for(let i=1;i<ordered.length;i++){
+            const a=ordered[i-1],b=ordered[i];
+            if(b.x-a.x>=.25)segments.push({a,b});
+        }
+        const proposed=[],target=Math.max(.25,s.plan.length/9);
+        const exists=p=>[...s.plan.points,...proposed].some(q=>Math.hypot(q.x-p.x,q.y-p.y)<.16);
+        for(let i=0;i<capacity;i++){
+            segments.sort((u,v)=>(v.b.x-v.a.x)-(u.b.x-u.a.x));
+            const seg=segments.shift();
+            if(!seg||seg.b.x-seg.a.x<=target)break;
+            const p=snapPlanPosition({x:(seg.a.x+seg.b.x)/2,y:(seg.a.y+seg.b.y)/2});
+            if(!exists(p)&&p.x>0&&p.x<s.plan.length)proposed.push(p);
+            const dx1=p.x-seg.a.x,dx2=seg.b.x-p.x;
+            if(dx1>=.25)segments.push({a:seg.a,b:p});
+            if(dx2>=.25)segments.push({a:p,b:seg.b});
+        }
+        return proposed;
+    }
+    function proposeInterpolation(){
+        requireHostEdit();
+        s.interpolationSuggestions=calculateInterpolationCandidates();
+        renderPlan();
+        if(!s.interpolationSuggestions.length){
+            tell('No hay nuevos puntos que proponer. Revisa los apoyos y sensores o amplía su separación.');
+        }
+    }
+    function discardInterpolation(){
+        s.interpolationSuggestions=[];
+        renderPlan();
+    }
+    function acceptInterpolation(){
+        requireHostEdit();
+        const candidates=s.interpolationSuggestions||[];
+        if(!candidates.length)return;
+        const reserved=new Set(s.plan.points.map(p=>p.id));
+        let last=null;
+        for(const position of candidates){
+            if(s.plan.points.length>=MAX_POINTS)break;
+            let n=1;while(reserved.has('I'+n))n++;
+            const id='I'+n;reserved.add(id);
+            s.plan.points.push({id,name:id,x:position.x,y:position.y,kind:'interpolation',
+                axis:'z',angle:0,modalCoordinate:null,device:null});
+            last=id;
+        }
+        s.interpolationSuggestions=[];
+        if(last)s.selected=last;
+        savePlan();
+    }
     function setPlanFilter(filter) {
         if(!POINT_TYPES[filter])throw Error('Vista de puntos desconocida.');
         if(planFilter()===filter)return;
         s.planFilter=filter;
+        s.interpolationSuggestions=filter==='interpolation'?calculateInterpolationCandidates():[];
         const visible=filteredPoints();
         if(!visible.some(p=>p.id===s.selected))s.selected=visible[0]?.id||null;
         s.lastPlanTap=null;
@@ -152,20 +215,29 @@
             const selected=button.dataset.pointFilter===filter;
             if(button.getAttribute('aria-pressed')!==String(selected))button.setAttribute('aria-pressed',String(selected));
         }
-        const headings={sensor:['Sensores','Edita las coordenadas y asigna un móvil a cada sensor.'],
-            support:['Apoyos','Condición de contorno: coordenada modal φ = 0.'],
-            interpolation:['Interpolación','Puntos donde se evaluará la forma modal interpolada.'],
-            all:['Todos los puntos','Vista conjunta. Edita cada punto en su categoría.']};
+        const headings={support:['Apoyos','Paso 1 de 3 · Sitúa los apoyos (φ = 0).'],
+            sensor:['Sensores','Paso 2 de 3 · Edita las coordenadas y asigna los móviles.'],
+            interpolation:['Interpolación','Paso 3 de 3 · Define las posiciones donde evaluar el modo.']};
         const title=$('jointPointsTitle'),help=$('jointPointTableHelp'),heading=$('jointPointTableFunction');
         const titleText=headings[filter][0],helpText=headings[filter][1]+' Desliza una fila a la izquierda para eliminar.';
-        const headingText=filter==='sensor'?'Móvil':filter==='support'?'Condición':filter==='interpolation'?'Estado':'Función';
+        const headingText=filter==='sensor'?'Móvil':filter==='support'?'Condición':'Estado';
         if(title.textContent!==titleText)title.textContent=titleText;
         if(help.textContent!==helpText)help.textContent=helpText;
         if(heading.textContent!==headingText)heading.textContent=headingText;
-        const addKind=filter==='all'?'sensor':filter;
+        const addKind=filter;
         const addButton=$('jointAddPointInline'),addLabel='Añadir '+({sensor:'sensor',support:'apoyo',interpolation:'interpolación'}[addKind]);
         if(addButton.textContent!==addLabel)addButton.textContent=addLabel;
-        if(addButton.hidden!==(filter==='all'))addButton.hidden=filter==='all';
+        if(addButton.hidden)addButton.hidden=false;
+        const proposal=$('jointInterpolationProposal'),isInterpolation=filter==='interpolation';
+        if(proposal.hidden===isInterpolation)proposal.hidden=!isInterpolation;
+        const suggestions=s.interpolationSuggestions||[];
+        $('jointSuggestInterpolation').disabled=!edit;
+        $('jointAcceptInterpolation').hidden=!edit||suggestions.length===0;
+        $('jointDiscardInterpolation').hidden=!edit||suggestions.length===0;
+        const proposalText=suggestions.length?
+            suggestions.length+' ubicaciones propuestas (círculos discontinuos). Revisa el plano antes de añadirlas.':
+            'Se sugerirán posiciones en los mayores huecos entre apoyos y sensores. Necesitas al menos dos puntos de referencia.';
+        const message=$('jointProposalMessage');if(message.textContent!==proposalText)message.textContent=proposalText;
         const view=planViewport(),g=geometry(view),gridStep=planGridStep(g),labelStep=planLabelStep(g);
         const deckX=g.originX,deckY=g.originY-s.plan.width*g.scale;
         const deckW=s.plan.length*g.scale,deckH=s.plan.width*g.scale;
@@ -258,11 +330,20 @@
                 <text class="joint-point-label" x="${label.x}" y="${label.y}" text-anchor="${label.anchor}" style="font-size:${24*markerScale}px">${escape(p.id)}</text>
             </g>`;
         }
+        if(filter==='interpolation'&&(s.interpolationSuggestions||[]).length){
+            for(const p of s.interpolationSuggestions){
+                const sx=g.originX+p.x*g.scale,sy=g.originY-p.y*g.scale;
+                if(sx<g.left||sx>g.left+g.w||sy<g.top||sy>g.top+g.h)continue;
+                svg+=`<g class="joint-interpolation-proposed" aria-hidden="true" pointer-events="none">
+                    <circle cx="${sx}" cy="${sy}" r="${11*markerScale}" fill="rgba(123,88,183,.12)" stroke="#7b58b7" stroke-width="2.5" stroke-dasharray="4 3"/>
+                    <path d="M ${sx-4} ${sy} H ${sx+4} M ${sx} ${sy-4} V ${sy+4}" stroke="#7b58b7" stroke-width="1.5"/>
+                </g>`;
+            }
+        }
         $('jointPlan').innerHTML=svg;
         $('jointPlanHelp').textContent=s.role==='host'?
-            (filter==='all'?'Vista conjunta de todos los puntos. Elige una categoría para añadir puntos.':
-             'Doble toque en el tablero para añadir '+({sensor:'un sensor',support:'un apoyo',interpolation:'un punto de interpolación'}[filter])+'.')+
-             ' Arrastra puntos o el plano; pellizca para ampliar. El filtro no borra los demás puntos.':
+            'Doble toque en el tablero para añadir '+({support:'un apoyo',sensor:'un sensor',interpolation:'un punto de interpolación'}[filter])+'.'+
+             ' Los bordes se pueden seleccionar con un pequeño margen. Arrastra y pellizca para ampliar hasta 200×. Rejilla métrica; decímetros al ampliar.':
             'El maestro edita el plano. Selecciona un tipo para consultar los puntos y su posición.';
         const devices=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
@@ -306,16 +387,19 @@
         return {x,y};
     }
     function addPoint(x,y) {
-        requireHostEdit();if(planFilter()==='all')throw Error('Selecciona Sensores, Apoyos o Interpolación para añadir un punto.');
+        requireHostEdit();
         if(s.plan.points.length>=MAX_POINTS)throw Error('Máximo 64 puntos por plano.');
-        const kind=planFilter()==='all'?'sensor':planFilter();
+        const kind=planFilter();
         const prefix={sensor:'S',support:'A',interpolation:'I'}[kind];
         let n=1;while(s.plan.points.some(p=>p.id===prefix+n))n++;
         let position;
         if(x===undefined&&y===undefined){
             if(kind==='support'){
                 const supports=s.plan.points.filter(p=>pointKind(p)==='support').length;
-                position={x:supports%2?s.plan.length:0,y:Number((s.plan.width/2).toFixed(3))};
+                const anchors=[{x:0,y:0},{x:s.plan.length,y:0},
+                    {x:0,y:s.plan.width},{x:s.plan.length,y:s.plan.width},
+                    {x:s.plan.length/2,y:0},{x:s.plan.length/2,y:s.plan.width}];
+                position=anchors[supports%anchors.length];
             }else{
                 let i=1;
                 position=suggestedPointPosition(i);
@@ -370,7 +454,7 @@
     }
 
         return Object.freeze({
-            checkPlan, savePlan, pointFor, deviceName, deviceCode, setPlanFilter, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, pointAtPlanEdge, renderPlan, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint
+            checkPlan, savePlan, pointFor, deviceName, deviceCode, setPlanFilter, proposeInterpolation, acceptInterpolation, discardInterpolation, calculateInterpolationCandidates, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, pointAtPlanEdge, renderPlan, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint
         });
     }
     const api = Object.freeze({ createController });
