@@ -10,10 +10,16 @@
         const ids=new Set(), devices=new Set();
         const points=plan.points.map(p=>{
             if (!p || typeof p.id!=='string' || p.id.length>80 || ids.has(p.id) || !finite(p.x) || !finite(p.y) || p.x<0 || p.x>plan.length || p.y<0 || p.y>plan.width || !['x','y','z'].includes(p.axis) || !finite(p.angle) || Math.abs(p.angle)>360) throw Error('Coordenadas, eje u orientación del plano no válidos.');
-            ids.add(p.id); const device=typeof p.device==='string'?p.device:null;
-            if(device && devices.has(device)) throw Error('Un móvil no puede estar asignado a dos puntos a la vez.');
-            if(device) devices.add(device);
-            return {id:p.id,name:String(p.name||p.id).slice(0,40),x:p.x,y:p.y,axis:p.axis,angle:p.angle,device};
+            // Planos históricos (sin kind) mantienen TODOS sus puntos como sensores.
+            const kind=p.kind==null?'sensor':p.kind;
+            if(!['sensor','support','interpolation'].includes(kind))throw Error('Tipo de punto del plano no válido.');
+            ids.add(p.id);
+            const device=kind==='sensor'&&typeof p.device==='string'&&p.device?p.device:null;
+            if(device&&devices.has(device))throw Error('Un móvil no puede estar asignado a dos puntos a la vez.');
+            if(device)devices.add(device);
+            // φ=0 es una condición de contorno, no una medida sintética.
+            return {id:p.id,name:String(p.name||p.id).slice(0,40),x:p.x,y:p.y,axis:p.axis,angle:p.angle,kind,
+                modalCoordinate:kind==='support'?0:null,device};
         });
         return {length:plan.length,width:plan.width,name:String(plan.name||'Ensayo multipunto').slice(0,80),points};
     }
@@ -22,7 +28,7 @@
         try {localStorage.setItem(storageKey,JSON.stringify({...s.plan,points:s.plan.points.map(p=>({...p,device:null}))}));} catch(e){tell('Plano en memoria. No se ha podido guardar en este navegador.',true);}
         broadcast({type:'PLAN',plan:s.plan}); if(render)renderPlan();
     }
-    function pointFor(device=s.id, plan=s.plan) {return plan.points.find(p=>p.device===device);}
+    function pointFor(device=s.id, plan=s.plan) {return plan.points.find(p=>(p.kind||'sensor')==='sensor'&&p.device===device);}
     function deviceName(id) {return id===s.id?s.name:(s.peers.get(id)?.name||'Sin conectar');}
     function deviceCode(id) {
         if(!id)return '';
@@ -89,13 +95,40 @@
         placedLabels.push(best?.box||{left:labelX,top:baseline-26*markerScale,right:labelX+labelWidth,bottom:baseline+5*markerScale});
         return {x:labelX,y:baseline,anchor:'start'};
     }
+    const POINT_TYPES=Object.freeze({sensor:'Sensores',support:'Apoyos',interpolation:'Interpolación',all:'Todos'});
+    const pointKind=p=>p.kind||'sensor';
+    const planFilter=()=>POINT_TYPES[s.planFilter]?s.planFilter:'sensor';
+    const filteredPoints=()=>s.plan.points.filter(p=>planFilter()==='all'||pointKind(p)===planFilter());
+    function setPlanFilter(filter) {
+        if(!POINT_TYPES[filter])throw Error('Vista de puntos desconocida.');
+        s.planFilter=filter;
+        const visible=filteredPoints();
+        if(!visible.some(p=>p.id===s.selected))s.selected=visible[0]?.id||null;
+        s.lastPlanTap=null;
+        renderPlan();
+    }
     function renderPlan() {
         const edit=s.role==='host'&&!running()&&!s.transaction;
         $('jointGeometry').disabled=!edit;
         $('jointPlanTools').hidden=s.role!=='host';
         for(const id of ['jointAddPointInline','jointRemovePoint','jointResetView']) $(id).disabled=!edit;
         $('jointName').value=s.plan.name; $('jointLength').value=s.plan.length; $('jointWidth').value=s.plan.width;
-        const view=planViewport(),g=geometry(view),selected=s.plan.points.find(p=>p.id===s.selected),gridStep=planGridStep(g),labelStep=planLabelStep(g);
+        const visible=filteredPoints(),filter=planFilter();
+        if(s.selected&&!visible.some(p=>p.id===s.selected))s.selected=visible[0]?.id||null;
+        for(const button of document.querySelectorAll('#jointPointFilters [data-point-filter]')){
+            const selected=button.dataset.pointFilter===filter;
+            button.setAttribute('aria-pressed',String(selected));
+        }
+        const headings={sensor:['Sensores','Edita las coordenadas y asigna un móvil a cada sensor.'],
+            support:['Apoyos','Condición de contorno: coordenada modal φ = 0.'],
+            interpolation:['Interpolación','Puntos donde se evaluará la forma modal interpolada.'],
+            all:['Todos los puntos','Vista conjunta. Edita cada punto en su categoría.']};
+        $('jointPointsTitle').textContent=headings[filter][0];
+        $('jointPointTableHelp').textContent=headings[filter][1]+' Desliza una fila a la izquierda para eliminar.';
+        $('jointPointTableFunction').textContent=filter==='sensor'?'Móvil':filter==='support'?'Condición':filter==='interpolation'?'Estado':'Función';
+        const addKind=filter==='all'?'sensor':filter;
+        $('jointAddPointInline').textContent='Añadir '+({sensor:'sensor',support:'apoyo',interpolation:'interpolación'}[addKind]);
+        const view=planViewport(),g=geometry(view),gridStep=planGridStep(g),labelStep=planLabelStep(g);
         const deckX=g.originX,deckY=g.originY-s.plan.width*g.scale;
         const deckW=s.plan.length*g.scale,deckH=s.plan.width*g.scale;
         // El rectángulo de visualización permanece siempre fijo: zoom/pan mueven
@@ -124,17 +157,19 @@
         for(const tick of yTicks)svg+=`<line x1="${g.left-6}" y1="${tick.pixel}" x2="${g.left}" y2="${tick.pixel}" stroke="#698ba6"/><text class="joint-plan-tick" x="${g.left-11}" y="${tick.pixel+7}" text-anchor="end">${tick.value}</text>`;
         svg+=`<text class="joint-plan-axis" x="${g.left+g.w/2}" y="${g.top+g.h+62}" text-anchor="middle">X (m)</text><text class="joint-plan-axis" x="${g.left}" y="${g.top-12}">Y (m)</text>`;
         const markerScale=planPointScale(view),placedLabels=[];
-        for(const p of s.plan.points) {
+        for(const p of visible) {
             const x=g.originX+p.x*g.scale,y=g.originY-p.y*g.scale;
             // Los marcadores que quedan fuera del visor no se dibujan. Los que
             // están sobre los bordes permanecen completos y seleccionables.
             if(x<g.left-1e-7||x>g.left+g.w+1e-7||y<g.top-1e-7||y>g.top+g.h+1e-7)continue;
+            const kind=pointKind(p);
             const phoneColor=p.device===s.id?'#467c9f':p.device?'#548d85':'#7f8fa1';
             const label=pointLabelPlacement(x,y,p.id,placedLabels,markerScale);
-            svg+=`<g class="joint-point ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.id)}, X ${p.x}, Y ${p.y}">
-                <title>${escape(p.id)} · ${p.device?escape(deviceName(p.device)):'Sin asignar'}</title>
-                <circle class="joint-point-hitbox" cx="${x}" cy="${y}" r="${27*markerScale}"/>
-                <g class="joint-phone-marker" transform="translate(${x} ${y}) scale(${markerScale}) rotate(${-p.angle})">
+            const description=kind==='sensor'?(p.device?deviceName(p.device):'Sensor sin asignar'):
+                kind==='support'?'Apoyo · φ = 0':'Punto de interpolación';
+            // Los tres símbolos comparten centro geométrico y hitbox; el teléfono
+            // conserva exactamente el SVG anterior.
+            const marker=kind==='sensor'?`<g class="joint-phone-marker" transform="translate(${x} ${y}) scale(${markerScale}) rotate(${-p.angle})">
                     <rect class="joint-phone-body" x="-9.5" y="-14" width="19" height="28" rx="3.6" fill="${phoneColor}"/>
                     <rect x="-6.1" y="-10.2" width="12.2" height="18.3" rx="1.7" fill="#edf4f9"/>
                     <path d="M -2.5 -11.8 H 2.5" fill="none" stroke="#e7edf3" stroke-width="1" stroke-linecap="round"/>
@@ -143,19 +178,41 @@
                     <path d="M 0 -14 V -24 M 0 -24 L -4 -19 M 0 -24 L 4 -19" fill="none" stroke="#d94751" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
                     <circle cx="0" cy="-1" r="4.2" fill="#20a567" stroke="#fff" stroke-width="1.2"/>
                     <circle cx="0" cy="-1" r="1.25" fill="#effff6"/>
-                </g>
+                </g>`:kind==='support'?`<g class="joint-support-marker" transform="translate(${x} ${y}) scale(${markerScale})">
+                    <path d="M 0 -11 L -12 10 L 12 10 Z" fill="#f6e6d5" stroke="#a9602b" stroke-width="2.5" stroke-linejoin="round"/>
+                    <path d="M -16 13 H 16 M -13 13 l -4 5 M -5 13 l -4 5 M 3 13 l -4 5 M 11 13 l -4 5" fill="none" stroke="#a9602b" stroke-width="1.8" stroke-linecap="round"/>
+                    <circle cx="0" cy="-11" r="2.1" fill="#a9602b"/>
+                </g>`:`<g class="joint-interpolation-marker" transform="translate(${x} ${y}) scale(${markerScale})">
+                    <circle cx="0" cy="0" r="10.5" fill="#fff" stroke="#7b58b7" stroke-width="3.2"/>
+                </g>`;
+            svg+=`<g class="joint-point joint-point-${kind} ${p.id===s.selected?'selected':''}" data-point="${escape(p.id)}" tabindex="0" role="button" aria-label="${escape(p.id)}, ${escape(description)}, X ${p.x}, Y ${p.y}">
+                <title>${escape(p.id)} · ${escape(description)}</title>
+                <circle class="joint-point-hitbox" cx="${x}" cy="${y}" r="${27*markerScale}"/>
+                ${marker}
                 <text class="joint-point-label" x="${label.x}" y="${label.y}" text-anchor="${label.anchor}" style="font-size:${24*markerScale}px">${escape(p.id)}</text>
             </g>`;
         }
         $('jointPlan').innerHTML=svg;
-        $('jointPlanHelp').textContent=s.role==='host'?'Doble toque o doble clic en el tablero para añadir un punto. Arrastra para mover puntos o desplazar el plano; pellizca o usa la rueda para ampliar dentro de la ventana. Las posiciones añadidas y arrastradas se ajustan a 1 m.':'El maestro edita el plano. Tu punto aparece en azul. Comprueba posición, eje y orientación.';
+        $('jointPlanHelp').textContent=s.role==='host'?
+            'Doble toque en el tablero para añadir '+({sensor:'un sensor',support:'un apoyo',interpolation:'un punto de interpolación',all:'un sensor'}[filter])+'. Arrastra puntos o el plano; pellizca para ampliar. El filtro no borra los demás puntos.':
+            'El maestro edita el plano. Selecciona un tipo para consultar los puntos y su posición.';
         const devices=[{id:s.id,name:s.name},...s.peers.values()].filter(p=>p.name);
         const deviceOptions=devices.map(d=>`<option value="${escape(d.id)}">${deviceCode(d.id)}</option>`).join('');
-        $('jointPointsTable').innerHTML=s.plan.points.map(p=>{
-            const assigned=!!p.device;
-            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><div class="joint-point-row" data-point-id="${escape(p.id)}"><div class="joint-point-code ${assigned?'assigned':'unassigned'}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Sensor</span><select data-point-field="device" aria-label="Sensor asignado a ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label></div><button type="button" class="joint-point-delete" tabindex="-1" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button></div></td></tr>`;
+        // Se conserva EXACTAMENTE la estructura de fila/deslizamiento/papelera;
+        // solo cambia el contenido de su cuarta columna según la clase.
+        $('jointPointsTable').innerHTML=visible.map(p=>{
+            const kind=pointKind(p),assigned=!!p.device;
+            const lastColumn=kind==='sensor'?
+                `<label><span>Sensor</span><select data-point-field="device" aria-label="Móvil asignado a ${escape(p.id)}" ${edit?'':'disabled'}><option value="">—</option>${deviceOptions}</select></label>`:
+                `<div class="joint-point-static-cell ${kind}" aria-label="${kind==='support'?'Coordenada modal nula':'Pendiente de interpolación'}">${kind==='support'?'φ = 0':'Por interpolar'}</div>`;
+            const pointClass=kind==='sensor'?(assigned?'assigned':'unassigned'):kind==='support'?'support':'interpolation';
+            return `<tr class="joint-point-record" data-point-id="${escape(p.id)}"><td colspan="4" class="joint-point-table-cell"><div class="joint-point-swipe"><div class="joint-point-row" data-point-id="${escape(p.id)}"><div class="joint-point-code ${pointClass}">${escape(p.id)}</div><label><span>X (m)</span><input data-point-field="x" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.length}" value="${p.x}" aria-label="Coordenada X de ${escape(p.id)}" ${edit?'':'disabled'}></label><label><span>Y (m)</span><input data-point-field="y" type="number" inputmode="decimal" step="0.001" min="0" max="${s.plan.width}" value="${p.y}" aria-label="Coordenada Y de ${escape(p.id)}" ${edit?'':'disabled'}></label>${lastColumn}</div><button type="button" class="joint-point-delete" tabindex="-1" data-delete-point="${escape(p.id)}" aria-label="Eliminar ${escape(p.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button></div></td></tr>`;
         }).join('');
-        for(const p of s.plan.points) {const select=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(p.id)}"] select[data-point-field="device"]`);if(select)select.value=p.device||'';}
+        for(const p of visible){
+            if(pointKind(p)!=='sensor')continue;
+            const select=$('jointPointsTable').querySelector(`[data-point-id="${CSS.escape(p.id)}"] select[data-point-field="device"]`);
+            if(select)select.value=p.device||'';
+        }
         $('jointMyPoint').textContent=pointFor()?.name||'Sin asignar';
     }
     function svgPosition(e) {
@@ -181,18 +238,33 @@
         return {x,y};
     }
     function addPoint(x,y) {
-        requireHostEdit(); if(s.plan.points.length>=MAX_POINTS) throw Error('Máximo 64 puntos por plano.');
-        let n=1; while(s.plan.points.some(p=>p.id==='P'+n)) n++;
-        const position=x===undefined&&y===undefined?suggestedPointPosition(n):snapPlanPosition({x,y});
-        const p={id:'P'+n,name:'P'+n,x:position.x,y:position.y,angle:0,axis:'z',device:null};
-        s.plan.points.push(p); s.selected=p.id; savePlan();
+        requireHostEdit();if(s.plan.points.length>=MAX_POINTS)throw Error('Máximo 64 puntos por plano.');
+        const kind=planFilter()==='all'?'sensor':planFilter();
+        const prefix={sensor:'S',support:'A',interpolation:'I'}[kind];
+        let n=1;while(s.plan.points.some(p=>p.id===prefix+n))n++;
+        let position;
+        if(x===undefined&&y===undefined){
+            if(kind==='support'){
+                const supports=s.plan.points.filter(p=>pointKind(p)==='support').length;
+                position={x:supports%2?s.plan.length:0,y:Number((s.plan.width/2).toFixed(3))};
+            }else{
+                let i=1;
+                position=suggestedPointPosition(i);
+                while(i<MAX_POINTS&&s.plan.points.some(p=>Math.abs(p.x-position.x)<1e-6&&Math.abs(p.y-position.y)<1e-6)){
+                    position=suggestedPointPosition(++i);
+                }
+            }
+        }else position=snapPlanPosition({x,y});
+        const id=prefix+n;
+        const p={id,name:id,x:position.x,y:position.y,angle:0,axis:'z',kind,modalCoordinate:kind==='support'?0:null,device:null};
+        s.plan.points.push(p);s.selected=p.id;savePlan();
     }
     function updatePlanPoint(id, field, value) {
         requireHostEdit(); const original=s.plan.points.find(p=>p.id===id); if(!original) throw Error('El punto ya no existe.');
         let next=value;
         if(field==='name') next=String(value).trim().slice(0,40)||original.id;
         if(field==='x'||field==='y') {next=Number(Number(value).toFixed(3));if(!finite(next)) throw Error('Introduce una coordenada válida en metros.');}
-        if(field==='device') next=value||null;
+        if(field==='device'){if(pointKind(original)!=='sensor')throw Error('Solo los sensores se asignan a móviles.');next=value||null;}
         if(field==='axis'&&!['x','y','z'].includes(value)) throw Error('Eje no válido.');
         if(field==='device'&&next&&s.plan.points.some(p=>p.id!==id&&p.device===next)) throw Error('Ese móvil ya está asignado a otro punto.');
         const candidate={...original,[field]:next};
@@ -207,7 +279,7 @@
         const remove=()=>{
             if(!s.plan.points.some(p=>p.id===id))return;
             s.plan.points=s.plan.points.filter(p=>p.id!==id);
-            if(s.selected===id)s.selected=s.plan.points[0]?.id||null;
+            if(s.selected===id)s.selected=filteredPoints()[0]?.id||null;
             savePlan(false);
             record?.remove();
             $('jointPlan').querySelector(`[data-point="${CSS.escape(id)}"]`)?.remove();
@@ -229,7 +301,7 @@
     }
 
         return Object.freeze({
-            checkPlan, savePlan, pointFor, deviceName, deviceCode, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, renderPlan, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint
+            checkPlan, savePlan, pointFor, deviceName, deviceCode, setPlanFilter, planViewport, geometry, niceMetricStep, planGridStep, planLabelStep, snapPlanPosition, resetPlanView, planPointScale, pointLabelPlacement, renderPlan, svgPosition, zoomPlanAt, suggestedPointPosition, addPoint, updatePlanPoint, deletePlanPoint
         });
     }
     const api = Object.freeze({ createController });
