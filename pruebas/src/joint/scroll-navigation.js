@@ -25,9 +25,9 @@
                 return;
             }
             if (typeof view.scrollTo!=='function') return;
-            const tabs=doc?.getElementById?.('jointTabs');
-            const sticky=tabs&&!tabs.hidden&&view.getComputedStyle?.(tabs)?.position==='sticky'
-                ?tabs.getBoundingClientRect().height||0:0;
+            const header=doc?.getElementById?.('jointNavShell');
+            const sticky=header&&!header.hidden&&view.getComputedStyle?.(header)?.position==='sticky'
+                ?header.getBoundingClientRect().height||0:0;
             const inset=center?Math.max(14,(view.innerHeight-rect.height)/2):sticky+14;
             const top=Math.max(0,(view.scrollY||view.pageYOffset||0)+rect.top-inset);
             view.scrollTo({top,behavior});
