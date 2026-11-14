@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261114-measure-fixed-v1">
+    <link rel="stylesheet" href="style.css?v=20261114-measure-legend-v1">
 
     <!-- MapLibre -->
     <link
@@ -703,10 +703,10 @@
                 <div class="joint-toolbar"><span id="jointRole" class="joint-badge"></span><span id="jointSessionLabel"></span><button id="jointPair" type="button" class="joint-secondary" data-vwoma-icon="link">Invitar móvil</button></div>
                 <div class="joint-tabs" id="jointTabs" role="tablist" aria-label="Medida conjunta">
                     <button type="button" id="jointTabPlan" role="tab" aria-controls="jointPanelPlan" aria-selected="true" data-joint-tab="Plan" data-vwoma-icon="map">Plano</button>
-                    <button type="button" id="jointTabDevices" role="tab" aria-controls="jointPanelDevices" aria-selected="false" data-joint-tab="Devices" data-vwoma-icon="phone">Dispositivos</button>
-                    <button type="button" id="jointTabSync" role="tab" aria-controls="jointPanelSync" aria-selected="false" data-joint-tab="Sync" data-vwoma-icon="calibration">Sincronizar</button>
+                    <button type="button" id="jointTabDevices" role="tab" aria-label="Dispositivos" aria-controls="jointPanelDevices" aria-selected="false" data-joint-tab="Devices" data-vwoma-icon="phone"><span class="joint-tab-full">Dispositivos</span><span class="joint-tab-compact" aria-hidden="true">Móviles</span></button>
+                    <button type="button" id="jointTabSync" role="tab" aria-label="Sincronizar" aria-controls="jointPanelSync" aria-selected="false" data-joint-tab="Sync" data-vwoma-icon="calibration"><span class="joint-tab-full">Sincronizar</span><span class="joint-tab-compact" aria-hidden="true">Sincro</span></button>
                     <button type="button" id="jointTabMeasure" role="tab" aria-controls="jointPanelMeasure" aria-selected="false" data-joint-tab="Measure" data-vwoma-icon="activity">Medir</button>
-                    <button type="button" id="jointTabResults" role="tab" aria-controls="jointPanelResults" aria-selected="false" data-joint-tab="Results" data-vwoma-icon="chart">Resultados</button>
+                    <button type="button" id="jointTabResults" role="tab" aria-label="Resultados" aria-controls="jointPanelResults" aria-selected="false" data-joint-tab="Results" data-vwoma-icon="chart"><span class="joint-tab-full">Resultados</span><span class="joint-tab-compact" aria-hidden="true">Datos</span></button>
                     <button type="button" id="jointTabCompare" role="tab" aria-controls="jointPanelCompare" aria-selected="false" data-joint-tab="Compare" data-vwoma-icon="compare">Comparar</button>
                 </div>
                 <div id="jointPanelPlan" role="tabpanel" aria-labelledby="jointTabPlan">
@@ -786,31 +786,33 @@
                 </div>
                 <div id="jointPanelMeasure" role="tabpanel" aria-labelledby="jointTabMeasure" hidden>
                     <div class="joint-measure-duration-card">
-                        <label for="jointDuration">Duración del ensayo</label>
-                        <div class="joint-measure-duration-controls">
-                            <span class="joint-measure-elapsed" aria-label="Tiempo transcurrido">Transcurrido <strong id="jointRunTime">00:00.0</strong></span>
+                        <div class="joint-measure-metric">
+                            <label for="jointDuration">Duración</label>
                             <div class="joint-measure-duration-input">
                                 <input id="jointDuration" type="number" min="5" max="1800" step="1" value="60" aria-label="Duración del ensayo en segundos">
                                 <span aria-hidden="true">s</span>
                             </div>
                         </div>
+                        <div class="joint-measure-metric joint-measure-frequency" title="Frecuencia de muestreo observada">
+                            <span class="joint-measure-metric-label">Frecuencia de muestreo</span>
+                            <div class="joint-measure-rate-readout"><strong id="jointRate" aria-label="Frecuencia de muestreo observada">—</strong><span>Hz</span></div>
+                        </div>
+                        <span class="joint-measure-elapsed" aria-label="Tiempo transcurrido">Transcurrido <strong id="jointRunTime">00:00.0</strong></span>
                     </div>
                     <div id="jointMeasureState" class="joint-measure-state" aria-live="off">Preparando dispositivos</div>
                     <progress id="jointProgress" max="1" value="0" aria-label="Progreso del ensayo"></progress>
                     <div class="joint-live-values" aria-hidden="true">
                         <span>Muestras <strong id="jointSampleCount">0</strong></span>
-                        <span>Frecuencia observada <strong id="jointRate">—</strong></span>
                         <span>Mi punto <strong id="jointMyPoint">Sin asignar</strong></span>
                     </div>
                     <section class="joint-measurement-chart" aria-label="Señal temporal de aceleraciones">
                         <div class="joint-measure-chart-heading">
-                            <span>Aceleraciones · m/s²</span>
-                            <span class="joint-measure-legend" aria-label="X azul, Y rojo, Z verde"><span class="axis-x">X</span><span class="axis-y">Y</span><span class="axis-z">Z</span></span>
+                            <span>Señal temporal · m/s²</span>
                         </div>
                         <div class="joint-measure-canvas"><canvas id="jointLive" width="800" height="230" aria-label="Aceleraciones X, Y, Z en tiempo real"></canvas></div>
                     </section>
                     <section class="joint-measurement-chart" aria-label="Espectro de aceleraciones">
-                        <div class="joint-measure-chart-heading"><span>Espectro de aceleraciones · 0–30 Hz</span></div>
+                        <div class="joint-measure-chart-heading"><span>Espectro · 0–30 Hz</span></div>
                         <div class="joint-measure-canvas"><canvas id="jointLiveSpectrum" width="800" height="220" aria-label="Espectro de X, Y, Z en tiempo real"></canvas></div>
                     </section>
                     <p id="jointSoloHint" class="joint-help" hidden>Sin participantes conectados; puedes medir con el maestro.</p>
@@ -898,7 +900,7 @@
     <script defer src="src/joint/scroll-navigation.js?v=20261113-reveal-actions-v1"></script>
     <script defer src="src/joint/session-state.js?v=20261113-joint-state-v1"></script>
     <script defer src="src/joint/ui-events.js?v=20261114-measure-fixed-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261114-measure-fixed-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261114-measure-legend-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261108-mobile-header-v9"></script>
 
 
