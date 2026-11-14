@@ -50,7 +50,7 @@
     observeSticky();
     if(typeof window?.addEventListener==='function')
       window.addEventListener('resize',observeSticky,{passive:true});
-    function tab(name) {
+    function tab(name,options={}) {
       if(!NAMES.includes(name))throw Error('Pestaña desconocida: '+name);
       if(current===name)return false; // Never reflow active content on repeat calls.
       // Do not abandon the instrument while an acquisition is pending or running.
@@ -76,9 +76,11 @@
         const left=Math.max(0,(bar.scrollLeft||0)+x-((bar.clientWidth||0)-(button.offsetWidth||0))/2);
         bar.scrollTo({left,behavior:'smooth'});
       }
-      // On mobile, replacing a tall prior panel can cause scroll anchoring to
-      // jump to the page header. Align the visible tab bar after the reflow.
-      if(previous!==null&&name!=='Measure'&&!isRecording()&&typeof window?.scrollTo==='function') {
+      // Only an explicit tap on a navigation tab may realign the page.
+      // Programmatic transitions (e.g. acquisition finished -> Results)
+      // must NEVER issue a window.scrollTo while someone is scrolling.
+      // QR, camera and calibration retain their separate revealTarget calls.
+      if(options.fromUser===true&&previous!==null&&name!=='Measure'&&!isRecording()&&typeof window?.scrollTo==='function') {
         const align=()=>{
           if(current!==name||isRecording())return;
           // Alinear la cabecera completa, NO el inicio de sus botones:
