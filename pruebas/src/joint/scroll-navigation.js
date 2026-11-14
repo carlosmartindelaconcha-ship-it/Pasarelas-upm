@@ -26,8 +26,10 @@
             }
             if (typeof view.scrollTo!=='function') return;
             const header=doc?.getElementById?.('jointNavShell');
-            const sticky=header&&!header.hidden&&view.getComputedStyle?.(header)?.position==='sticky'
-                ?header.getBoundingClientRect().height||0:0;
+            const headerStyle=header&&!header.hidden?view.getComputedStyle?.(header):null;
+            const offset=headerStyle?.position==='sticky'?parseFloat(headerStyle.top)||0:0;
+            const sticky=headerStyle?.position==='sticky'
+                ?(header.getBoundingClientRect().height||0)+offset:0;
             const inset=center?Math.max(14,(view.innerHeight-rect.height)/2):sticky+14;
             const top=Math.max(0,(view.scrollY||view.pageYOffset||0)+rect.top-inset);
             view.scrollTo({top,behavior});
