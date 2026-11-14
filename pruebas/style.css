@@ -1479,9 +1479,9 @@ body.recording-lock main {
    Los cuatro estilos no interfieren con el carril táctil de borrado. */
 .joint-point-filters {
     display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr));
-    gap:6px;
-    margin:14px 0 10px;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:5px;
+    margin:12px 0 10px;
     padding:4px;
     background:#eff5fa;
     border:1px solid #d8e4ed;
@@ -1511,8 +1511,9 @@ body.recording-lock main {
 }
 .joint-app .joint-point-filters button[aria-pressed="true"] {
     color:#fff;
-    border-color:#1f659d;
-    background:var(--vwoma-blue);
+    border-color:#173d66;
+    background:#113460;
+    background-image:var(--vwoma-action-gradient);
     box-shadow:0 1px 3px rgba(21,61,96,.12);
 }
 .joint-app .joint-point-filters button:focus-visible {outline:3px solid #f4a938;outline-offset:2px;}
@@ -1550,6 +1551,43 @@ body.recording-lock main {
     .joint-app .joint-point-filters button {padding:6px 2px;font-size:.68rem;min-height:42px;}
     .joint-point-static-cell {margin:5px 3px;font-size:.68rem;}
 }
+/* Interpolación sugerida: revisión explícita antes de incorporar puntos
+   al modelo. Los estilos de las filas y los gestos de borrado se conservan. */
+.joint-interpolation-proposal {
+    box-sizing:border-box;
+    margin:8px 12px 12px;
+    padding:10px 11px;
+    border:1px solid #d9d0e8;
+    border-radius:9px;
+    background:#faf8ff;
+}
+.joint-interpolation-proposal[hidden],
+.joint-interpolation-proposal button[hidden] {display:none !important;}
+.joint-proposal-controls {
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:7px;
+}
+.joint-app .joint-proposal-controls button {
+    box-sizing:border-box;
+    width:auto;
+    min-width:0;
+    min-height:38px;
+    margin:0;
+    padding:8px 10px;
+    border-radius:8px;
+    flex:1 1 125px;
+    font-size:clamp(.74rem,2.8vw,.87rem);
+    line-height:1.2;
+}
+.joint-interpolation-proposal p {
+    color:#64537e;
+    margin:8px 2px 1px;
+    font-size:.77rem;
+    line-height:1.4;
+}
+#jointPlan .joint-interpolation-proposed {pointer-events:none;opacity:.9;}
 .joint-points-section { margin-top: 18px; border: 1px solid #d8e4ed; border-radius: 12px; overflow: hidden; background: #fff; }
 .joint-points-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:#f2f7fc; border-bottom:1px solid #d8e4ed; isolation:isolate; }
 .joint-points-head h4 { margin:0; color:#203d59; }
