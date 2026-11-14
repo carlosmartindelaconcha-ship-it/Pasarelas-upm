@@ -33,7 +33,7 @@ test('teléfonos enteros: maestro rojo, esclavo azul, pendientes grises y apoyos
     assert.match(svg, /#cc3b47/);
     assert.match(svg, /#176bb0/);
     assert.match(svg, /#99a8b6/);
-    assert.match(svg, /#f4d8b3/);
+    assert.match(svg, /#f6e6d5/);
     assert.match(svg, /I1|<rect x=/);
     assert.match(svg, /M · P2/);
     assert.match(svg, /S1 · P3/);
