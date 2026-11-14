@@ -6,7 +6,8 @@
     'use strict';
     function bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
-        tab, renderResults, renderSyncCalibration, createJointSession, openPair, pairingAction,
+        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, selectSetup, applySetup,
+        createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
         resetPlanView, download, deletePlanPoint, updatePlanPoint, setPlanFilter, pointAtPlanEdge, svgPosition, planViewport,
@@ -235,6 +236,23 @@
     $('jointSyncGestureY').onclick=guard(()=>startSyncGesture('y'));
     $('jointSyncGestureZ').onclick=guard(()=>startSyncGesture('z'));
     $('jointSync').onclick=guard(async()=>{for(const p of s.peers.values())startSync(p);tell('Comprobando el enlace con 24 intercambios. Esto no cambia la calibración física ya validada.');});
+    // Tras la sincronización: el maestro elige el punto fijo, revisa
+    // todas las configuraciones y activa solo una para cada ensayo.
+    $('jointSetupMaster').onchange=()=>{
+        s.setupMasterChoice=$('jointSetupMaster').value;
+        renderSetups();
+    };
+    $('jointGenerateSetups').onclick=guard(generateSetups);
+    $('jointSetupList').addEventListener('click',guard(event=>{
+        const button=event.target.closest('[data-setup-select]');
+        if(button)selectSetup(Number(button.dataset.setupSelect));
+    }));
+    $('jointApplySetup').onclick=guard(()=>applySetup());
+    $('jointSetupToMeasure').onclick=guard(()=>{
+        if(s.setupPlan?.activeIndex!==s.setupPlan?.selectedIndex)
+            throw Error('Activa el setup seleccionado antes de medir.');
+        tab('Measure');
+    });
     $('jointStart').onclick=guard(startRun);$('jointStop').onclick=()=>stopRun();
     $('jointDownload').onclick=guard(exportSession);$('jointCsv').onclick=guard(exportCsv);$('jointDownloadProcessed').onclick=guard(exportProcessedJson);$('jointCsvProcessed').onclick=guard(exportProcessedCsv);$('jointSendData').onclick=guard(sendRecord);$('jointRecover').onclick=guard(recover);
     $('jointCompareView').onchange=renderComparison;
@@ -254,7 +272,17 @@
     $('jointNewRun').onclick=guard(()=>{
         if(running()||s.transfer||s.run?.finishing)throw Error('El registro todavía se está cerrando. Espera unos segundos.');
         if(s.run&&!confirm('Descarga antes los resultados. ¿Preparar un nuevo ensayo? El registro local seguirá guardado en este navegador.'))return;
-        s.run=null;s.results.clear();$('jointProgress').value=0;$('jointMeasureState').textContent='Preparando dispositivos';$('jointRunTime').textContent='00:00.0';renderPlan();renderDevices();tab('Devices');
+        s.run=null;s.results.clear();
+        $('jointProgress').value=0;
+        $('jointMeasureState').textContent='Preparando dispositivos';
+        $('jointRunTime').textContent='00:00.0';
+        $('jointDurationLabel').textContent='Duración';
+        if(s.role==='host'&&s.setupPlan){
+            // Los resultados quedan guardados; la referencia no cambia.
+            // Hay que activar explícitamente el siguiente setup tras recolocar.
+            s.setupPlan.activeIndex=null;
+            renderPlan();renderDevices();renderSetups();tab('Setups');
+        }else{renderPlan();renderDevices();tab('Devices');}
     });
     const blockMeasurementTouch=event=>{
         if(!running())return;
