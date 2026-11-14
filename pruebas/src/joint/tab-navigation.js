@@ -6,14 +6,16 @@
   const NAMES=Object.freeze(['Plan','Devices','Sync','Measure','Results','Compare']);
   function createNavigation({$,window,raf,renderComparison,onMeasureVisible=()=>{},isRecording=()=>false,onChange=()=>{}}) {
     let current=null;
-    // Safari iOS deja ver el contenido que pasa por la zona SUPERIOR a la
-    // barra sticky. Una máscara fija blanca sigue exactamente el borde superior
-    // de las pestañas. El sentinel distingue barra fija de barra en su sitio.
-    const tabs=$('jointTabs'),topMask=$('jointTabsTopMask'),sentinel=$('jointTabsTopSentinel');
+    // Barra horizontal: mantiene un fondo BLANCO real hasta su borde superior.
+    // El velo se traslada a document.body: dentro del panel, iOS Safari puede
+    // recortarlo o componerlo por debajo del contenido anterior al sticky.
+    const tabs=$('jointTabs'),topMask=$('jointTabsTopMask');
+    if(topMask && typeof document!=='undefined' && document.body &&
+        topMask.parentElement!==document.body)document.body.appendChild(topMask);
     let maskScheduled=false;
     function refreshTopMask(){
       maskScheduled=false;
-      if(!tabs||!topMask||!sentinel)return;
+      if(!tabs||!topMask)return;
       const workspace=$('jointWorkspace'),app=$('jointApp');
       if(workspace?.hidden||app?.hidden||
           (typeof document!=='undefined'&&document.body.classList.contains('joint-measure-fixed'))){
@@ -21,13 +23,16 @@
         topMask.style.height='0px';
         return;
       }
-      const bar=tabs.getBoundingClientRect(),edge=sentinel.getBoundingClientRect();
-      // Sin desplazamiento: los dos empiezan juntos. Cuando la barra se pega
-      // arriba, el sentinel sube y deja de coincidir con ella.
-      const stuck=edge.top<bar.top-1;
-      const height=stuck?Math.max(0,Math.ceil(bar.top)):0;
+      const bar=tabs.getBoundingClientRect();
+      const viewportHeight=window?.visualViewport?.height||window?.innerHeight||800;
+      // No esperar a que Safari reconozca el elemento como sticky:
+      // los textos de antes de las pestañas también deben quedar tapados.
+      // Activar solo cuando la barra entra en la franja superior visible,
+      // evitando ocultar la cabecera y formularios al iniciar una sesión.
+      const nearTop=bar.bottom>0&&bar.top<=Math.min(280,viewportHeight*.44)&&bar.top>=0;
+      const height=nearTop?Math.max(0,Math.ceil(bar.top)):0;
       topMask.style.height=height+'px';
-      topMask.style.visibility=stuck&&height>0?'visible':'hidden';
+      topMask.style.visibility=height>0?'visible':'hidden';
     }
     function scheduleTopMask(){
       if(maskScheduled)return;
