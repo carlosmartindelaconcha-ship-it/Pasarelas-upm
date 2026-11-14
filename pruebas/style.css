@@ -1579,22 +1579,233 @@ body.recording-lock main {
 .joint-axis-x { background:#e8f3ff; color:#1269ad; border:1px solid #9fcdf4; }.joint-axis-y { background:#fff0f0; color:#b83f45; border:1px solid #efb7bb; }.joint-axis-z { background:#eaf7ef; color:#247a50; border:1px solid #a8d9bd; }
 .joint-calibration-actions button.done::after { content:' ✓'; }.joint-calibration-actions button:disabled { opacity:.55; }
 .joint-axis-compare { margin:18px 0; }
-body.recording-lock #jointWorkspace { min-height: calc(100dvh - 60px); }
-body.recording-lock #jointPanelMeasure { position:fixed; inset:0; z-index:1000; width:100%; height:100vh; height:100dvh; box-sizing:border-box; display:flex !important; flex-direction:column; padding:calc(8px + env(safe-area-inset-top)) 12px calc(8px + env(safe-area-inset-bottom)); overflow:hidden; touch-action:none; user-select:none; background:#fff; }
-body.recording-lock #jointPanelMeasure > h3,
-body.recording-lock #jointPanelMeasure > .joint-fields,
-body.recording-lock #jointMeasureState,
-body.recording-lock #jointProgress,
-body.recording-lock #jointPanelMeasure > .joint-help { display:none; }
-body.recording-lock #jointPanelMeasure .joint-measurement-chart { flex:1 1 0; min-height:0; height:auto; margin:0; padding:5px; border-radius:6px; }
-body.recording-lock #jointPanelMeasure .joint-live-values { flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:6px 0; margin-top:4px; order:3; }
-body.recording-lock #jointPanelMeasure .joint-live-values span { padding:6px; border-radius:8px; background:#f3f3f3; text-align:center; }
-body.recording-lock #jointPanelMeasure .joint-live-values .joint-extra-info { display:none; }
-body.recording-lock #jointPanelMeasure .joint-live-values span { font-size:11px; }
-body.recording-lock #jointPanelMeasure .joint-live-values strong { font-size:19px; margin-top:2px; }
-body.recording-lock #jointPanelMeasure > .joint-actions { flex:0 0 auto; order:4; margin:7px 0 0; }
-body.recording-lock #jointPanelMeasure #jointStart { display:none; }
-body.recording-lock #jointPanelMeasure #jointStop { display:flex; width:100%; min-height:58px; padding:11px; font-size:18px; border-radius:7px; touch-action:manipulation; }
+/* Instrumento fijo en MEDIR, desde que se abre la pestaña y no solo al grabar.
+   No altera ni el flujo de medida individual ni las demás pestañas. */
+body.joint-measure-fixed {
+    height:100vh;
+    height:100dvh;
+    overflow:hidden !important;
+    overscroll-behavior:none;
+}
+body.joint-measure-fixed #jointApp {
+    position:fixed;
+    inset:0;
+    z-index:1200;
+    width:100%;
+    max-width:none;
+    min-width:0;
+    height:100vh;
+    height:100dvh;
+    max-height:100dvh;
+    box-sizing:border-box;
+    margin:0;
+    padding:calc(5px + env(safe-area-inset-top)) 9px calc(7px + env(safe-area-inset-bottom));
+    border:0;
+    border-radius:0;
+    background:#fff;
+    box-shadow:none;
+    display:flex !important;
+    flex-direction:column;
+    overflow:hidden;
+    overscroll-behavior:none;
+}
+body.joint-measure-fixed #jointApp > .joint-heading,
+body.joint-measure-fixed #jointApp > #jointNotice,
+body.joint-measure-fixed #jointWorkspace > .joint-toolbar {display:none !important;}
+body.joint-measure-fixed #jointWorkspace {
+    display:flex !important;
+    flex:1 1 auto;
+    flex-direction:column;
+    min-width:0;
+    min-height:0;
+    overflow:hidden;
+}
+body.joint-measure-fixed #jointTabs {
+    display:grid;
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    flex:0 0 auto;
+    position:relative;
+    top:auto;
+    width:100%;
+    box-sizing:border-box;
+    gap:3px;
+    margin:0;
+    padding:0 0 7px;
+    overflow:hidden;
+    border-bottom:1px solid #dbe6ef;
+    touch-action:manipulation;
+}
+body.joint-measure-fixed #jointTabs button {
+    display:flex;
+    min-width:0;
+    min-height:40px;
+    max-width:100%;
+    margin:0;
+    padding:6px 1px;
+    box-sizing:border-box;
+    white-space:normal;
+    overflow-wrap:anywhere;
+    text-align:center;
+    line-height:1.08;
+    font-size:clamp(.57rem,2.65vw,.77rem);
+    border-radius:7px;
+    touch-action:manipulation;
+}
+body.joint-measure-fixed #jointPanelMeasure {
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;
+    grid-template-areas:"duration" "temporal" "spectrum" "controls";
+    gap:clamp(4px,1vh,9px);
+    flex:1 1 auto;
+    width:100%;
+    min-width:0;
+    min-height:0;
+    max-height:100%;
+    box-sizing:border-box;
+    margin:0;
+    padding:8px 0 0;
+    overflow:hidden;
+    overscroll-behavior:none;
+    touch-action:none;
+    user-select:none;
+    -webkit-user-select:none;
+}
+body.joint-measure-fixed #jointPanelMeasure > #jointMeasureState,
+body.joint-measure-fixed #jointPanelMeasure > #jointProgress,
+body.joint-measure-fixed #jointPanelMeasure > .joint-live-values,
+body.joint-measure-fixed #jointPanelMeasure > .joint-help {display:none !important;}
+body.joint-measure-fixed #jointPanelMeasure .joint-measure-duration-card {
+    grid-area:duration;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    min-width:0;
+    box-sizing:border-box;
+    margin:0;
+    padding:6px 10px;
+    border:1px solid #dbe6ef;
+    border-radius:9px;
+    background:#f7fafc;
+}
+body.joint-measure-fixed .joint-measure-duration-card label {
+    min-width:0;
+    margin:0;
+    font-size:clamp(.75rem,3vw,.9rem);
+    font-weight:700;
+    line-height:1.2;
+}
+body.joint-measure-fixed .joint-measure-duration-controls {
+    flex:0 0 auto;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    min-width:0;
+}
+body.joint-measure-fixed .joint-measure-duration-input {
+    display:flex;
+    gap:3px;
+    align-items:center;
+    min-height:35px;
+    padding:0 7px;
+    border:1px solid #c7d9e7;
+    border-radius:7px;
+    background:#fff;
+    color:#294e6b;
+}
+body.joint-measure-fixed .joint-measure-duration-input input {
+    width:63px;
+    min-width:0;
+    height:34px;
+    margin:0;
+    padding:2px 3px;
+    border:0;
+    outline-offset:-3px;
+    background:transparent;
+    text-align:right;
+    font-size:16px;
+    font-weight:700;
+    touch-action:manipulation;
+    user-select:text;
+    -webkit-user-select:text;
+}
+body.joint-measure-fixed .joint-measure-duration-input span {font-size:.84rem;font-weight:700;}
+body.joint-measure-fixed .joint-measure-elapsed {display:none;font-size:clamp(.64rem,2.4vw,.78rem);line-height:1.15;color:#46647c;}
+body.joint-measure-fixed .joint-measure-elapsed strong {display:block;text-align:right;color:#173d60;font-size:clamp(.79rem,2.9vw,.95rem);font-variant-numeric:tabular-nums;}
+body.joint-measure-fixed.joint-measuring .joint-measure-elapsed {display:block;}
+body.joint-measure-fixed #jointPanelMeasure > .joint-measurement-chart {
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    min-height:0;
+    height:auto;
+    margin:0;
+    padding:5px 5px 3px;
+    box-sizing:border-box;
+    border:1px solid #dbe6ef;
+    border-radius:9px;
+    background:#fff;
+    overflow:hidden;
+    touch-action:none;
+}
+body.joint-measure-fixed #jointPanelMeasure > .joint-measurement-chart:first-of-type {grid-area:temporal;}
+body.joint-measure-fixed #jointPanelMeasure > .joint-measurement-chart:last-of-type {grid-area:spectrum;}
+body.joint-measure-fixed .joint-measure-chart-heading {
+    display:flex;
+    flex:0 0 auto;
+    justify-content:space-between;
+    align-items:center;
+    gap:7px;
+    min-height:18px;
+    padding:0 4px 2px;
+    font-size:clamp(.71rem,2.8vw,.84rem);
+    font-weight:700;
+    color:#284f6f;
+    line-height:1.25;
+}
+body.joint-measure-fixed .joint-measure-legend {display:flex;gap:9px;flex:0 0 auto;font-size:.76rem;}
+body.joint-measure-fixed .joint-measure-legend .axis-x {color:#1565c0;}
+body.joint-measure-fixed .joint-measure-legend .axis-y {color:#c62828;}
+body.joint-measure-fixed .joint-measure-legend .axis-z {color:#2e7d32;}
+body.joint-measure-fixed .joint-measure-canvas {
+    position:relative;
+    flex:1 1 auto;
+    width:100%;
+    min-width:0;
+    min-height:0;
+    overflow:hidden;
+    touch-action:none;
+}
+body.joint-measure-fixed #jointLive,
+body.joint-measure-fixed #jointLiveSpectrum {display:block;width:100%;height:100%;touch-action:none;}
+body.joint-measure-fixed #jointPanelMeasure > .joint-measure-actions {
+    grid-area:controls;
+    display:flex;
+    flex:0 0 auto;
+    margin:0;
+    padding:0;
+    min-width:0;
+}
+body.joint-measure-fixed #jointPanelMeasure .joint-measure-actions > button {
+    width:100%;
+    min-width:0;
+    min-height:clamp(44px,7vh,56px);
+    margin:0;
+    padding:9px 12px;
+    flex:1 1 auto;
+    border-radius:9px;
+    font-size:clamp(.94rem,3.7vw,1.06rem);
+    touch-action:manipulation;
+}
+body.joint-measure-fixed #jointPanelMeasure .joint-measure-actions > button[hidden] {display:none !important;}
+@media (max-height:560px) {
+    body.joint-measure-fixed #jointApp {padding-top:calc(2px + env(safe-area-inset-top));padding-bottom:calc(3px + env(safe-area-inset-bottom));}
+    body.joint-measure-fixed #jointTabs button {min-height:34px;padding:3px 1px;}
+    body.joint-measure-fixed #jointPanelMeasure {gap:3px;padding-top:4px;}
+    body.joint-measure-fixed #jointPanelMeasure .joint-measure-duration-card {padding:3px 7px;}
+    body.joint-measure-fixed #jointPanelMeasure .joint-measure-actions > button {min-height:40px;}
+}
 .joint-app dialog { width: min(560px, calc(100vw - 42px)); max-height: 85vh; box-sizing: border-box; border: 1px solid #b9cddb; border-radius: 12px; padding: 22px; color: #19334d; overflow-y: auto; }
 .joint-app dialog::backdrop { background: #142d46a6; }
 #jointQr { text-align: center; margin: 16px auto; max-width: 300px; }
