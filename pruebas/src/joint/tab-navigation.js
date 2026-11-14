@@ -4,11 +4,13 @@
 (function registerTabNavigation(root) {
   'use strict';
   const NAMES=Object.freeze(['Plan','Devices','Sync','Measure','Results','Compare']);
-  function createNavigation({$,window,raf,renderComparison,onMeasureVisible=()=>{},isRecording=()=>false}) {
+  function createNavigation({$,window,raf,renderComparison,onMeasureVisible=()=>{},isRecording=()=>false,onChange=()=>{}}) {
     let current=null;
     function tab(name) {
       if(!NAMES.includes(name))throw Error('Pestaña desconocida: '+name);
       if(current===name)return false; // Never reflow active content on repeat calls.
+      // Do not abandon the instrument while an acquisition is pending or running.
+      if(current==='Measure'&&name!=='Measure'&&isRecording())return false;
       const previous=current;
       current=name;
       for(const n of NAMES) {
@@ -16,6 +18,7 @@
         $('jointTab'+n).setAttribute('aria-selected',String(n===name));
         $('jointTab'+n).tabIndex=n===name?0:-1;
       }
+      onChange(name,previous);
       if(name==='Compare')renderComparison();
       if(name==='Measure') {
         // Resize only after the panel is visible (important for Chrome Android).
@@ -30,7 +33,7 @@
       }
       // On mobile, replacing a tall prior panel can cause scroll anchoring to
       // jump to the page header. Align the visible tab bar after the reflow.
-      if(previous!==null&&!isRecording()&&typeof window?.scrollTo==='function') {
+      if(previous!==null&&name!=='Measure'&&!isRecording()&&typeof window?.scrollTo==='function') {
         const align=()=>{
           if(current!==name||isRecording())return;
           const el=$('jointTabs');
