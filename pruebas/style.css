@@ -2260,7 +2260,10 @@ main button:not(:where(
    Hammer.js (chartjs-plugin-zoom) deshabilita la acción táctil nativa
    del canvas cuando se activa el pan. Priorizar el desplazamiento vertical
    del documento y conservar el pan horizontal y el zoom con dos dedos. */
-#testForm:not(.measurement-active) .chart-canvas-wrap canvas {
+#testForm:not(.measurement-active) .chart-canvas-wrap canvas,
+body:not(.joint-measure-fixed) #jointPanelSync canvas,
+body:not(.joint-measure-fixed) #jointPanelResults canvas,
+body:not(.joint-measure-fixed) #jointPanelCompare canvas {
     touch-action:pan-y !important;
     -ms-touch-action:pan-y;
 }
