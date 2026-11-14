@@ -241,7 +241,7 @@
             '" fill="'+color+'" stroke="#fff" stroke-width="1.5"/>';
           if(selected)shapes+='<text x="'+x+'" y="'+(y-12)+
             '" fill="#153e68" font-size="12" font-weight="700" text-anchor="middle">'+
-            escape(code)+' · '+escape(p.id)+'</text>';
+            escape(code)+'</text>';
         }
         const previewMarkup='<svg viewBox="0 0 640 194" role="img" aria-label="Vista de planta del setup '+(index+1)+
           ', con maestro fijo y sensores participantes">' +shapes+
