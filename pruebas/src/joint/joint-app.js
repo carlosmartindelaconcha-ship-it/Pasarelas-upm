@@ -393,7 +393,8 @@
             correctedVector, persist, persistBeforeClosing,
             sendRecord:(...args)=>sendRecord(...args),
             localRecord:(...args)=>localRecord(...args),
-            structuredClone, ui:acquisitionUi
+            structuredClone, ui:acquisitionUi,
+            setupValid:()=>!s.setupPlan||currentValid()
         });
 
     function runMeta(run) {
