@@ -102,18 +102,12 @@
         }
         function beginSyncGuide(state) {
             if(s.syncCalibration!==state||state.phase!=='gesture-ready')return;
-            state.guidePhase='message';
-            state.guideNumber=++syncDemoSequence;
+            // Ejes calibrados: al terminar los mensajes de reloj, ambos
+            // dispositivos pueden iniciar los gestos sin repetir 13.6 s
+            // de tutorial obligatorio ni anclar la pantalla a la imagen.
+            state.guidePhase='ready';
             state.lastFeedback='';
             renderSyncCalibration();
-            setTimeout(()=>{
-                if(s.syncCalibration!==state||state.phase!=='gesture-ready'||state.guidePhase!=='message')return;
-                state.guidePhase='observe';renderSyncCalibration();
-                setTimeout(()=>{
-                    if(s.syncCalibration!==state||state.phase!=='gesture-ready'||state.guidePhase!=='observe')return;
-                    state.guidePhase='demo';renderSyncCalibration();
-                },CAL_OBSERVE_MS);
-            },CAL_INTRO_MS);
         }
         function receiveSyncGuide(id) {
             if(s.role!=='guest'||typeof id!=='string'||!id)return;
@@ -371,8 +365,8 @@
     }
     function armSyncGesture(payload,model=s.syncModel) {
         s.syncCalibration.phase='gesture';s.syncCalibration.gesture={id:payload.id,axis:payload.axis,start:payload.start,end:payload.end,model:structuredClone(model),samples:[],sent:false};
+        // La orden WebRTC al participante no debe alterar su scroll.
         tab('Sync');renderSyncCalibration();
-        revealActionTarget('jointSyncAnimation','start');
     }
     async function startSyncCalibration() {
         requireHostEdit();
