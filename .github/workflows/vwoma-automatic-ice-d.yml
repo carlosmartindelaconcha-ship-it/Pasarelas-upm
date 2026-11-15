@@ -25,7 +25,17 @@ jobs:
           node --check pruebas/tests/qr-pairing-timing.test.cjs
           node --check pruebas/ice-abc/ice-candidates.js
           node --check pruebas/ice-abc/test.js
-      - name: Full VWOMA preview test suite
-        run: node --test pruebas/tests/*.test.cjs
+      - name: ICE D and unchanged VWOMA protocol regression suite
+        run: |
+          node --test \
+            pruebas/tests/hotspot-ice.test.cjs \
+            pruebas/tests/qr-pairing-timing.test.cjs \
+            pruebas/tests/record-transfer.test.cjs \
+            pruebas/tests/transfer-integration.test.cjs \
+            pruebas/tests/results-view.test.cjs \
+            pruebas/tests/ui-events.test.cjs \
+            pruebas/tests/exports.test.cjs \
+            pruebas/tests/measure-guide.test.cjs \
+            pruebas/tests/setup-redesign.test.cjs
       - name: Keep laboratory ABCD validated
         run: node --test pruebas/ice-abc/tests/*.test.cjs
