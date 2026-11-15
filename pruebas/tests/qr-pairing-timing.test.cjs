@@ -72,6 +72,6 @@ test('el maestro obtiene la edad de la respuesta y el participante ve tiempo has
 test('escáner usa el ritmo y resolución probados en Safari sin alterar la adquisición',()=>{
   assert.match(source,/if\(frameAt-lastScanAt<125\)/);
   assert.match(source,/Math\.min\(1,760\/video\.videoWidth\)/);
-  assert.match(html,/webrtc-transport\.js\?v=20261115-qr-pair-lab-v1/);
+  assert.match(html,/webrtc-transport\.js\?v=20261115-fase1-lab-replacement-v1/);
   assert.match(html,/joint-app\.js\?v=20261115-qr-pair-lab-v1/);
 });

@@ -994,7 +994,7 @@
             <dialog id="jointPairDialog" aria-labelledby="jointPairTitle"><div class="joint-dialog-heading"><h3 id="jointPairTitle">Conectar móvil</h3><button id="jointPairClose" class="joint-secondary" type="button" data-vwoma-icon="close">Cerrar</button></div>
                 <p id="jointPairHelp"></p>
                 <label>Modo de conexión<select id="jointNetworkMode"><option value="local" selected>Red Wi-Fi local (recomendado)</option><option value="stun">Compatibilidad con punto de acceso (STUN)</option></select></label>
-                <p class="joint-help">En modo Wi-Fi local, VWOMA prueba automáticamente los candidatos ICE originales y, si el maestro anuncia direcciones <code>.local</code>, añade rutas alternativas con el puerto original hacia la dirección habitual del Hotspot del iPhone. No necesitas seleccionar el tipo de móvil ni introducir una IP. Si no se establece una conexión directa, STUN puede descubrir otras direcciones, pero no retransmite datos; para determinados bloqueos haría falta TURN.</p>
+                <p class="joint-help">Fase 1 experimental: en Wi-Fi local, si el participante recibe una oferta del maestro con candidatos <code>.local</code>, VWOMA sustituye esa dirección por <code>172.20.10.1</code>, conservando exactamente el puerto UDP y los demás parámetros, como en el laboratorio WebRTC que funcionó. No añade candidatos ni cambia los QR. Esta prueba está pensada para ese Hotspot concreto: en una Wi-Fi convencional puede impedir la conexión; el modo STUN conserva su comportamiento habitual.</p>
                 <aside id="jointAndroidNearbyNotice" class="joint-android-notice" hidden role="note"><strong>Antes de conectar en Chrome Android</strong><p>Activa <b>Dispositivos cercanos</b> para Chrome: Ajustes → Aplicaciones → Chrome → Permisos → Dispositivos cercanos → Permitir. Sin este permiso Android puede bloquear la conexión WebRTC local aunque ambos móviles estén en la misma Wi-Fi.</p><button id="jointAndroidNearbyDone" type="button" class="joint-secondary" data-vwoma-icon="arrow">Ya está activado</button></aside>
                 <div id="jointQr"></div><textarea id="jointPairOutput" rows="3" readonly aria-label="Código para compartir" hidden></textarea><button id="jointCopyCode" type="button" class="joint-secondary" hidden data-vwoma-icon="copy">Copiar código</button>
                 <label for="jointPairInput">Invitación o respuesta</label><textarea id="jointPairInput" rows="4" placeholder="Pega el código o el enlace recibido" autocomplete="off" spellcheck="false"></textarea>
@@ -1004,7 +1004,7 @@
                 <div class="joint-actions"><button id="jointRetryPair" type="button" class="joint-secondary" data-vwoma-icon="reset">Reiniciar emparejamiento</button><button id="jointPrepareSafari" type="button" class="joint-secondary" data-vwoma-icon="help">Preparar Safari/iPhone</button></div>
                 <p class="joint-help">Preparar Safari solicita acceso a la cámara y la detiene inmediatamente; no graba. Ese permiso puede permitir que Safari ofrezca direcciones locales para WebRTC.</p>
                 <details id="jointPairDiagnostics" class="joint-diagnostics" hidden><summary>Diagnóstico técnico</summary><pre id="jointPairDiagnosticsText" tabindex="0"></pre><button id="jointCopyDiagnostics" type="button" class="joint-secondary" data-vwoma-icon="copy">Copiar diagnóstico</button></details>
-                <p class="joint-help">Emparejamiento por dos códigos QR: ahora se usan páginas más grandes, como en el laboratorio WebRTC, para reducir el tiempo de intercambio. El maestro debe escanear la respuesta inmediatamente después de que aparezca. Se conservan las rutas ICE mDNS y la alternativa IP directa automática. El diagnóstico registra el tiempo de entrega de la respuesta. Sin retransmisión TURN. Versión de conexión 4.</p>
+                <p class="joint-help">Emparejamiento por dos códigos QR, sin cambios de formato ni tiempos en esta fase. En el participante se aplica la misma sustitución ICE mDNS → IP directa que en el laboratorio, sin rutas duplicadas. El diagnóstico indica cuántos candidatos se sustituyeron. No hay servidor TURN. Versión de conexión 4.</p>
             </dialog>
         </section>
 
@@ -1041,8 +1041,8 @@
     <script defer src="src/joint/plan-controller.js?v=20261114-plan-steps-v5"></script>
     <script defer src="src/joint/setup-symbols.js?v=20261114-phone-status-v1"></script>
     <script defer src="src/joint/setup-planner.js?v=20261114-setup-workflow-v1"></script>
-    <script defer src="src/joint/hotspot-ice.js?v=20261115-guest-mdns-hotspot-auto-v2"></script>
-    <script defer src="src/joint/webrtc-transport.js?v=20261115-qr-pair-lab-v1"></script>
+    <script defer src="src/joint/hotspot-ice.js?v=20261115-fase1-lab-replacement-v1"></script>
+    <script defer src="src/joint/webrtc-transport.js?v=20261115-fase1-lab-replacement-v1"></script>
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
     <script defer src="src/joint/persistence.js?v=20261109-modular-persistence-v1"></script>
     <script defer src="src/joint/acquisition.js?v=20261114-setups-v2"></script>

@@ -123,9 +123,9 @@
             'Modo: '+(p?.network||$('jointNetworkMode').value),
             ...(p?.answerQrAgeMs!=null?['Tiempo estimado de QR de respuesta: '+(p.answerQrAgeMs/1000).toFixed(1)+' s (relojes de ambos móviles; puede haber desfase)']:[]),
             ...(p?.guestAnswerShownAt!=null?['Respuesta visible en participante desde hace: '+Math.max(0,Math.round((now()-p.guestAnswerShownAt)/1000))+' s']:[]),
-            'Rutas automáticas mDNS/IP directa: '+(p?.hotspotAlternativeStatus==='added'
-                ?p.hotspotAlternatives+' alternativa(s) a 172.20.10.1 con el puerto real del maestro'
-                :p?.hotspotAlternativeStatus||'sin alternativas'),
+            'Fase 1 · sustitución mDNS/IP del maestro: '+(p?.hotspotAlternativeStatus==='replaced'
+                ?p.hotspotReplacements+' candidato(s) .local → 172.20.10.1; puerto original, sin duplicados'
+                :p?.hotspotAlternativeStatus||'no evaluado'),
             'Permiso de cámara concedido en esta sesión: '+(s.capturePermission?'sí':'no o desconocido'),
             'Estado: '+(p?(p.failureDetails||pairingDetails(p)):'sin conexión creada'),
             ...(p?['Candidatos propios:',...candidateDetails(p.pc.localDescription).map(row=>'· '+row),'Candidatos del otro extremo:',...candidateDetails(p.pc.remoteDescription).map(row=>'· '+row)]:[]),
@@ -292,30 +292,35 @@
         p.pairTimer=setTimeout(()=>failPair(p,'No se ha abierto el canal en '+Math.round(timeout/1000)+' segundos'),timeout);
     }
     async function setRemoteDescriptionWithHotspot(p,description) {
-        // Compatible with the successful webrtc-lab IP-direct experiment.
-        // The participant receives the master's OFFER. Only this direction
-        // may use the master's hotspot IP; do not alter the master's ANSWER.
-        // Keep original mDNS routes alongside exact-port direct-IP candidates.
+        // Fase experimental 1: igual que webrtc-lab/test.js.
+        // SOLO el participante y SOLO al aceptar la oferta local del maestro:
+        // reemplazar .local por 172.20.10.1 sin crear pares ICE duplicados.
+        // No alterar las respuestas ni el puerto, prioridad o credenciales ICE.
         const enabled=s.role==='guest' && p.network==='local' &&
             description?.type==='offer';
-        const result=root.VWOMAIceHotspot?.withHotspotCandidates(description,enabled)
-            || {description,added:0,status:'helper-unavailable'};
+        const helper=root.VWOMAIceHotspot;
+        if(enabled && !helper?.useLabReplacement)
+            throw Error('No se ha cargado la compatibilidad IP directa. Recarga VWOMA en ambos teléfonos.');
+        const result=helper?.useLabReplacement(description,enabled)
+            || {description,replaced:0,status:'disabled'};
         p.hotspotAlternativeStatus=result.status;
-        p.hotspotAlternatives=result.added;
-        if(result.added)diagnosticEvent(p,'alternativa IP directa automática',
-            result.added+' ruta(s) a 172.20.10.1 para host .local del maestro; '+
-            'puertos originales conservados; mDNS original disponible');
-        if(!result.added)return p.pc.setRemoteDescription(description);
+        p.hotspotAlternatives=0;
+        p.hotspotReplacements=result.replaced||0;
+        if(result.replaced) {
+            diagnosticEvent(p,'sustitución mDNS por IP directa (laboratorio)',
+                result.replaced+' candidato(s): '+result.changed.map(x=>
+                    x.originalHost+':'+x.originalPort+' → '+x.replacementIP+':'+x.originalPort
+                ).join(', ')+'; sin candidatos adicionales');
+        }
+        // A diferencia del experimento anterior, no se reintenta otra
+        // descripción en la misma RTCPeerConnection si Safari la rechaza.
+        // El error se refleja en el diagnóstico para iniciar una invitación nueva.
         try {
             return await p.pc.setRemoteDescription(result.description);
         } catch(error) {
-            // Only if the browser rejects the augmented SDP, try unmodified
-            // original signaling; this is distinct from ICE route failure.
-            diagnosticEvent(p,'IP directa no admitida por SDP',
-                'probando descripción mDNS original: '+String(error?.message||error));
-            p.hotspotAlternativeStatus='rejected';
-            p.hotspotAlternatives=0;
-            return p.pc.setRemoteDescription(description);
+            diagnosticEvent(p,'error al aplicar SDP de fase 1',
+                String(error?.message||error));
+            throw error;
         }
     }
     function localDescription(p) {
