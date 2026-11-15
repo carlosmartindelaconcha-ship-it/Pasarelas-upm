@@ -1004,7 +1004,7 @@
                 <div class="joint-actions"><button id="jointRetryPair" type="button" class="joint-secondary" data-vwoma-icon="reset">Reiniciar emparejamiento</button><button id="jointPrepareSafari" type="button" class="joint-secondary" data-vwoma-icon="help">Preparar Safari/iPhone</button></div>
                 <p class="joint-help">Preparar Safari solicita acceso a la cámara y la detiene inmediatamente; no graba. Ese permiso puede permitir que Safari ofrezca direcciones locales para WebRTC.</p>
                 <details id="jointPairDiagnostics" class="joint-diagnostics" hidden><summary>Diagnóstico técnico</summary><pre id="jointPairDiagnosticsText" tabindex="0"></pre><button id="jointCopyDiagnostics" type="button" class="joint-secondary" data-vwoma-icon="copy">Copiar diagnóstico</button></details>
-                <p class="joint-help">Emparejamiento por dos códigos QR. El participante prueba automáticamente las rutas mDNS y las IP directas compatibles con Hotspot, sin reemplazar los puertos ni modificar los códigos QR. El diagnóstico indica las alternativas creadas y los pares ICE examinados. No hay retransmisión TURN. Versión de conexión 4.</p>
+                <p class="joint-help">Emparejamiento por dos códigos QR: ahora se usan páginas más grandes, como en el laboratorio WebRTC, para reducir el tiempo de intercambio. El maestro debe escanear la respuesta inmediatamente después de que aparezca. Se conservan las rutas ICE mDNS y la alternativa IP directa automática. El diagnóstico registra el tiempo de entrega de la respuesta. Sin retransmisión TURN. Versión de conexión 4.</p>
             </dialog>
         </section>
 
@@ -1042,7 +1042,7 @@
     <script defer src="src/joint/setup-symbols.js?v=20261114-phone-status-v1"></script>
     <script defer src="src/joint/setup-planner.js?v=20261114-setup-workflow-v1"></script>
     <script defer src="src/joint/hotspot-ice.js?v=20261115-guest-mdns-hotspot-auto-v2"></script>
-    <script defer src="src/joint/webrtc-transport.js?v=20261115-guest-mdns-hotspot-auto-v2"></script>
+    <script defer src="src/joint/webrtc-transport.js?v=20261115-qr-pair-lab-v1"></script>
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
     <script defer src="src/joint/persistence.js?v=20261109-modular-persistence-v1"></script>
     <script defer src="src/joint/acquisition.js?v=20261114-setups-v2"></script>
@@ -1056,7 +1056,7 @@
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/ui-events.js?v=20261114-setup-workflow-v1"></script>
     <script defer src="src/joint/measure-guide.js?v=20261114-phone-status-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261114-setup-workflow-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261115-qr-pair-lab-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-setups-v2"></script>
 
 
