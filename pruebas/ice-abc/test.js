@@ -1,7 +1,7 @@
 'use strict';
 /* VWOMA - isolated Safari/WebRTC diagnostic laboratory. No server signaling. */
 const $ = id => document.getElementById(id);
-const VERSION = 'webrtc-ice-abc-20261115-b-priority-v3';
+const VERSION = 'webrtc-ice-abcd-20261115-auto-v4';
 const MAX_SNAPSHOTS = 300;
 let pc = null, channel = null, role = null, report = null;
 let timer = null, pendingSnapshot = null, snapshotCount = 0;
@@ -13,9 +13,9 @@ let qrPages = [], qrIndex = 0, qrTimer = null, qrStream = null, qrScanFrame = 0,
 let qrRenderGeneration = 0;
 const QR_CHUNK_SIZE = 430, MAX_QR_PAGES = 30;
 const pendingProbes = new Map();
-const ABC_STORAGE_KEY = 'vwoma-ice-abc-results-v3';
-const ABC_ORDER = ['normal','add','replace'];
-const ABC_LABELS = {normal:'A · Original',add:'B · Adición (prioridad +256)',replace:'C · Sustitución'};
+const ABC_STORAGE_KEY = 'vwoma-ice-abcd-results-v4';
+const ABC_ORDER = ['normal','add','replace','auto'];
+const ABC_LABELS = {normal:'A · Original',add:'B · Adición (prioridad +256)',replace:'C · Sustitución',auto:'D · Automático'};
 let abcHistory = [];
 const iso = () => new Date().toISOString();
 const elapsed = () => started ? Math.round(performance.now() - started) : 0;
@@ -341,9 +341,9 @@ function renderWizard(){
   $('roleHost').setAttribute('aria-pressed',String(host));
   $('roleGuest').setAttribute('aria-pressed',String(!host));
   $('mdnsControls').hidden=host;
-  $('mdnsIPWrap').hidden=host || $('mdnsMode').value==='normal';
+  $('mdnsIPWrap').hidden=host || !['add','replace'].includes($('mdnsMode').value);
   $('saveTrial').disabled=host||!report;
-  const warn={normal:'A · Se mantienen únicamente los candidatos originales. Si Safari no resuelve .local, puede fallar.',add:'B · Se conserva la foundation original y .local; el nuevo candidato usa la misma foundation, el mismo puerto y prioridad 256 mayor. Solo cambian IP y prioridad.',replace:'C · Solo se sustituye .local por IP, exactamente como en el laboratorio que conectó.'};
+  const warn={normal:'A · Se mantienen únicamente los candidatos originales. Si Safari no resuelve .local, puede fallar.',add:'B · Se conserva la foundation original y .local; el nuevo candidato usa la misma foundation, el mismo puerto y prioridad 256 mayor. Solo cambian IP y prioridad.',replace:'C · Solo se sustituye .local por IP, exactamente como en el laboratorio que conectó.',auto:'D · Detecta candidatos locales de forma provisional. En la red 172.20.10.0/28 con oferta mDNS, aplica C automáticamente; en cualquier otra situación conserva la oferta original. No hay que indicar marca o tipo de dispositivo.'};
   $('modeWarning').textContent=warn[$('mdnsMode').value]||'';
   $('start').textContent=host?'Crear o reiniciar invitación':'Preparar o reiniciar participante';
   $('scan').textContent=host?'Leer QR de respuesta del iPhone B':'Leer QR de invitación del iPhone A';
@@ -394,7 +394,7 @@ function chooseRole(next){
   renderWizard();
 }
 async function beginGuided(){
-  if($('role').value==='guest'&&$('mdnsMode').value!=='normal'&&!validIPv4($('mdnsIP').value.trim()))
+  if($('role').value==='guest'&&['add','replace'].includes($('mdnsMode').value)&&!validIPv4($('mdnsIP').value.trim()))
     throw Error('Introduce la IP real del hotspot, la que figura como Router en el Wi-Fi del iPhone B.');
   stopQRScanner();stopQRCycle();++qrRenderGeneration;
   $('qrOut').hidden=true;
@@ -627,6 +627,7 @@ function abcTrialSummary(){
     meanDataRttMs:rtt.length?+(rtt.reduce((a,v)=>a+v.rttMs,0)/rtt.length).toFixed(2):null,
     appliedReplacements:report.mdnsExperiment.replacements.length,
     appliedAdditions:(report.mdnsExperiment.additions||[]).length,
+    autoAction:report.mdnsExperiment.autoDecision?.action||null,
     events:report.events.length
   };
 }
@@ -660,7 +661,7 @@ function abcLoadComparison(){
 }
 function abcSaveTrial(){
   if(!report){$('abcCount').textContent='Inicia un ensayo antes de guardarlo.';return;}
-  if(role!=='guest'){$('abcCount').textContent='Guarda la comparación en el iPhone participante, donde se elige A/B/C.';return;}
+  if(role!=='guest'){$('abcCount').textContent='Guarda la comparación en el teléfono participante, donde se elige A/B/C/D.';return;}
   const r=abcTrialSummary();
   if(!r)return;
   abcHistory.push(r);abcHistory=abcHistory.slice(-24);
@@ -671,7 +672,7 @@ function abcSaveTrial(){
     ', máximo '+r.longestOpenSec.toFixed(1)+' s. '+abcHistory.length+' ensayos conservados.';
 }
 function abcComparisonText(){
-  return 'VWOMA · Comparación ICE A/B/C · '+iso()+
+  return 'VWOMA · Comparación ICE A/B/C/D · '+iso()+
     '\nEstrategia\tCanal\tMayor período (s)\tICE\tNominados\tRespuestas\tPareja seleccionada\n'+
     ABC_ORDER.map(mode=>{
       const r=abcHistory.filter(x=>x.mode===mode).at(-1);
@@ -684,7 +685,7 @@ function abcComparisonText(){
     '\nSolo último ensayo de cada estrategia. Comprueba también los JSON separados.';
 }
 function abcClearComparison(){
-  if(!confirm('¿Borrar los resultados resumidos A/B/C de este navegador?'))return;
+  if(!confirm('¿Borrar los resultados resumidos A/B/C/D de este navegador?'))return;
   abcHistory=[];
   try{localStorage.removeItem(ABC_STORAGE_KEY);}catch(_){}
   abcRenderComparison();
@@ -835,7 +836,7 @@ async function init(){
     liveCandidates:{local:[],remote:[]},
     cameraTest:{mode:cameraMode, permissionRequested:cameraMode==='before', requestedBeforePeer:true,
       granted:false, activeDuringGathering:false, stoppedAtMs:null, stopReason:null, error:null},
-    mdnsExperiment:{mode:role==='host'?'normal':$('mdnsMode').value, enteredAddress:$('mdnsIP').value.trim(),replacements:[],additions:[],testApplied:false},
+    mdnsExperiment:{mode:role==='host'?'normal':$('mdnsMode').value, enteredAddress:$('mdnsIP').value.trim(),replacements:[],additions:[],testApplied:false,autoProbe:null,autoDecision:null},
     channelTrial:{everOpened:false,openCount:0,firstOpenMs:null,openAtMs:null,openTotalMs:0,maxOpenMs:0,lastClosedMs:null},
     warnings:['Datos limitados a lo que Safari expone en sus API. No demuestra por sí solo un bloqueo del hotspot.',
       'El informe contiene direcciones IP locales, candidatos y credenciales ICE en SDP: compartir con precaución.']
@@ -941,6 +942,51 @@ async function init(){
     await capture('inicialización completada');
   }catch(error){if(cameraStream)stopCamera('error al iniciar la conexión');handleError('crear conexión',error)}
 }
+/* D: a short-lived, unconnected RTCPeerConnection collects the guest's own
+ * host candidates. It has no remote SDP, no ICE servers and cannot exchange
+ * application data. Always close it, including on timeout or failure. */
+async function probeLocalICECandidates(timeoutMs=2400){
+  const probe=new RTCPeerConnection({iceServers:[],iceTransportPolicy:'all'});
+  const candidates=[];
+  const start=performance.now();
+  let finishedBy='complete';
+  try {
+    probe.onicecandidate=e=>{
+      if(e.candidate?.candidate)candidates.push(e.candidate.candidate);
+    };
+    probe.createDataChannel('vwoma-auto-ice-probe');
+    const offer=await probe.createOffer();
+    await probe.setLocalDescription(offer);
+    if(probe.iceGatheringState!=='complete'){
+      finishedBy=await new Promise(resolve=>{
+        let settled=false,timeout;
+        const finish=why=>{
+          if(settled)return;
+          settled=true;
+          clearTimeout(timeout);
+          probe.removeEventListener('icegatheringstatechange',check);
+          resolve(why);
+        };
+        const check=()=>{if(probe.iceGatheringState==='complete')finish('complete');};
+        probe.addEventListener('icegatheringstatechange',check);
+        timeout=setTimeout(()=>finish('timeout'),timeoutMs);
+        check();
+      });
+    }
+    const fromSDP=probe.localDescription?.sdp?.split(/\r?\n/)
+      .filter(line=>line.startsWith('a=candidate:'))||[];
+    return {
+      candidateLines:[...new Set([...candidates,...fromSDP])],
+      completed:finishedBy==='complete',finishedBy,
+      durationMs:Math.round(performance.now()-start),
+      gatheringState:probe.iceGatheringState
+    };
+  } finally {
+    probe.onicecandidate=null;
+    probe.close();
+  }
+}
+
 async function apply(){
   if(!pc)throw Error('Primero debes iniciar este teléfono');
   const raw=$('incoming').value.trim();
@@ -977,6 +1023,43 @@ async function apply(){
     event('PRUEBA ICE B','Se añadieron '+result.changed.length+' candidatos, misma foundation y prioridad +256; se conserva .local',
       result.changed);
     descriptionInfo(toApply,'remota modificada ANTES de aplicar');
+  } else if(role==='guest' && report.mdnsExperiment.mode==='auto'){
+    // The preflight is independent of the real connection and must not
+    // leave a live RTCPeerConnection or change the master offer in place.
+    const realPC=pc,realReport=report;
+    let detected=[];
+    try {
+      event('PRUEBA ICE D','Buscando IP local mediante conexión provisional sin intercambio SDP');
+      const probe=await probeLocalICECandidates();
+      if(pc!==realPC||report!==realReport||realPC.signalingState==='closed')
+        throw Error('La sesión cambió durante la detección automática.');
+      report.mdnsExperiment.autoProbe=probe;
+      detected=probe.candidateLines;
+      event('PRUEBA ICE D','Conexión provisional cerrada; candidatos locales recogidos',{
+        candidates:detected,completed:probe.completed,finishedBy:probe.finishedBy,
+        durationMs:probe.durationMs
+      });
+    }catch(error){
+      if(pc!==realPC||report!==realReport)throw Error('Se ha reiniciado la conexión durante la detección automática.');
+      report.mdnsExperiment.autoProbe={completed:false,finishedBy:'error',error:errorInfo(error)};
+      event('PRUEBA ICE D','No se ha podido obtener la IP local; se conservará la oferta original',errorInfo(error));
+    }
+    const decision=IceABC.autoDecide(d,detected);
+    report.mdnsExperiment.autoDecision=decision;
+    event('PRUEBA ICE D',decision.reason,decision);
+    if(decision.action==='replace'){
+      // Reuse EXACTLY C's working replacement algorithm; no additions.
+      const result=replaceRemoteMdnsWithIP(d,decision.address);
+      toApply=result.description;
+      report.mdnsExperiment.testApplied=true;
+      report.mdnsExperiment.replacements.push(...result.changed);
+      report.sdpExchanges.push({ms:elapsed(),direction:'D automática (sustitución C)',
+        type:d.type,sdp:toApply.sdp});
+      descriptionInfo(toApply,'remota modificada por D ANTES de aplicar');
+      event('PRUEBA ICE D','Sustitución C aplicada automáticamente a '+result.changed.length+' candidatos .local',result.changed);
+    }else{
+      event('PRUEBA ICE D','Oferta intacta: la red no se ha identificado con suficiente confianza');
+    }
   } else {
     event('PRUEBA ICE A','Se mantiene el SDP remoto original (control)');
   }
@@ -1031,7 +1114,7 @@ function diagnosticSummary(){
       d.phase+' ('+d.type+', '+d.candidates.length+' candidatos)').join('; '),
     'Candidatos locales: '+JSON.stringify(report.localDescriptions.at(-1)?.candidates||[]),
     'Candidatos remotos: '+JSON.stringify(report.remoteDescriptions.at(-1)?.candidates||[]),
-    'Ensayo ICE A/B/C: '+JSON.stringify(report.mdnsExperiment),
+    'Ensayo ICE A/B/C/D: '+JSON.stringify(report.mdnsExperiment),
     'Resumen de estabilidad: '+JSON.stringify(abcTrialSummary()),
     'Estadísticas finales: '+JSON.stringify(latest?.summary||{}),
     'Eventos ('+report.events.length+'):'
