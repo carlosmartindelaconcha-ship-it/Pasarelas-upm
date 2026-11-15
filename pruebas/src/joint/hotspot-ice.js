@@ -1,69 +1,54 @@
-/* VWOMA | Automatic iPhone Personal Hotspot ICE compatibility.
- * When a participant receives an offer whose host ICE candidate has a
- * privacy-preserving .local name, test an additional direct route to the
- * usual iPhone Personal Hotspot gateway without altering the original route.
- * The gateway address is a candidate, NOT a verified router address.
- * Never rewrite real IP candidates or synthesize UDP ports.
+/* VWOMA | Fase 1: reproducción literal del experimento mDNS/IP del laboratorio.
+ * Solo se altera la DIRECCIÓN de los candidatos UDP host *.local del maestro.
+ * El puerto, fundamento, prioridad y credenciales ICE permanecen idénticos.
+ * No se añaden candidatos. Se aplica únicamente al participante al recibir
+ * una oferta de conexión local; la IP fija es experimental.
  */
 (function registerHotspotIce(root) {
   'use strict';
-  const IP='172.20.10.1',MAX_SDP_BYTES=100000,MAX_DIRECT=16;
-  const CANDIDATE=/^a=candidate:([^\r\n]+)$/;
-  function withHotspotCandidates(description,enabled) {
-    if(!description || typeof description.sdp!=='string')
-      return {description,added:0,status:'invalid'};
-    if(!enabled)return {description,added:0,status:'disabled'};
-    const sdp=description.sdp;
-    const newline=sdp.includes('\r\n')?'\r\n':'\n';
-    const lines=sdp.split(/\r?\n/),originals=new Set(),addedKeys=new Set();
-    let section=-1;
-    for(const line of lines){
-      if(line.startsWith('m='))section++;
-      const candidate=line.match(CANDIDATE);
-      if(!candidate)continue;
-      const parts=candidate[1].trim().split(/\s+/);
-      if(parts.length<8 || parts[2]?.toLowerCase()!=='udp'||parts[4]!==IP||
-          parts[6]!=='typ'||parts[7]!=='host')continue;
-      originals.add(section+':'+parts[1]+':'+parts[5]);
-    }
-    const out=[];section=-1;let added=0,eligible=0;
-    for(const line of lines){
-      if(line.startsWith('m='))section++;
-      const matched=line.match(CANDIDATE);
-      if(!matched){out.push(line);continue;}
-      const parts=matched[1].trim().split(/\s+/);
-      if(parts.length<8||parts[2]?.toLowerCase()!=='udp'||
-        parts[6]!=='typ'||parts[7]!=='host'||!/\.local$/i.test(parts[4])){
-        out.push(line);continue;
-      }
-      const port=Number(parts[5]),priority=Number(parts[3]);
-      if(!Number.isSafeInteger(port)||port<1||port>65535||
-          !Number.isSafeInteger(priority)||priority<1||priority>4294967295){
-        out.push(line);continue;
-      }
-      eligible++;
-      const key=section+':'+parts[1]+':'+parts[5];
-      if(originals.has(key)||addedKeys.has(key)||added>=MAX_DIRECT){
-        out.push(line);continue;
-      }
-      addedKeys.add(key);added++;
-      // Keep all original ICE credentials, candidate attributes and UDP port.
-      // Give the direct host route a slightly higher priority, so that ICE
-      // can try it early, but retain the .local route as a normal fallback.
-      const direct=parts.slice();
-      direct[0]='vh'+added;
-      direct[3]=String(Math.min(4294967295,priority+128));
-      direct[4]=IP;
-      out.push('a=candidate:'+direct.join(' '));
-      out.push(line);
-    }
-    if(!added)return {description,added:0,eligible,status:eligible?'already-present':'no-mdns-host'};
-    const modified=out.join(newline);
-    if(modified.length>MAX_SDP_BYTES)
-      return {description,added:0,eligible,status:'too-large'};
-    return {description:{...description,sdp:modified},added,eligible,status:'added',gateway:IP};
+  const IP='172.20.10.1';
+  function validIPv4(address) {
+    const octets=address.split('.');
+    return octets.length===4 && octets.every(x=>
+      /^\d{1,3}$/.test(x) && Number(x)>=0 && Number(x)<=255 && String(Number(x))===x);
   }
-  const api=Object.freeze({IP,withHotspotCandidates});
+  // Copiado del procedimiento probado en webrtc-lab/test.js.
+  function replaceRemoteMdnsWithIP(description,address) {
+    if(!validIPv4(address))throw Error('Introduce una IPv4 válida; consulta «Router» en el Wi-Fi del participante');
+    const changed=[];
+    const modified=description.sdp.replace(/^a=candidate:([^\r\n]+)$/gm,(line,body)=>{
+      const parts=body.trim().split(/\s+/);
+      const typeIndex=parts.indexOf('typ');
+      if(parts.length<8 || typeIndex<0 || parts[typeIndex+1]!=='host' ||
+         !/\.local$/i.test(parts[4]) || parts[2].toLowerCase()!=='udp')return line;
+      changed.push({
+        originalHost:parts[4],replacementIP:address,originalPort:parts[5],
+        protocol:parts[2],originalCandidate:line,
+        modifiedCandidate:'a=candidate:'+parts.map((p,i)=>i===4?address:p).join(' ')
+      });
+      parts[4]=address;
+      return 'a=candidate:'+parts.join(' ');
+    });
+    if(!changed.length)throw Error('El SDP remoto no contiene candidatos UDP host con nombre .local para sustituir. Esta prueba no es aplicable.');
+    return {description:{type:description.type,sdp:modified},changed};
+  }
+  // En una oferta sin candidatos mDNS, conservar la negociación normal.
+  function useLabReplacement(description,enabled) {
+    if(!description || typeof description.sdp!=='string')
+      return {description,replaced:0,status:'invalid'};
+    if(!enabled)return {description,replaced:0,status:'disabled'};
+    const eligible=description.sdp.split(/\r?\n/).some(line=>{
+      if(!line.startsWith('a=candidate:'))return false;
+      const parts=line.slice(12).trim().split(/\s+/);
+      const typeIndex=parts.indexOf('typ');
+      return parts.length>=8 && typeIndex>=0 && parts[typeIndex+1]==='host' &&
+        /\.local$/i.test(parts[4]) && parts[2].toLowerCase()==='udp';
+    });
+    if(!eligible)return {description,replaced:0,status:'no-mdns-host'};
+    const result=replaceRemoteMdnsWithIP(description,IP);
+    return {...result,replaced:result.changed.length,status:'replaced'};
+  }
+  const api=Object.freeze({IP,validIPv4,replaceRemoteMdnsWithIP,useLabReplacement});
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.VWOMAIceHotspot=api;
 })(globalThis);

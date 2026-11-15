@@ -1,0 +1,22 @@
+name: VWOMA Fase 1 - mDNS a IP directa del laboratorio
+on:
+  push:
+    branches:
+      - "refactor/vwoma-hotspot-lab-phase1-20261115"
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: JavaScript syntax
+        run: |
+          node --check pruebas/src/joint/hotspot-ice.js
+          node --check pruebas/src/joint/webrtc-transport.js
+          node --check pruebas/tests/hotspot-ice.test.cjs
+      - name: Regression tests - ICE, QR, joint setup and transfer
+        run: cd pruebas && node --test tests/hotspot-ice.test.cjs tests/qr-pairing-timing.test.cjs tests/record-transfer.test.cjs tests/transfer-integration.test.cjs tests/results-view.test.cjs tests/ui-events.test.cjs tests/exports.test.cjs tests/measure-guide.test.cjs tests/setup-redesign.test.cjs
