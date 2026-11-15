@@ -123,9 +123,14 @@
             'Modo: '+(p?.network||$('jointNetworkMode').value),
             ...(p?.answerQrAgeMs!=null?['Tiempo estimado de QR de respuesta: '+(p.answerQrAgeMs/1000).toFixed(1)+' s (relojes de ambos móviles; puede haber desfase)']:[]),
             ...(p?.guestAnswerShownAt!=null?['Respuesta visible en participante desde hace: '+Math.max(0,Math.round((now()-p.guestAnswerShownAt)/1000))+' s']:[]),
-            'Fase 1 · sustitución mDNS/IP del maestro: '+(p?.hotspotAlternativeStatus==='replaced'
-                ?p.hotspotReplacements+' candidato(s) .local → 172.20.10.1; puerto original, sin duplicados'
+            'ICE D · detección automática: '+(p?.hotspotAlternativeStatus==='auto-replaced'
+                ?p.hotspotReplacements+' candidato(s) .local → '+p.hotspotAutoDecision.address+'; puerto original, sin duplicados'
                 :p?.hotspotAlternativeStatus||'no evaluado'),
+            ...(p?.hotspotAutoDecision?[
+                'Decisión D: '+p.hotspotAutoDecision.action+' · '+p.hotspotAutoDecision.reason,
+                'IP locales D: '+(p.hotspotAutoDecision.guestIPv4.join(', ')||'ninguna')]:[]),
+            ...(p?.hotspotAutoProbe?['Sonda D: '+p.hotspotAutoProbe.finishedBy+
+                ' · '+(p.hotspotAutoProbe.durationMs??'?')+' ms · '+(p.hotspotAutoProbe.candidateCount??0)+' candidatos']:[]),
             'Permiso de cámara concedido en esta sesión: '+(s.capturePermission?'sí':'no o desconocido'),
             'Estado: '+(p?(p.failureDetails||pairingDetails(p)):'sin conexión creada'),
             ...(p?['Candidatos propios:',...candidateDetails(p.pc.localDescription).map(row=>'· '+row),'Candidatos del otro extremo:',...candidateDetails(p.pc.remoteDescription).map(row=>'· '+row)]:[]),
@@ -292,33 +297,72 @@
         p.pairTimer=setTimeout(()=>failPair(p,'No se ha abierto el canal en '+Math.round(timeout/1000)+' segundos'),timeout);
     }
     async function setRemoteDescriptionWithHotspot(p,description) {
-        // Fase experimental 1: igual que webrtc-lab/test.js.
-        // SOLO el participante y SOLO al aceptar la oferta local del maestro:
-        // reemplazar .local por 172.20.10.1 sin crear pares ICE duplicados.
-        // No alterar las respuestas ni el puerto, prioridad o credenciales ICE.
+        // ICE D: exclusivamente ofertas locales recibidas por el participante.
+        // Conservar C (reemplazo literal de IP), pero aplicarlo solo si una
+        // prueba ICE provisional detecta la red 172.20.10.0/28 conocida.
+        // Sin coincidencia, conservamos el SDP original para la Wi-Fi normal.
         const enabled=s.role==='guest' && p.network==='local' &&
             description?.type==='offer';
         const helper=root.VWOMAIceHotspot;
-        if(enabled && !helper?.useLabReplacement)
-            throw Error('No se ha cargado la compatibilidad IP directa. Recarga VWOMA en ambos teléfonos.');
-        const result=helper?.useLabReplacement(description,enabled)
-            || {description,replaced:0,status:'disabled'};
-        p.hotspotAlternativeStatus=result.status;
+        let result={description,replaced:0,status:'disabled'};
         p.hotspotAlternatives=0;
-        p.hotspotReplacements=result.replaced||0;
-        if(result.replaced) {
-            diagnosticEvent(p,'sustitución mDNS por IP directa (laboratorio)',
-                result.replaced+' candidato(s): '+result.changed.map(x=>
-                    x.originalHost+':'+x.originalPort+' → '+x.replacementIP+':'+x.originalPort
-                ).join(', ')+'; sin candidatos adicionales');
+        p.hotspotReplacements=0;
+        p.hotspotAutoDecision=null;
+        p.hotspotAutoProbe=null;
+        if(enabled){
+            if(!helper?.autoDecide || !helper?.probeLocalICECandidates ||
+                !helper?.replaceRemoteMdnsWithIP)
+                throw Error('No se ha cargado la detección ICE automática. Recarga VWOMA en ambos teléfonos.');
+            const connection=p.pc;
+            const hasMdns=helper.autoDecide(description,[]).remoteMdns;
+            let detected=[];
+            if(hasMdns){
+                diagnosticEvent(p,'ICE D · sonda local','Iniciando búsqueda provisional de candidatos sin STUN/TURN');
+                try {
+                    const probe=await helper.probeLocalICECandidates();
+                    // No aplicar una oferta antigua tras cerrar o reemplazar
+                    // el PeerConnection durante el escaneo o un reinicio.
+                    if(p.pc!==connection || s.peers.get(p.id)!==p ||
+                        p.pairFailed || connection.signalingState==='closed')
+                        throw Error('El emparejamiento se ha reiniciado durante la detección ICE.');
+                    detected=probe.candidateLines;
+                    p.hotspotAutoProbe={
+                        finishedBy:probe.finishedBy,durationMs:probe.durationMs,
+                        completed:probe.completed,candidateCount:detected.length
+                    };
+                    diagnosticEvent(p,'ICE D · sonda completada',
+                        probe.finishedBy+' · '+probe.durationMs+' ms · '+detected.length+' candidatos');
+                }catch(error){
+                    if(p.pc!==connection || s.peers.get(p.id)!==p ||
+                        p.pairFailed || connection.signalingState==='closed')
+                        throw Error('El emparejamiento se ha reiniciado durante la detección ICE.');
+                    p.hotspotAutoProbe={finishedBy:'error',candidateCount:0,
+                        error:String(error?.message||error)};
+                    diagnosticEvent(p,'ICE D · sonda no disponible',
+                        'Se conserva SDP original si no se reconoce la red: '+String(error?.message||error));
+                }
+            }
+            const decision=helper.autoDecide(description,detected);
+            p.hotspotAutoDecision=decision;
+            diagnosticEvent(p,'ICE D · decisión',decision.reason);
+            if(decision.action==='replace'){
+                const changed=helper.replaceRemoteMdnsWithIP(description,decision.address);
+                result={...changed,replaced:changed.changed.length,status:'auto-replaced'};
+                diagnosticEvent(p,'ICE D · sustitución mDNS por IP directa',
+                    changed.changed.length+' candidato(s): '+changed.changed.map(x=>
+                        x.originalHost+':'+x.originalPort+' → '+x.replacementIP+':'+x.originalPort
+                    ).join(', ')+'; puerto y prioridad originales, sin candidatos adicionales');
+            }else{
+                result={description,replaced:0,status:hasMdns?'auto-original':'no-mdns-host'};
+                diagnosticEvent(p,'ICE D · SDP conservado','Oferta original sin cambios');
+            }
         }
-        // A diferencia del experimento anterior, no se reintenta otra
-        // descripción en la misma RTCPeerConnection si Safari la rechaza.
-        // El error se refleja en el diagnóstico para iniciar una invitación nueva.
-        try {
+        p.hotspotAlternativeStatus=result.status;
+        p.hotspotReplacements=result.replaced||0;
+        try{
             return await p.pc.setRemoteDescription(result.description);
-        } catch(error) {
-            diagnosticEvent(p,'error al aplicar SDP de fase 1',
+        }catch(error){
+            diagnosticEvent(p,'error al aplicar SDP ICE D',
                 String(error?.message||error));
             throw error;
         }
