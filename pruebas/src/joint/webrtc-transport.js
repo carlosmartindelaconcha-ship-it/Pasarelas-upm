@@ -119,9 +119,9 @@
             'Etapa: '+stage,
             'Navegador: '+browserLabel(),
             'Modo: '+(p?.network||$('jointNetworkMode').value),
-            'Alternativas hotspot: '+(p?.hotspotAlternativeStatus==='added'
-                ?p.hotspotAlternatives+' rutas 172.20.10.1 (puertos UDP originales)'
-                :p?.hotspotAlternativeStatus||'no evaluado'),
+            'Rutas automáticas mDNS/IP directa: '+(p?.hotspotAlternativeStatus==='added'
+                ?p.hotspotAlternatives+' alternativa(s) a 172.20.10.1 con el puerto real del maestro'
+                :p?.hotspotAlternativeStatus||'sin alternativas'),
             'Permiso de cámara concedido en esta sesión: '+(s.capturePermission?'sí':'no o desconocido'),
             'Estado: '+(p?(p.failureDetails||pairingDetails(p)):'sin conexión creada'),
             ...(p?['Candidatos propios:',...candidateDetails(p.pc.localDescription).map(row=>'· '+row),'Candidatos del otro extremo:',...candidateDetails(p.pc.remoteDescription).map(row=>'· '+row)]:[]),
@@ -288,23 +288,27 @@
         p.pairTimer=setTimeout(()=>failPair(p,'No se ha abierto el canal en '+Math.round(timeout/1000)+' segundos'),timeout);
     }
     async function setRemoteDescriptionWithHotspot(p,description) {
-        // Local-mode ICE only, and only in a browser running on iPhone/iPad.
-        // Let the browser choose between all originals and the extra gateway paths.
-        const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent||'');
-        const enabled=isIOS && p.network==='local';
+        // Compatible with the successful webrtc-lab IP-direct experiment.
+        // The participant receives the master's OFFER. Only this direction
+        // may use the master's hotspot IP; do not alter the master's ANSWER.
+        // Keep original mDNS routes alongside exact-port direct-IP candidates.
+        const enabled=s.role==='guest' && p.network==='local' &&
+            description?.type==='offer';
         const result=root.VWOMAIceHotspot?.withHotspotCandidates(description,enabled)
             || {description,added:0,status:'helper-unavailable'};
         p.hotspotAlternativeStatus=result.status;
         p.hotspotAlternatives=result.added;
-        if(result.added)diagnosticEvent(p,'alternativas ICE hotspot',
-            result.added+' candidatos 172.20.10.1 (puertos UDP remotos); originales conservados');
+        if(result.added)diagnosticEvent(p,'alternativa IP directa automática',
+            result.added+' ruta(s) a 172.20.10.1 para host .local del maestro; '+
+            'puertos originales conservados; mDNS original disponible');
         if(!result.added)return p.pc.setRemoteDescription(description);
         try {
             return await p.pc.setRemoteDescription(result.description);
         } catch(error) {
-            // WebKit can reject an unexpected candidate; restore normal signaling.
-            diagnosticEvent(p,'hotspot no admitido',
-                'reintentando SDP original: '+String(error?.name||'error'));
+            // Only if the browser rejects the augmented SDP, try unmodified
+            // original signaling; this is distinct from ICE route failure.
+            diagnosticEvent(p,'IP directa no admitida por SDP',
+                'probando descripción mDNS original: '+String(error?.message||error));
             p.hotspotAlternativeStatus='rejected';
             p.hotspotAlternatives=0;
             return p.pc.setRemoteDescription(description);
@@ -536,7 +540,7 @@
 
 
         return Object.freeze({
-            encodeToken, decodeToken, stopQrCycle, qrTransferPages, renderQrPage, acceptQrPage, showToken, openPair, browserLabel, isAndroidChrome, updateAndroidNearbyNotice, diagnosticEvent, diagnosticText, showPairDiagnostic, pairingError, gather, candidateSummary, parsedCandidates, candidateEndpoint, candidateLabel, candidateDetails, icePairSnapshot, captureIceStats, scheduleIceStats, pairingDetails, pairStatus, disposePeer, failPair, watchPair, localDescription, prepareSafariConnection, pairingAction, retryPair, wirePeer, newPeer, send, broadcast, wireChannel, checkRoute, invite, createGuestAnswer, readCode, stopScan, scanCode
+            encodeToken, decodeToken, stopQrCycle, qrTransferPages, renderQrPage, acceptQrPage, showToken, openPair, browserLabel, isAndroidChrome, updateAndroidNearbyNotice, diagnosticEvent, diagnosticText, showPairDiagnostic, pairingError, gather, setRemoteDescriptionWithHotspot, candidateSummary, parsedCandidates, candidateEndpoint, candidateLabel, candidateDetails, icePairSnapshot, captureIceStats, scheduleIceStats, pairingDetails, pairStatus, disposePeer, failPair, watchPair, localDescription, prepareSafariConnection, pairingAction, retryPair, wirePeer, newPeer, send, broadcast, wireChannel, checkRoute, invite, createGuestAnswer, readCode, stopScan, scanCode
         });
     }
     const api = Object.freeze({ createTransport });
