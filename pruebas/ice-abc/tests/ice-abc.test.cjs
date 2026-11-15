@@ -179,7 +179,7 @@ test('D: conexión provisional recoge candidatos, no usa STUN/TURN y siempre se 
     {RTCPeerConnection:FakePC,performance:{now:()=>10},Set,Promise,setTimeout,clearTimeout});
   const result=await fn();
   assert.equal(peer.closed,true);
-  assert.deepEqual(peer.config.iceServers,[]);
+  assert.equal(peer.config.iceServers.length,0);
   assert.equal(peer.label,'vwoma-auto-ice-probe');
   assert.equal(result.completed,true);
   assert.equal(result.candidateLines.length,2);
