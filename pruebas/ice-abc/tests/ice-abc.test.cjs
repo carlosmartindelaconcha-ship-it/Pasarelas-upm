@@ -138,7 +138,7 @@ test('Interfaz con A/B/C, historial, exportación JSON y lectura QR intacta',()=
   assert.match(js,/const ABC_STORAGE_KEY = 'vwoma-ice-abc-results-v3'/);
   assert.match(js,/webrtc-ice-abc-20261115-b-priority-v3/);
   assert.match(js,/B · Se conserva la foundation original/);
-  assert.match(html,/B · Adición: misma foundation, prioridad +256/);
+  assert.ok(html.includes('B · Adición: misma foundation, prioridad +256'));
   assert.match(html,/ice-candidates\.js\?v=ice-abc-20261115-v3/);
   assert.match(html,/test\.js\?v=ice-abc-20261115-v3/);
   assert.match(js,/const QR_CHUNK_SIZE = 430, MAX_QR_PAGES = 30/);
