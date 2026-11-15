@@ -73,5 +73,5 @@ test('escáner usa el ritmo y resolución probados en Safari sin alterar la adqu
   assert.match(source,/if\(frameAt-lastScanAt<125\)/);
   assert.match(source,/Math\.min\(1,760\/video\.videoWidth\)/);
   assert.match(html,/webrtc-transport\.js\?v=20261115-auto-ice-d-v1/);
-  assert.match(html,/joint-app\.js\?v=20261115-qr-pair-lab-v1/);
+  assert.match(html,/joint-app\.js\?v=20261115-sync-signed-axes-v1/);
 });
