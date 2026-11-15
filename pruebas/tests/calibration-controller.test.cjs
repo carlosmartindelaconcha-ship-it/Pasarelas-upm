@@ -181,24 +181,29 @@ test('ventana de un participante ausente permite repetir solo el eje',()=>{
   assert.ok(f.notices.some(x=>/No llegó la ventana/.test(x[0])));
 });
 
-test('valida correcciones X/Y/Z coherentes y las comunica a participantes',()=>{
+test('envía correcciones X/Y/Z y espera ACK del participante antes de validar',()=>{
   const lag={x:19,y:20,z:21};
-  const f=fixture({math:{estimateGestureAxis:(a,b,axis)=>({axis,lag:lag[axis],correlation:.96})}});
+  const f=fixture({math:{estimateGestureAxis:(a,b,axis)=>({axis,lag:lag[axis],correlation:.96,polarity:1})}});
   f.s.syncCalibration.phase='gesture';
   f.s.syncCalibration.gesture={id:'sync1',axis:'z',start:4000,end:10000,
     samples:[[4000,1,0,0]]};
   f.s.syncCalibration.results={
     host:{axes:{x:{axis:'x',lag:0,correlation:1},y:{axis:'y',lag:0,correlation:1}}},
-    guest:{axes:{x:{axis:'x',lag:19,correlation:.96},y:{axis:'y',lag:20,correlation:.96}},
-      windows:{z:[[4000,1,0,0]]},calibration:{map:{}}}
+    guest:{axes:{x:{axis:'x',lag:19,correlation:.96,polarity:1},y:{axis:'y',lag:20,correlation:.96,polarity:1}},
+      windows:{z:[[4000,1,0,0]]},calibration:{map:{x:{raw:0,sign:1},y:{raw:1,sign:1},z:{raw:2,sign:1}}}}
   };
   f.ctl.finalizeSyncGesture('sync1','z');
-  assert.equal(f.s.syncCalibration.phase,'accepted');
-  assert.equal(f.s.syncCalibration.accepted,true);
+  assert.equal(f.s.syncCalibration.phase,'applying');
+  assert.equal(f.s.syncCalibration.accepted,false);
   assert.equal(f.s.syncCalibration.results.guest.correctionMs,20);
   const sent=f.sent.find(x=>x[1].type==='SYNC_GESTURE_APPLY');
   assert.ok(sent);
   assert.equal(sent[1].correctionMs,20);
+  assert.deepEqual(sent[1].calibrationSigns,{x:1,y:1,z:1});
+  assert.equal(f.ctl.confirmSyncApplied('guest','sync1',{x:1,y:1,z:1}),true);
+  assert.equal(f.s.syncCalibration.phase,'accepted');
+  assert.equal(f.s.syncCalibration.accepted,true);
+  assert.equal(f.peer.syncCalibration.calibrationSigns.x,1);
 });
 
 test('si un eje contradice a los demás, se repite el discrepante',()=>{

@@ -1,0 +1,32 @@
+name: VWOMA physical synchronization signed-axis verification
+
+on:
+  push:
+    branches:
+      - "refactor/vwoma-sync-signed-axes-20261115"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate syntax
+        run: |
+          for file in pruebas/src/joint/calibration-math.js pruebas/src/joint/calibration-controller.js pruebas/src/joint/joint-app.js pruebas/tests/calibration-math.test.cjs pruebas/tests/sync-signs.test.cjs pruebas/tests/calibration-controller.test.cjs; do node --check "$file"; done
+      - name: Signed correlation and acknowledgment tests
+        run: |
+          node --test pruebas/tests/sync-signs.test.cjs pruebas/tests/calibration-math.test.cjs
+      - name: Updated calibration controller acknowledgment regression
+        run: |
+          node --test --test-name-pattern="envía correcciones X/Y/Z y espera ACK|si un eje contradice|ventana de un participante ausente|calibración manual invierte cada eje|preparar gesto conserva el modelo" pruebas/tests/calibration-controller.test.cjs
+      - name: Preserve unaffected WebRTC and processed export behavior
+        run: |
+          node --test pruebas/tests/hotspot-ice.test.cjs pruebas/tests/qr-pairing-timing.test.cjs pruebas/tests/exports.test.cjs pruebas/tests/clock-model.test.cjs pruebas/tests/record-transfer.test.cjs pruebas/tests/transfer-integration.test.cjs
+      - name: Laboratory A/B/C/D unaffected
+        run: node --test pruebas/ice-abc/tests/ice-abc.test.cjs

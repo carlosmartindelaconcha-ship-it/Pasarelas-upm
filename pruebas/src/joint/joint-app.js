@@ -271,8 +271,44 @@
         }
         if(m.type==='SYNC_GESTURE_APPLY'&&s.role==='guest') {
             if(s.syncCalibration.id!==m.id||!finite(m.correctionMs)||!m.axes)return;
-            s.syncCalibration.results[s.id]={axes:m.axes,correctionMs:m.correctionMs,accepted:true};s.syncCalibration.correctionMs=m.correctionMs;s.syncCalibration.accepted=true;s.syncCalibration.phase='accepted';
-            tell('Sincronización física validada: corrección fija '+m.correctionMs.toFixed(2)+' ms.');renderSyncCalibration();renderDevices();return;
+            try {
+                // The master's axis convention is authoritative. These are
+                // ABSOLUTE coefficient signs, never relative multipliers:
+                // applying the same message twice cannot invert an axis twice.
+                const calibration=calibrationMath.applyAlignedSigns(s.calibration,m.calibrationSigns);
+                const signInversions=['x','y','z'].filter(axis=>m.axes[axis]?.polarity===-1);
+                s.calibration=calibration;
+                const signs={x:calibration.map.x.sign,y:calibration.map.y.sign,z:calibration.map.z.sign};
+                s.syncCalibration.results[s.id]={axes:m.axes,correctionMs:m.correctionMs,
+                    calibrationSigns:signs,signInversions,accepted:true};
+                s.syncCalibration.calibrationSigns=signs;
+                s.syncCalibration.signInversions=signInversions;
+                s.syncCalibration.correctionMs=m.correctionMs;
+                s.syncCalibration.accepted=true;s.syncCalibration.phase='accepted';
+                // The host cannot mark sync accepted before receiving this ACK.
+                send(p,{type:'SYNC_SIGNS_ACK',id:m.id,calibrationSigns:signs});
+                tell('Sincronización validada. Coeficientes X/Y/Z: '+
+                    ['x','y','z'].map(axis=>axis.toUpperCase()+' × '+(signs[axis]>0?'+1':'−1')).join(', ')+
+                    '. Corrección temporal '+m.correctionMs.toFixed(2)+' ms.');
+                renderCalibration();renderSyncCalibration();renderDevices();return;
+            }catch(error){
+                send(p,{type:'SYNC_SIGNS_REJECT',id:m.id,reason:String(error?.message||error)});
+                tell('No se pudieron aplicar los signos de sincronización: '+String(error?.message||error),true);
+                return;
+            }
+        }
+        if(m.type==='SYNC_SIGNS_ACK'&&s.role==='host'){
+            confirmSyncApplied(p.id,m.id,m.calibrationSigns);
+            return;
+        }
+        if(m.type==='SYNC_SIGNS_REJECT'&&s.role==='host'){
+            if(s.syncCalibration.id===m.id&&s.syncCalibration.phase==='applying'){
+                s.syncCalibration.phase='failed';s.syncCalibration.accepted=false;
+                s.syncCalibration.lastFeedback='El participante rechazó la corrección de signos.';
+                tell(p.name+': '+String(m.reason||'no pudo aplicar los coeficientes.'),true);
+                renderSyncCalibration();
+            }
+            return;
         }
         if(m.type==='PLAN'&&s.role==='guest'&&!running()) {
             s.plan=checkPlan(m.plan);
@@ -352,7 +388,7 @@
     const calibrationMath=globalThis.VWOMACalibrationMath.createMath({
         median, finite, sampleRate
     });
-    const {renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, receiveSyncGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture}=
+    const {renderSyncCalibration, axisResultMarkup, showCalibration, calibrationAxisName, renderCalibration, renderCalibrationCountdown, beginCalibrationGuide, receiveSyncGuide, startCalibration, chooseManualCalibration, setManualCalibration, finishCalibration, correctedVector, armSyncGesture, startSyncCalibration, startSyncGesture, finalizeSyncGesture, confirmSyncApplied}=
         globalThis.VWOMACalibration.createController({
             s, $, escape, now, toMaster, finite, sampleRate, tell,
             renderDevices:(...args)=>renderDevices(...args),

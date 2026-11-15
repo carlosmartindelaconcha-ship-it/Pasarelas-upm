@@ -76,14 +76,46 @@
     function estimateGestureAxis(masterSamples,participantSamples,axis,masterCalibration,participantCalibration,start,end) {
         const master=filteredGestureSeries(masterSamples,axis,masterCalibration),participant=filteredGestureSeries(participantSamples,axis,participantCalibration);
         if(master.length<20||participant.length<20)return {axis,error:'muestras insuficientes'};
-        let best={lag:0,correlation:-Infinity};
-        for(let lag=-100;lag<=100;lag++){const correlation=correlationAt(master,participant,lag,start,end);if(finite(correlation)&&correlation>best.correlation)best={lag,correlation};}
+        // Search BOTH polarities without changing the measured waveforms.
+        // A strong negative r means that this participant axis must be
+        // multiplied by -1 to use the master's sign convention.
+        let best={lag:0,correlation:-Infinity,rawCorrelation:null,polarity:1};
+        for(let lag=-100;lag<=100;lag++){
+            const rawCorrelation=correlationAt(master,participant,lag,start,end);
+            if(finite(rawCorrelation)&&Math.abs(rawCorrelation)>best.correlation)
+                best={lag,correlation:Math.abs(rawCorrelation),rawCorrelation,
+                    polarity:rawCorrelation<0?-1:1};
+        }
         const values=master.map(row=>row[1]),rms=Math.sqrt(values.reduce((sum,value)=>sum+value*value,0)/values.length);
-        if(!finite(best.correlation)||best.correlation<.55||rms<.05)return {...best,axis,error:'gesto poco claro'};
+        if(!finite(best.correlation)||best.correlation<.55||rms<.05)return {...best,axis,rms,error:'gesto poco claro'};
         return {...best,axis,rms};
     }
 
-        return Object.freeze({linearDetrend, lowPassCalibration, calibrationLobes, correctedVector, filteredGestureSeries, interpolateGesture, correlationAt, estimateGestureAxis});
+    // The original calibration is the participant's sensor-to-axis map.
+    // The master's physically correlated axes define the final sign of
+    // each coefficient; raw indices and raw measurements never change.
+    function alignedSigns(calibration,axes) {
+        const signs={};
+        for(const [index,axis] of ['x','y','z'].entries()){
+            const item=calibration?.map?.[axis],polarity=axes?.[axis]?.polarity;
+            if(item?.raw!==index||![1,-1].includes(item.sign)||![1,-1].includes(polarity))
+                throw Error('No se pueden alinear los signos: calibración o correlación del eje '+axis.toUpperCase()+' incompleta.');
+            signs[axis]=item.sign*polarity;
+        }
+        return signs;
+    }
+    function applyAlignedSigns(calibration,signs){
+        const map={};
+        for(const [index,axis] of ['x','y','z'].entries()){
+            const original=calibration?.map?.[axis];
+            if(original?.raw!==index||![1,-1].includes(original.sign)||![1,-1].includes(signs?.[axis]))
+                throw Error('Coeficientes de signos incompatibles con el eje '+axis.toUpperCase()+'.');
+            map[axis]={...original,sign:signs[axis]};
+        }
+        return {...calibration,map:{...calibration.map,...map}};
+    }
+
+        return Object.freeze({linearDetrend, lowPassCalibration, calibrationLobes, correctedVector, filteredGestureSeries, interpolateGesture, correlationAt, estimateGestureAxis, alignedSigns, applyAlignedSigns});
     }
     const api=Object.freeze({createMath});
     if(typeof module==='object'&&module.exports) module.exports=api;
