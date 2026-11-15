@@ -127,7 +127,7 @@ test('Métricas: distingue pareja seleccionada, nominación y duración real del
   assert.match(js,/channelTrial:\{everOpened:false/);
   assert.match(js,/c\.onopen=\(\)=>\{/);
   assert.match(js,/c\.onclose=\(\)=>\{/);
-  assert.match(js,/state\.maxOpenMs=Math\.max\(state\.maxOpenMs/);
+  assert.match(js,/t\.maxOpenMs=Math\.max\(t\.maxOpenMs/);
   assert.match(js,/p\.selected===true/);
   assert.match(js,/abcDuration\(\)/);
   assert.match(js,/probeRoundTrips/);
@@ -145,4 +145,40 @@ test('La comparación guarda solo métricas, nunca las credenciales del SDP',()=
   assert.match(summary,/selectedPair/);
   assert.match(summary,/responses/);
   assert.match(js,/abcHistory\.push\(r\)/);
+});
+
+test('La página experimental inicia en un DOM simulado y permite elegir A, B o C',()=>{
+  const vm=require('node:vm');
+  const elements=new Map();
+  function el(id){
+    if(!elements.has(id)){
+      const obj={id,value:id==='role'?'host':id==='mdnsMode'?'replace':id==='mdnsIP'?'172.20.10.1':'',
+        hidden:false,disabled:false,textContent:'',innerHTML:'',scrollTop:0,
+        classList:{toggle(){}},setAttribute(){},addEventListener(){},replaceChildren(){this.innerHTML='';},
+        pause(){},select(){},focus(){}};
+      elements.set(id,obj);
+    }
+    return elements.get(id);
+  }
+  const document={getElementById:el,addEventListener(){},visibilityState:'visible'};
+  const window={addEventListener(){}};
+  const localStorage={getItem(){return null},setItem(){},removeItem(){}};
+  const ctx={document,window,localStorage,navigator:{},IceABC:ABC,console,
+    Date,Math,JSON,Number,Set,Map,Promise,TextEncoder,TextDecoder,
+    performance:{now:()=>1000},clearInterval(){},clearTimeout(){},
+    setInterval(){return 1},setTimeout(){return 1},confirm:()=>true};
+  assert.doesNotThrow(()=>vm.runInNewContext(js,ctx,{timeout:3000}));
+  assert.match(el('abcRows').innerHTML,/A · Original/);
+  assert.match(el('abcRows').innerHTML,/B · Adición/);
+  assert.match(el('abcRows').innerHTML,/C · Sustitución/);
+  assert.equal(el('saveTrial').disabled,true,'no guardar ensayo antes de conectar');
+  assert.doesNotThrow(()=>el('roleGuest').onclick());
+  assert.equal(el('mdnsControls').hidden,false);
+  assert.equal(el('mdnsIPWrap').hidden,false);
+  el('mdnsMode').value='add';
+  assert.doesNotThrow(()=>el('mdnsMode').onchange());
+  assert.match(el('modeWarning').textContent,/B ·/);
+  el('mdnsMode').value='normal';
+  el('mdnsMode').onchange();
+  assert.equal(el('mdnsIPWrap').hidden,true);
 });
