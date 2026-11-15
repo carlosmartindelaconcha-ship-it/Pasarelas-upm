@@ -70,7 +70,7 @@ test('todas las direcciones .local UDP host se sustituyen, sin tocar sus puertos
   assert.equal((result.description.sdp.match(/a=candidate:/g)||[]).length,3);
 });
 function fixture(role='guest',network='local',reject=false){
-  const state={role};
+  const state={role,peers:new Map()};
   let applied=null,attempts=0;
   const transport=createTransport({
     s:state,VERSION:4,STUN_SERVERS:[],MAX_PEERS:8,MAX_TOKEN:50000,MAX_MESSAGE:90000,
@@ -80,55 +80,154 @@ function fixture(role='guest',network='local',reject=false){
     localStatus:()=>{},renderDevices:()=>{},savePlan:()=>{},renderPlan:()=>{},
     startSync:()=>{},onMessage:()=>{}
   });
-  const p={network,createdAt:0,diagnostics:[],pc:{
+  const p={id:'peer-1',network,createdAt:0,diagnostics:[],pc:{signalingState:'stable',
     async setRemoteDescription(d){
       attempts++;
       if(reject)throw Error('Safari rejected SDP');
       applied=d;
     }
   }};
-  return {p,transport,get applied(){return applied},get attempts(){return attempts}};
+  state.peers.set(p.id,p);
+  return {p,state,transport,get applied(){return applied},get attempts(){return attempts}};
 }
-test('solo el participante recibe la oferta sustituida; maestro, respuestas y STUN inalterados',async()=>{
-  const prev=globalThis.VWOMAIceHotspot;
-  globalThis.VWOMAIceHotspot=lab;
-  try{
-    const guest=fixture();
-    await guest.transport.setRemoteDescriptionWithHotspot(guest.p,originalOffer);
-    assert.equal(guest.p.hotspotAlternativeStatus,'replaced');
-    assert.equal(guest.p.hotspotReplacements,1);
-    assert.equal(guest.p.hotspotAlternatives,0);
-    assert.equal(guest.applied.sdp.includes('172.20.10.1 62161 typ host'),true);
-    assert.equal(guest.applied.sdp.includes('.local 62161 typ host'),false);
-    assert.ok(guest.p.diagnostics.some(d=>d.event==='sustitución mDNS por IP directa (laboratorio)'));
+
+const guestHost='candidate:1 1 udp 2113937151 172.20.10.3 50513 typ host generation 0';
+const guestWifi='candidate:1 1 udp 2113937151 192.168.1.45 50513 typ host generation 0';
+function withProbe(candidateLines,options={}){
+  let probes=0;
+  const helper={...lab,async probeLocalICECandidates(){
+    probes++;
+    if(options.fail)throw Error('ICE gathering bloqueado');
+    return {candidateLines,completed:true,finishedBy:'complete',durationMs:130,
+      gatheringState:'complete'};
+  }};
+  return {helper,probes:()=>probes};
+}
+async function withAutoHelper(helper,fn) {
+  const old=globalThis.VWOMAIceHotspot;
+  globalThis.VWOMAIceHotspot=helper;
+  try{return await fn()}finally{globalThis.VWOMAIceHotspot=old}
+}
+test('ICE D: reemplazo automático solo en participante de red local conocida',async()=>{
+  const x=fixture(),probe=withProbe([guestHost]);
+  await withAutoHelper(probe.helper,async()=>x.transport.setRemoteDescriptionWithHotspot(x.p,originalOffer));
+  assert.equal(probe.probes(),1);
+  assert.equal(x.p.hotspotAlternativeStatus,'auto-replaced');
+  assert.equal(x.p.hotspotReplacements,1);
+  assert.equal(x.p.hotspotAlternatives,0);
+  assert.equal(x.p.hotspotAutoDecision.action,'replace');
+  assert.deepEqual(x.p.hotspotAutoDecision.guestIPv4,['172.20.10.3']);
+  assert.equal(x.p.hotspotAutoProbe.completed,true);
+  assert.equal(x.applied.sdp,lab.replaceRemoteMdnsWithIP(originalOffer,lab.IP).description.sdp);
+  assert.equal(x.attempts,1,'solo un setRemoteDescription');
+  assert.equal((x.applied.sdp.match(/a=candidate:/g)||[]).length,4,'sin adición ni candidatos duplicados');
+  assert.equal(x.applied.sdp.includes('.local 62161 typ host'),false);
+  assert.ok(x.p.diagnostics.some(d=>d.event==='ICE D · sustitución mDNS por IP directa'));
+});
+test('ICE D: Wi-Fi normal conserva SDP exactamente, incluyendo el .local',async()=>{
+  const x=fixture(),probe=withProbe([guestWifi]);
+  await withAutoHelper(probe.helper,async()=>x.transport.setRemoteDescriptionWithHotspot(x.p,originalOffer));
+  assert.equal(probe.probes(),1);
+  assert.equal(x.p.hotspotAlternativeStatus,'auto-original');
+  assert.equal(x.p.hotspotReplacements,0);
+  assert.equal(x.p.hotspotAutoDecision.action,'normal');
+  assert.strictEqual(x.applied,originalOffer);
+  assert.equal(x.applied.sdp.includes('.local 62161 typ host'),true);
+});
+test('ICE D: red ambigua con dos interfaces conserva SDP original',async()=>{
+  const x=fixture(),probe=withProbe([guestWifi,guestHost]);
+  await withAutoHelper(probe.helper,async()=>x.transport.setRemoteDescriptionWithHotspot(x.p,originalOffer));
+  assert.equal(x.p.hotspotAlternativeStatus,'auto-original');
+  assert.equal(x.p.hotspotAutoDecision.action,'normal');
+  assert.equal(x.p.hotspotAutoDecision.guestIPv4.length,2);
+  assert.strictEqual(x.applied,originalOffer);
+});
+test('ICE D: IP no disponible o error de sonda no fuerza 172.20.10.1',async()=>{
+  for(const probe of [withProbe([]),withProbe([],{fail:true})]){
+    const x=fixture();
+    await withAutoHelper(probe.helper,async()=>x.transport.setRemoteDescriptionWithHotspot(x.p,originalOffer));
+    assert.equal(x.p.hotspotAlternativeStatus,'auto-original');
+    assert.equal(x.p.hotspotReplacements,0);
+    assert.strictEqual(x.applied,originalOffer);
+    assert.equal(x.attempts,1);
+    assert.equal(probe.probes(),1);
+  }
+});
+test('ICE D: sin mDNS no crea sonda y entrega el SDP sin modificar',async()=>{
+  const x=fixture(),probe=withProbe([guestHost]);
+  const offer={type:'offer',sdp:originalOffer.sdp.replace(
+    'c793652c-a409-40b3-978a-6176140b5cec.local','192.168.1.9')};
+  await withAutoHelper(probe.helper,async()=>x.transport.setRemoteDescriptionWithHotspot(x.p,offer));
+  assert.equal(probe.probes(),0);
+  assert.equal(x.p.hotspotAlternativeStatus,'no-mdns-host');
+  assert.strictEqual(x.applied,offer);
+});
+test('ICE D: no modifica maestro, respuestas ni modo STUN',async()=>{
+  const probe=withProbe([guestHost]);
+  await withAutoHelper(probe.helper,async()=>{
     for(const [role,network,type] of [['host','local','answer'],['guest','stun','offer'],['guest','local','answer']]){
       const other=fixture(role,network);
       const original={type,sdp:originalOffer.sdp};
       await other.transport.setRemoteDescriptionWithHotspot(other.p,original);
       assert.strictEqual(other.applied,original);
       assert.equal(other.p.hotspotReplacements,0);
+      assert.equal(other.p.hotspotAlternativeStatus,'disabled');
+      assert.equal(other.p.hotspotAutoDecision,null);
     }
-  }finally{globalThis.VWOMAIceHotspot=prev;}
+  });
+  assert.equal(probe.probes(),0);
 });
-test('rechazo del SDP no se oculta mediante fallback a candidatos antiguos',async()=>{
-  const prev=globalThis.VWOMAIceHotspot;
-  globalThis.VWOMAIceHotspot=lab;
-  try{
-    const guest=fixture('guest','local',true);
+test('ICE D: SDP rechazado no se vuelve a negociar con candidatos antiguos',async()=>{
+  const x=fixture('guest','local',true),probe=withProbe([guestHost]);
+  await withAutoHelper(probe.helper,async()=>{
     await assert.rejects(
-      guest.transport.setRemoteDescriptionWithHotspot(guest.p,originalOffer),
+      x.transport.setRemoteDescriptionWithHotspot(x.p,originalOffer),
       /Safari rejected SDP/
     );
-    assert.equal(guest.attempts,1);
-    assert.ok(guest.p.diagnostics.some(d=>d.event==='error al aplicar SDP de fase 1'));
-  }finally{globalThis.VWOMAIceHotspot=prev;}
+  });
+  assert.equal(x.attempts,1);
+  assert.equal(x.p.hotspotAlternativeStatus,'auto-replaced');
+  assert.ok(x.p.diagnostics.some(d=>d.event==='error al aplicar SDP ICE D'));
 });
-test('la fase 1 no modifica códigos QR, temporizadores o formato de señalización',()=>{
-  assert.match(html,/src\/joint\/hotspot-ice\.js\?v=20261115-fase1-lab-replacement-v1/);
-  assert.match(html,/src\/joint\/webrtc-transport\.js\?v=20261115-fase1-lab-replacement-v1/);
-  assert.match(html,/Fase 1 experimental/);
+test('ICE D: no aplica el SDP si el usuario reinicia el emparejamiento durante la sonda',async()=>{
+  const x=fixture();
+  const mocked={...lab,async probeLocalICECandidates(){
+    x.state.peers.delete(x.p.id);
+    return {candidateLines:[guestHost],completed:true,finishedBy:'complete',durationMs:160};
+  }};
+  await withAutoHelper(mocked,async()=>{
+    await assert.rejects(
+      x.transport.setRemoteDescriptionWithHotspot(x.p,originalOffer),
+      /reiniciado durante la detección ICE/
+    );
+  });
+  assert.equal(x.attempts,0);
+});
+test('ICE D: el detector usa los mismos criterios y preflight que el laboratorio A/B/C/D',async()=>{
+  const labD=require('../ice-abc/ice-candidates.js');
+  const offer={type:'offer',sdp:originalOffer.sdp};
+  for(const candidates of [
+    [guestHost],[guestWifi],[guestHost,guestWifi],[],
+    ['candidate:1 1 udp 2113937151 unknown.local 50513 typ host']
+  ]){
+    const expected=labD.autoDecide(offer,candidates);
+    const actual=lab.autoDecide(offer,candidates);
+    assert.deepEqual(actual,expected);
+  }
+  const abcd=fs.readFileSync(path.join(__dirname,'../ice-abc/test.js'),'utf8');
+  const probeCode=abcd.slice(abcd.indexOf('async function probeLocalICECandidates('),abcd.indexOf('async function apply(){')).trim();
+  const helperCode=fs.readFileSync(path.join(__dirname,'../src/joint/hotspot-ice.js'),'utf8');
+  assert.ok(helperCode.replace(/\s+/g,'').includes(probeCode.replace(/\s+/g,'')));
+});
+
+test('ICE D no modifica códigos QR, temporizadores o formato de señalización',()=>{
+  assert.match(html,/src\/joint\/hotspot-ice\.js\?v=20261115-auto-ice-d-v1/);
+  assert.match(html,/src\/joint\/webrtc-transport\.js\?v=20261115-auto-ice-d-v1/);
+  assert.match(html,/Conexión local automática/);
   assert.doesNotMatch(html,/id="jointMdnsIP"|id="jointMdnsMode"/);
   assert.match(transportSource,/const enabled=s\.role==='guest' && p\.network==='local'/);
+  assert.match(transportSource,/await helper\.probeLocalICECandidates\(\)/);
+  assert.match(transportSource,/helper\.autoDecide\(description,detected\)/);
   assert.equal((transportSource.match(/await setRemoteDescriptionWithHotspot\(p,t\.sdp\);/g)||[]).length,2);
   assert.match(transportSource,/s\.qrPageTimer=setInterval\(\(\)=>\{s\.qrPageIndex=[\s\S]*?2300\)/);
   assert.match(transportSource,/generatedAt:Date\.now\(\)/);

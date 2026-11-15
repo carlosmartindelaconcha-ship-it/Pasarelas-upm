@@ -1,0 +1,31 @@
+name: VWOMA automatic ICE D integration checks
+
+on:
+  push:
+    branches:
+      - "refactor/vwoma-automatic-ice-d-20261115"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate JavaScript syntax
+        run: |
+          node --check pruebas/src/joint/hotspot-ice.js
+          node --check pruebas/src/joint/webrtc-transport.js
+          node --check pruebas/tests/hotspot-ice.test.cjs
+          node --check pruebas/tests/qr-pairing-timing.test.cjs
+          node --check pruebas/ice-abc/ice-candidates.js
+          node --check pruebas/ice-abc/test.js
+      - name: Full VWOMA preview test suite
+        run: node --test pruebas/tests/*.test.cjs
+      - name: Keep laboratory ABCD validated
+        run: node --test pruebas/ice-abc/tests/*.test.cjs
