@@ -1,0 +1,16 @@
+name: Baseline full test suite before ICE D integration
+
+on:
+  push:
+    branches:
+      - "test/vwoma-pre-ice-d-baseline-20261115"
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test pruebas/tests/*.test.cjs
