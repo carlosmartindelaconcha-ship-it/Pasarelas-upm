@@ -122,6 +122,96 @@ test('B: no fabricar prioridades inválidas cuando el valor original supera el m
     'a=candidate:1 1 udp 4294967295 example.local 40000 typ host\r\n'};
   assert.throws(()=>ABC.transform(d,'add',HOSTIP),/No existen candidatos/);
 });
+
+test('D: reconoce la red 172.20.10.x sin cambiar el candidato original hasta decidir',()=>{
+  const offer=JSON.parse(JSON.stringify(OFFER));
+  const candidate='candidate:9 1 udp 2113937151 172.20.10.3 50513 typ host';
+  const d=ABC.autoDecide(offer,[candidate]);
+  assert.equal(d.action,'replace');
+  assert.equal(d.address,'172.20.10.1');
+  assert.equal(d.remoteMdns,true);
+  assert.deepEqual(d.guestIPv4,['172.20.10.3']);
+  assert.equal(ABC.replaceRemoteMdnsWithIP(OFFER,d.address).description.sdp,OFFER.sdp.replace(originalHost,targetHost));
+  assert.equal(offer.sdp,OFFER.sdp);
+});
+test('D: Wi-Fi normal, mDNS ausente o dirección oculta no modifican el SDP',()=>{
+  for(const address of ['192.168.1.30','10.0.0.12','172.20.11.3','172.20.10.1','172.20.10.15']){
+    const d=ABC.autoDecide(OFFER,['a=candidate:1 1 udp 2113937151 '+address+' 50000 typ host']);
+    assert.equal(d.action,'normal',address);
+    assert.equal(d.address,null);
+  }
+  const noMdns={type:'offer',sdp:OFFER.sdp.replace(originalHost,targetHost)};
+  assert.equal(ABC.autoDecide(noMdns,['candidate:1 1 udp 2113937151 172.20.10.3 50000 typ host']).action,'normal');
+  assert.equal(ABC.autoDecide(OFFER,[]).action,'normal');
+  assert.equal(ABC.autoDecide(OFFER,['candidate:1 1 udp 2113937151 guest.local 50000 typ host']).action,'normal');
+});
+test('D: si hay dos interfaces potencialmente distintas conserva el SDP',()=>{
+  const d=ABC.autoDecide(OFFER,[
+    'candidate:1 1 udp 2113937151 172.20.10.3 50513 typ host',
+    'candidate:2 1 udp 2113937151 192.168.1.25 50515 typ host'
+  ]);
+  assert.equal(d.action,'normal');
+  assert.match(d.reason,/ambiguas/);
+  const duplicates=ABC.autoDecide(OFFER,[
+    'candidate:1 1 udp 2113937151 172.20.10.3 50513 typ host',
+    'a=candidate:1 1 udp 2113937151 172.20.10.3 50513 typ host'
+  ]);
+  assert.equal(duplicates.action,'replace');
+  assert.equal(duplicates.guestIPv4.length,1);
+});
+test('D: conexión provisional recoge candidatos, no usa STUN/TURN y siempre se cierra',async()=>{
+  const vm=require('node:vm');
+  const code=js.slice(js.indexOf('async function probeLocalICECandidates('),js.indexOf('async function apply(){'));
+  assert.match(code,/probe\.close\(\)/);
+  let peer;
+  class FakePC {
+    constructor(config){this.config=config;this.iceGatheringState='new';this.closed=false;peer=this;}
+    createDataChannel(label){this.label=label;return {};}
+    async createOffer(){return {type:'offer',sdp:'v=0\r\n'};}
+    async setLocalDescription(offer){
+      this.localDescription={...offer,sdp:offer.sdp+'a=candidate:9 1 udp 2113937151 172.20.10.3 50513 typ host\r\n'};
+      this.onicecandidate({candidate:{candidate:'candidate:9 1 udp 2113937151 172.20.10.3 50513 typ host'}});
+      this.iceGatheringState='complete';
+    }
+    close(){this.closed=true;}
+  }
+  const fn=vm.runInNewContext(code+'\nprobeLocalICECandidates',
+    {RTCPeerConnection:FakePC,performance:{now:()=>10},Set,Promise,setTimeout,clearTimeout});
+  const result=await fn();
+  assert.equal(peer.closed,true);
+  assert.equal(peer.config.iceServers.length,0);
+  assert.equal(peer.label,'vwoma-auto-ice-probe');
+  assert.equal(result.completed,true);
+  assert.equal(result.candidateLines.length,2);
+  assert.equal(ABC.autoDecide(OFFER,Array.from(result.candidateLines)).action,'replace');
+});
+test('D: error de Safari en preflight cierra el PeerConnection',async()=>{
+  const vm=require('node:vm');
+  const code=js.slice(js.indexOf('async function probeLocalICECandidates('),js.indexOf('async function apply(){'));
+  let peer;
+  class FakePC {
+    constructor(){peer=this;this.iceGatheringState='new';}
+    createDataChannel(){return {};}
+    async createOffer(){return {type:'offer',sdp:'v=0\r\n'};}
+    async setLocalDescription(){throw Error('preflight error');}
+    close(){this.closed=true;}
+  }
+  const fn=vm.runInNewContext(code+'\nprobeLocalICECandidates',
+    {RTCPeerConnection:FakePC,performance:{now:()=>10},Set,Promise,setTimeout,clearTimeout});
+  await assert.rejects(fn(),/preflight error/);
+  assert.equal(peer.closed,true);
+});
+test('D: integra detección en apply y registra la decisión sin afectar A/B/C',()=>{
+  assert.match(js,/mode==='auto'/);
+  assert.match(js,/await probeLocalICECandidates\(\)/);
+  assert.match(js,/IceABC\.autoDecide\(d,detected\)/);
+  assert.match(js,/const result=replaceRemoteMdnsWithIP\(d,decision\.address\)/);
+  assert.match(js,/autoProbe:null,autoDecision:null/);
+  assert.match(js,/autoAction:report\.mdnsExperiment\.autoDecision/);
+  assert.match(html,/<option value="auto" selected>/);
+  assert.match(html,/A\/B\/C\/D/);
+});
+
 test('Las IP inválidas y las estrategias no previstas se rechazan antes de negociar',()=>{
   for(const ip of ['172.20.10.999','172.020.10.1','bad','172.20.10.1\nextra','']){
     assert.equal(ABC.validIPv4(ip),false);
@@ -130,17 +220,17 @@ test('Las IP inválidas y las estrategias no previstas se rechazan antes de nego
   }
   assert.throws(()=>ABC.transform(OFFER,'unknown',HOSTIP),/Estrategia ICE desconocida/);
 });
-test('Interfaz con A/B/C, historial, exportación JSON y lectura QR intacta',()=>{
-  for(const v of ['normal','add','replace'])assert.match(html,new RegExp('<option value="'+v+'"'));
+test('Interfaz con A/B/C/D, historial, exportación JSON y lectura QR intacta',()=>{
+  for(const v of ['normal','add','replace','auto'])assert.match(html,new RegExp('<option value="'+v+'"'));
   for(const id of ['roleHost','roleGuest','qrImage','scan','mdnsMode','mdnsIP',
     'saveTrial','copyComparison','clearComparison','abcRows','abcCount','copyFull','export','liveStats','qrVideo'])
     assert.ok(html.includes('id="'+id+'"'),id);
-  assert.match(js,/const ABC_STORAGE_KEY = 'vwoma-ice-abc-results-v3'/);
-  assert.match(js,/webrtc-ice-abc-20261115-b-priority-v3/);
+  assert.match(js,/const ABC_STORAGE_KEY = 'vwoma-ice-abcd-results-v4'/);
+  assert.match(js,/webrtc-ice-abcd-20261115-auto-v4/);
   assert.match(js,/B · Se conserva la foundation original/);
   assert.ok(html.includes('B · Adición: misma foundation, prioridad +256'));
-  assert.match(html,/ice-candidates\.js\?v=ice-abc-20261115-v3/);
-  assert.match(html,/test\.js\?v=ice-abc-20261115-v3/);
+  assert.match(html,/ice-candidates\.js\?v=ice-abc-20261115-v4/);
+  assert.match(html,/test\.js\?v=ice-abc-20261115-v4/);
   assert.match(js,/const QR_CHUNK_SIZE = 430, MAX_QR_PAGES = 30/);
   assert.match(js,/if\(count>1\)qrTimer=setInterval\(\(\)=>pageQR\(1\),2300\)/);
   assert.match(js,/IceABC\.addRemoteMdnsCandidates\(d,ip\)/);
@@ -175,7 +265,7 @@ test('La comparación guarda solo métricas, nunca las credenciales del SDP',()=
   assert.match(js,/abcHistory\.push\(r\)/);
 });
 
-test('La página experimental inicia en un DOM simulado y permite elegir A, B o C',()=>{
+test('La página experimental inicia en un DOM simulado y permite elegir A, B, C o D',()=>{
   const vm=require('node:vm');
   const elements=new Map();
   function el(id){
@@ -199,6 +289,7 @@ test('La página experimental inicia en un DOM simulado y permite elegir A, B o 
   assert.match(el('abcRows').innerHTML,/A · Original/);
   assert.match(el('abcRows').innerHTML,/B · Adición/);
   assert.match(el('abcRows').innerHTML,/C · Sustitución/);
+  assert.match(el('abcRows').innerHTML,/D · Automático/);
   assert.equal(el('saveTrial').disabled,true,'no guardar ensayo antes de conectar');
   assert.doesNotThrow(()=>el('roleGuest').onclick());
   assert.equal(el('mdnsControls').hidden,false);
@@ -206,6 +297,10 @@ test('La página experimental inicia en un DOM simulado y permite elegir A, B o 
   el('mdnsMode').value='add';
   assert.doesNotThrow(()=>el('mdnsMode').onchange());
   assert.match(el('modeWarning').textContent,/B ·/);
+  el('mdnsMode').value='auto';
+  el('mdnsMode').onchange();
+  assert.equal(el('mdnsIPWrap').hidden,true);
+  assert.match(el('modeWarning').textContent,/D ·/);
   el('mdnsMode').value='normal';
   el('mdnsMode').onchange();
   assert.equal(el('mdnsIPWrap').hidden,true);

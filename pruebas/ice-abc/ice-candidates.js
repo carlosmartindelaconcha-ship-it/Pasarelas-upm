@@ -89,6 +89,52 @@ function addRemoteMdnsCandidates(description,address) {
   if(!changed.length)throw Error('No existen candidatos UDP host .local nuevos para añadir.');
   return {description:{type:description.type,sdp:out.join(newline)},changed};
 }
+
+/* D: decide using ONLY ICE candidates gathered on the guest, not user-agent
+ * detection or a router API (neither is a reliable indication of the hotspot).
+ * We only recognize the known 172.20.10.0/28 iPhone-hotspot layout observed
+ * in our tests; unfamiliar or ambiguous networks retain the original offer.
+ * This function makes no network requests and does not modify SDP. */
+function autoDecide(description,localCandidateLines) {
+  if(!description || description.type!=='offer' || typeof description.sdp!=='string')
+    throw Error('D necesita una oferta SDP válida.');
+  const remoteCandidates=description.sdp.split(/\r?\n/).filter(line=>line.startsWith('a=candidate:'));
+  const remoteMdns=remoteCandidates.some(line=>{
+    const p=line.slice('a=candidate:'.length).trim().split(/\s+/);
+    const i=p.indexOf('typ');
+    return p.length>=8 && p[2]?.toLowerCase()==='udp' &&
+      i>=0 && p[i+1]==='host' && /\.local$/i.test(p[4]);
+  });
+  const guestIPv4=[];
+  for(const item of (Array.isArray(localCandidateLines)?localCandidateLines:[])){
+    const line=typeof item==='string'?item.trim():'';
+    const raw=line.startsWith('a=candidate:')?line.slice('a=candidate:'.length):
+      line.startsWith('candidate:')?line.slice('candidate:'.length):null;
+    if(raw===null)continue;
+    const p=raw.split(/\s+/),i=p.indexOf('typ');
+    if(p.length<8 || p[1]!=='1' || p[2]?.toLowerCase()!=='udp' ||
+       i<0 || p[i+1]!=='host' || !validIPv4(p[4]))continue;
+    if(!guestIPv4.includes(p[4]))guestIPv4.push(p[4]);
+  }
+  const hotspotIPs=guestIPv4.filter(ip=>{
+    const m=/^172\.20\.10\.(\d+)$/.exec(ip);
+    return m && Number(m[1])>=2 && Number(m[1])<=14;
+  });
+  const otherIPs=guestIPv4.filter(ip=>!hotspotIPs.includes(ip));
+  let reason,action='normal',address=null;
+  if(!remoteMdns){
+    reason='La oferta no contiene candidatos UDP host .local; no hace falta sustituir nada.';
+  }else if(hotspotIPs.length===1 && otherIPs.length===0){
+    action='replace';address='172.20.10.1';
+    reason='Participante con IP '+hotspotIPs[0]+' en la red 172.20.10.0/28 y oferta mDNS: aplicar sustitución C hacia '+address+'.';
+  }else if(hotspotIPs.length>0 && (hotspotIPs.length!==1 || otherIPs.length>0)){
+    reason='Varias direcciones locales o interfaces potencialmente ambiguas: conservar el SDP original.';
+  }else{
+    reason='No se reconoce la red 172.20.10.0/28 en los candidatos propios: conservar el SDP original.';
+  }
+  return {action,address,reason,remoteMdns,guestIPv4,hotspotIPs};
+}
+
 function transform(description,mode,address) {
   if(!VALID_MODES.includes(mode))throw Error('Estrategia ICE desconocida.');
   if(!description || !['offer','answer'].includes(description.type) || typeof description.sdp!=='string')
@@ -99,7 +145,7 @@ function transform(description,mode,address) {
     : replaceRemoteMdnsWithIP(description,address);
   return {...result,mode};
 }
-const api=Object.freeze({VALID_MODES,validIPv4,replaceRemoteMdnsWithIP,addRemoteMdnsCandidates,transform});
+const api=Object.freeze({VALID_MODES,validIPv4,replaceRemoteMdnsWithIP,addRemoteMdnsCandidates,autoDecide,transform});
 if(typeof module==='object' && module.exports)module.exports=api;
 else root.IceABC=api;
 })(globalThis);
