@@ -16,7 +16,7 @@
     // Only these app-owned endpoints are used; invitation codes cannot inject servers.
     const STUN_SERVERS = [{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}];
     const MAX_PEERS = 8, MAX_POINTS = 64, MAX_SAMPLES = 500000, MAX_SYNC_SAMPLES = 25000;
-    const MAX_TOKEN = 50000, MAX_MESSAGE = 90000, QR_CHUNK_SIZE = 175, MAX_QR_PAGES = 256;
+    const MAX_TOKEN = 50000, MAX_MESSAGE = 90000, QR_CHUNK_SIZE = 430, MAX_QR_PAGES = 256;
     const activeStates = new Set(['preparing', 'armed', 'recording']);
     const uid = () => {
         if(typeof crypto.randomUUID==='function')return crypto.randomUUID();

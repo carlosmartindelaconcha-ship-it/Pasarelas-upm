@@ -53,7 +53,7 @@
         if(typeof qrcode!=='function'){$('jointQr').textContent='El generador QR no se ha cargado. Utiliza Copiar código.';return;}
         try {
             const qr=qrcode(0,'L');qr.addData(page);qr.make();
-            $('jointQr').innerHTML=qr.createSvgTag({cellSize:3,margin:4,scalable:true})+'<p class="joint-help">QR '+(s.qrPageIndex+1)+' de '+pages.length+' · mantén la cámara enfocada hasta completar todos.</p>';
+            $('jointQr').innerHTML=qr.createSvgTag({cellSize:4,margin:3,scalable:true})+'<p class="joint-help">QR '+(s.qrPageIndex+1)+' de '+pages.length+' · mantén la cámara enfocada hasta completar todos.</p>';
         } catch(e) {$('jointQr').textContent='No se pudo crear esta página QR. Utiliza Copiar código.';}
     }
     function acceptQrPage(raw) {
@@ -74,8 +74,10 @@
         const link=payload.kind==='offer'?location.href.split('#')[0]+'#joint='+code:code;
         $('jointPairOutput').value=link; $('jointPairOutput').hidden=false; $('jointCopyCode').hidden=false;
         stopQrCycle();s.qrPages=qrTransferPages(code);renderQrPage();
+        const current=s.peers.get(s.role==='host'?s.currentInvite:s.pendingOffer?.host);
+        diagnosticEvent(current,'códigos QR preparados',s.qrPages.length+' página(s) · '+code.length+' caracteres');
         revealActionTarget('jointQr','center');
-        if(s.qrPages.length>1)s.qrPageTimer=setInterval(()=>{s.qrPageIndex=(s.qrPageIndex+1)%s.qrPages.length;renderQrPage();},1800);
+        if(s.qrPages.length>1)s.qrPageTimer=setInterval(()=>{s.qrPageIndex=(s.qrPageIndex+1)%s.qrPages.length;renderQrPage();},2300);
     }
     function openPair(mode='join') {
         $('jointPairTitle').textContent=mode==='offer'?'Invitar a un móvil':'Leer invitación o respuesta';
@@ -119,6 +121,8 @@
             'Etapa: '+stage,
             'Navegador: '+browserLabel(),
             'Modo: '+(p?.network||$('jointNetworkMode').value),
+            ...(p?.answerQrAgeMs!=null?['Tiempo estimado de QR de respuesta: '+(p.answerQrAgeMs/1000).toFixed(1)+' s (relojes de ambos móviles; puede haber desfase)']:[]),
+            ...(p?.guestAnswerShownAt!=null?['Respuesta visible en participante desde hace: '+Math.max(0,Math.round((now()-p.guestAnswerShownAt)/1000))+' s']:[]),
             'Rutas automáticas mDNS/IP directa: '+(p?.hotspotAlternativeStatus==='added'
                 ?p.hotspotAlternatives+' alternativa(s) a 172.20.10.1 con el puerto real del maestro'
                 :p?.hotspotAlternativeStatus||'sin alternativas'),
@@ -358,8 +362,10 @@
             diagnosticEvent(p,'estado de conexión','ICE '+p.pc.iceConnectionState+'; enlace '+p.pc.connectionState);
             if(['checking','failed','disconnected'].includes(p.pc.iceConnectionState)||['connecting','failed'].includes(p.pc.connectionState))captureIceStats(p,'estado '+p.pc.iceConnectionState+'/'+p.pc.connectionState);
             if(p.pc.connectionState==='failed'||p.pc.iceConnectionState==='failed'){
+                if(s.role==='guest'&&p.guestAnswerShownAt!=null)
+                    diagnosticEvent(p,'tiempo desde QR de respuesta',Math.max(0,Math.round((now()-p.guestAnswerShownAt)/1000))+' s hasta ICE failed');
                 if(s.role==='guest'&&!p.opened){
-                    if(p.answerShown)failPair(p,'La conexión local ha fallado antes de abrir el canal. La respuesta no se regenerará automáticamente: crea una invitación nueva para evitar que el maestro lea un código antiguo.');
+                    if(p.answerShown)failPair(p,'La conexión ICE ha fallado antes de abrir el canal. El maestro debe leer el QR de respuesta lo antes posible después de generarlo. Crea una invitación nueva, ya que el QR anterior no se puede reutilizar.');
                     else {diagnosticEvent(p,'fallo ICE aplazado','la respuesta todavía se está preparando');pairStatus(p,'Preparando respuesta; todavía no cierres esta página.');}
                 }else failPair(p,'La conexión directa ha fallado');
             }
@@ -476,7 +482,8 @@
                 throw pairingError(p,'creación de respuesta','La conexión ha fallado antes de poder mostrar una respuesta utilizable. Reinicia el emparejamiento.');
             }
             $('jointPairHelp').textContent='Muestra inmediatamente esta respuesta a la cámara que ya está abierta en el maestro. Mantén ambas páginas abiertas.';
-            await showToken({v:VERSION,kind:'answer',network:p.network,session:s.session,host:t.host,peer:t.peer,expires:t.expires,sdp:localDescription(p)});
+            await showToken({v:VERSION,kind:'answer',network:p.network,session:s.session,host:t.host,peer:t.peer,expires:t.expires,generatedAt:Date.now(),sdp:localDescription(p)});
+            p.guestAnswerShownAt=now();
             p.answerShown=true;diagnosticEvent(p,'respuesta mostrada','ICE completo; lista para que la lea el maestro');
             if(!p.opened)pairStatus(p,'Respuesta completa preparada. Muéstrala ahora a la cámara del maestro. Direcciones: '+candidateSummary(p.pc.localDescription)+'.');
             watchPair(p,120000);
@@ -504,6 +511,11 @@
             const p=s.peers.get(t.peer);if(!p || p.pc.signalingState!=='have-local-offer')throw Error('Invitación no disponible o ya utilizada.');
             if(t.network!==p.network)throw Error('La respuesta usa otro modo de conexión. Genera una invitación nueva.');
             s.currentInvite=p.id;p.answerAccepted=true;watchPair(p);
+            if(Number.isFinite(t.generatedAt)&&t.generatedAt>0){
+                p.answerQrAgeMs=Date.now()-t.generatedAt;
+                diagnosticEvent(p,'respuesta QR recibida por maestro',
+                    (p.answerQrAgeMs/1000).toFixed(1)+' s desde generación (relojes de móviles distintos)');
+            }else diagnosticEvent(p,'respuesta QR recibida por maestro','sin marca temporal en código antiguo');
             try {
                 await setRemoteDescriptionWithHotspot(p,t.sdp);
                 scheduleIceStats(p);
@@ -523,10 +535,14 @@
             const p=s.peers.get(s.currentInvite);if(p)pairStatus(p,'Cámara preparada. En el participante pulsa ahora «El maestro ya está escaneando: generar respuesta».');
         }
         const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+        let lastScanAt=0;
         const frame=()=>{
             if(!s.scan)return;
+            const frameAt=now();
+            if(frameAt-lastScanAt<125){s.scanFrame=requestAnimationFrame(frame);return;}
+            lastScanAt=frameAt;
             if(video.readyState>=2) {
-                const scale=Math.min(1,1000/video.videoWidth);canvas.width=video.videoWidth*scale;canvas.height=video.videoHeight*scale;
+                const scale=Math.min(1,760/video.videoWidth);canvas.width=video.videoWidth*scale;canvas.height=video.videoHeight*scale;
                 ctx.drawImage(video,0,0,canvas.width,canvas.height);const img=ctx.getImageData(0,0,canvas.width,canvas.height),result=jsQR(img.data,img.width,img.height);
                 if(result){
                     try {
