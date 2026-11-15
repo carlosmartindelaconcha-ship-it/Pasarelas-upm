@@ -844,7 +844,7 @@
   </div>
   <p class="joint-help">Cada gesto: 3 s quieto y 2,5 s de registro (una ida y vuelta y un pequeño margen). No gires el móvil; desplázalo en línea recta siguiendo el eje.</p>
 </section>
-                    <section class="joint-physical-sync" aria-labelledby="jointPhysicalSyncTitle"><h4 id="jointPhysicalSyncTitle">Sincronización de móviles</h4><p>Fija los móviles paralelos sobre una tablilla rígida, separados 5–10 cm para evitar NFC. Se correlacionan exclusivamente X–X, Y–Y y Z–Z.</p><button id="jointSyncStart" type="button" data-vwoma-icon="sync" class="vwoma-action">Preparar sincronización</button><div id="jointSyncBurst" class="joint-sync-burst" hidden><strong>Ajustando relojes</strong><progress id="jointSyncBurstProgress" max="200" value="0"></progress><span id="jointSyncBurstCount">0 / 200 comprobaciones</span></div><p id="jointSyncHelp" class="joint-help">Primero se ajustan los relojes de los móviles. Después verás el ejemplo y podrás realizar los gestos X, Y y Z. Mantén ambas pantallas visibles.</p>
+                    <section class="joint-physical-sync" aria-labelledby="jointPhysicalSyncTitle"><h4 id="jointPhysicalSyncTitle">Sincronización de móviles</h4><p>Fija los móviles paralelos sobre una tablilla rígida, separados 5–10 cm para evitar NFC. Se correlacionan exclusivamente X–X, Y–Y y Z–Z. Si un eje del participante tiene signo invertido, se corrige automáticamente al validar la sincronización, tomando al maestro como referencia.</p><button id="jointSyncStart" type="button" data-vwoma-icon="sync" class="vwoma-action">Preparar sincronización</button><div id="jointSyncBurst" class="joint-sync-burst" hidden><strong>Ajustando relojes</strong><progress id="jointSyncBurstProgress" max="200" value="0"></progress><span id="jointSyncBurstCount">0 / 200 comprobaciones</span></div><p id="jointSyncHelp" class="joint-help">Primero se ajustan los relojes de los móviles. Después verás el ejemplo y podrás realizar los gestos X, Y y Z. Mantén ambas pantallas visibles.</p>
 <figure id="jointSyncAnimation" class="joint-calibration-animation joint-sync-animation">
   <div class="joint-sync-visual">
     <img id="jointSyncImage" src="assets/joint/telefono-sincronizacion-eje-X-tabla-madera-reposo.svg?v=20261114-physical-sync-board-v1" alt="Dos móviles sobre una tabla de madera">
@@ -1046,8 +1046,8 @@
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
     <script defer src="src/joint/persistence.js?v=20261109-modular-persistence-v1"></script>
     <script defer src="src/joint/acquisition.js?v=20261114-setups-v2"></script>
-    <script defer src="src/joint/calibration-math.js?v=20261112-calibration-math-v1"></script>
-    <script defer src="src/joint/calibration-controller.js?v=20261114-android-dom-stable-v2"></script>
+    <script defer src="src/joint/calibration-math.js?v=20261115-sync-signed-axes-v1"></script>
+    <script defer src="src/joint/calibration-controller.js?v=20261115-sync-signed-axes-v1"></script>
     <script defer src="src/joint/exports.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
@@ -1056,7 +1056,7 @@
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/ui-events.js?v=20261114-setup-workflow-v1"></script>
     <script defer src="src/joint/measure-guide.js?v=20261114-phone-status-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261115-qr-pair-lab-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261115-sync-signed-axes-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-setups-v2"></script>
 
 

@@ -63,6 +63,38 @@ test('correlación e identificación de retraso del participante de 18 ms',()=>{
   assert.ok(result.rms>.05);
 });
 
+test('un gesto anticorrelacionado detecta el retardo y la inversión, sin rechazarlo',()=>{
+  const master=Array.from({length:100},(_,i)=>{const t=i*12,v=wave(t);return[t,v,0,0]});
+  const guest=Array.from({length:100},(_,i)=>{const t=i*12,v=-wave(t-18);return[t,v,0,0]});
+  const result=math.estimateGestureAxis(master,guest,'x',null,null,110,720);
+  assert.equal(result.error,undefined,String(result.error||''));
+  assert.equal(result.polarity,-1);
+  assert.ok(result.rawCorrelation<-.90,'r original='+result.rawCorrelation);
+  assert.ok(result.correlation>.90,'|r|='+result.correlation);
+  assert.ok(Math.abs(result.lag-18)<=6,'retardo='+result.lag);
+  const other=math.estimateGestureAxis(master,master,'x',null,null,110,720);
+  assert.equal(other.polarity,1);
+  assert.ok(other.rawCorrelation>.95);
+});
+
+test('alinea todos los signos respecto del maestro sin alterar índices ni muestras brutas',()=>{
+  const raw=[2,-3,4];
+  const original={complete:true,map:{
+    x:{raw:0,sign:1,manual:true},y:{raw:1,sign:-1},z:{raw:2,sign:1}}};
+  const axes={x:{polarity:-1},y:{polarity:1},z:{polarity:-1}};
+  const factors=math.alignedSigns(original,axes);
+  assert.deepEqual(factors,{x:-1,y:-1,z:-1});
+  const aligned=math.applyAlignedSigns(original,factors);
+  assert.deepEqual(math.correctedVector(raw,aligned),[-2,3,-4]);
+  assert.deepEqual(raw,[2,-3,4],'conservar los datos de sensores en bruto');
+  assert.equal(original.map.x.sign,1,'nunca modificar calibración de origen');
+  assert.equal(aligned.map.x.manual,true);
+  assert.deepEqual([aligned.map.x.raw,aligned.map.y.raw,aligned.map.z.raw],[0,1,2]);
+  assert.deepEqual(math.applyAlignedSigns(aligned,factors),aligned,'aplicar dos veces no invierte dos veces');
+  assert.throws(()=>math.alignedSigns(original,{x:{polarity:1}}),/incompleta/);
+  assert.throws(()=>math.applyAlignedSigns(original,{x:1,y:1,z:0}),/incompatibles/);
+});
+
 test('datos insuficientes y gesto plano no dan falsa sincronización',()=>{
   assert.equal(math.estimateGestureAxis([],[],'z',null,null,0,300).error,'muestras insuficientes');
   const rows=Array.from({length:30},(_,i)=>[i*20,0,0,0]);
