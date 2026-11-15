@@ -77,10 +77,10 @@ hr{border:0;border-top:1px solid var(--line);margin:15px 0}
     <label for="mdnsMode">Estrategia ICE de este intento (en el participante)</label>
     <select id="mdnsMode">
       <option value="normal">A · Original: mantener .local, sin IP alternativa</option>
-      <option value="add">B · Adición: misma foundation, prioridad −256</option>
+      <option value="add">B · Adición: misma foundation, prioridad +256</option>
       <option value="replace" selected>C · Sustitución: reemplazar .local por IP directa (control que funcionó)</option>
     </select>
-    <p id="modeWarning" class="note">Prueba B modificada: la foundation no cambia. Solo disminuye 256 la prioridad del candidato añadido y se usa su IP directa; se conserva .local. Usa invitaciones nuevas.</p>
+    <p id="modeWarning" class="note">Prueba B modificada: la foundation no cambia. Solo aumenta 256 la prioridad del candidato añadido y se usa su IP directa; se conserva .local. Usa invitaciones nuevas.</p>
     <div id="mdnsIPWrap">
       <label for="mdnsIP">IP del hotspot (iPhone A)</label>
       <input id="mdnsIP" inputmode="decimal" autocomplete="off" spellcheck="false" value="172.20.10.1" placeholder="Ej. 172.20.10.1">
@@ -177,7 +177,7 @@ hr{border:0;border-top:1px solid var(--line);margin:15px 0}
 
 <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script defer src="./ice-candidates.js?v=ice-abc-20261115-v2"></script>
-<script defer src="./test.js?v=ice-abc-20261115-v2"></script>
+<script defer src="./ice-candidates.js?v=ice-abc-20261115-v3"></script>
+<script defer src="./test.js?v=ice-abc-20261115-v3"></script>
 </body>
 </html>

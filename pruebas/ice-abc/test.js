@@ -1,7 +1,7 @@
 'use strict';
 /* VWOMA - isolated Safari/WebRTC diagnostic laboratory. No server signaling. */
 const $ = id => document.getElementById(id);
-const VERSION = 'webrtc-ice-abc-20261115-b-priority-v2';
+const VERSION = 'webrtc-ice-abc-20261115-b-priority-v3';
 const MAX_SNAPSHOTS = 300;
 let pc = null, channel = null, role = null, report = null;
 let timer = null, pendingSnapshot = null, snapshotCount = 0;
@@ -13,9 +13,9 @@ let qrPages = [], qrIndex = 0, qrTimer = null, qrStream = null, qrScanFrame = 0,
 let qrRenderGeneration = 0;
 const QR_CHUNK_SIZE = 430, MAX_QR_PAGES = 30;
 const pendingProbes = new Map();
-const ABC_STORAGE_KEY = 'vwoma-ice-abc-results-v2';
+const ABC_STORAGE_KEY = 'vwoma-ice-abc-results-v3';
 const ABC_ORDER = ['normal','add','replace'];
-const ABC_LABELS = {normal:'A · Original',add:'B · Adición (prioridad −256)',replace:'C · Sustitución'};
+const ABC_LABELS = {normal:'A · Original',add:'B · Adición (prioridad +256)',replace:'C · Sustitución'};
 let abcHistory = [];
 const iso = () => new Date().toISOString();
 const elapsed = () => started ? Math.round(performance.now() - started) : 0;
@@ -343,7 +343,7 @@ function renderWizard(){
   $('mdnsControls').hidden=host;
   $('mdnsIPWrap').hidden=host || $('mdnsMode').value==='normal';
   $('saveTrial').disabled=host||!report;
-  const warn={normal:'A · Se mantienen únicamente los candidatos originales. Si Safari no resuelve .local, puede fallar.',add:'B · Se conserva la foundation original y .local; el nuevo candidato usa la misma foundation, el mismo puerto y prioridad 256 menor. Solo cambian IP y prioridad.',replace:'C · Solo se sustituye .local por IP, exactamente como en el laboratorio que conectó.'};
+  const warn={normal:'A · Se mantienen únicamente los candidatos originales. Si Safari no resuelve .local, puede fallar.',add:'B · Se conserva la foundation original y .local; el nuevo candidato usa la misma foundation, el mismo puerto y prioridad 256 mayor. Solo cambian IP y prioridad.',replace:'C · Solo se sustituye .local por IP, exactamente como en el laboratorio que conectó.'};
   $('modeWarning').textContent=warn[$('mdnsMode').value]||'';
   $('start').textContent=host?'Crear o reiniciar invitación':'Preparar o reiniciar participante';
   $('scan').textContent=host?'Leer QR de respuesta del iPhone B':'Leer QR de invitación del iPhone A';
@@ -964,7 +964,7 @@ async function apply(){
       result.changed);
     descriptionInfo(toApply,'remota modificada ANTES de aplicar');
   } else if(role==='guest' && report.mdnsExperiment.mode==='add') {
-    // New experimental B: keep foundation, lower priority by 256; change
+    // New experimental B: keep foundation, raise priority by 256; change
     // the IP to the hotspot gateway. Preserve original host .local and
     // all original ICE credentials. A and C are unchanged.
     const ip=report.mdnsExperiment.enteredAddress;
@@ -974,7 +974,7 @@ async function apply(){
     report.mdnsExperiment.additions.push(...result.changed);
     report.sdpExchanges.push({ms:elapsed(),direction:'añadida alternativa para diagnóstico',
       type:d.type,sdp:toApply.sdp});
-    event('PRUEBA ICE B','Se añadieron '+result.changed.length+' candidatos, misma foundation y prioridad −256; se conserva .local',
+    event('PRUEBA ICE B','Se añadieron '+result.changed.length+' candidatos, misma foundation y prioridad +256; se conserva .local',
       result.changed);
     descriptionInfo(toApply,'remota modificada ANTES de aplicar');
   } else {
