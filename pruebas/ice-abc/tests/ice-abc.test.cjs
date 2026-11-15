@@ -32,7 +32,7 @@ test('A: los candidatos y la descripción original se entregan sin alteración a
   assert.equal(a.mode,'normal');
   assert.equal(candidateLines(a.description).length,3);
 });
-test('B: reproduce la adición histórica de VWOMA, sin quitar el candidato mDNS',()=>{
+test('B: adición con la misma foundation y prioridad 256 menor, conservando mDNS',()=>{
   const b=ABC.transform(OFFER,'add',HOSTIP);
   assert.equal(b.mode,'add');
   assert.equal(b.changed.length,1);
@@ -40,16 +40,35 @@ test('B: reproduce la adición histórica de VWOMA, sin quitar el candidato mDNS
   assert.equal(c.originalHost,'abcdef.local');
   assert.equal(c.originalPort,'62161');
   assert.equal(c.originalFoundation,'9');
-  assert.equal(c.addedFoundation,'vh1');
+  assert.equal(c.addedFoundation,'9');
   assert.equal(c.originalPriority,'2122260223');
-  assert.equal(c.addedPriority,'2122260351');
-  assert.match(b.description.sdp,/a=candidate:vh1 1 udp 2122260351 172\.20\.10\.1 62161 typ host generation 0/);
+  assert.equal(c.addedPriority,'2122259967');
+  assert.match(b.description.sdp,/a=candidate:9 1 udp 2122259967 172\.20\.10\.1 62161 typ host generation 0/);
   assert.match(b.description.sdp,/a=candidate:9 1 udp 2122260223 abcdef\.local 62161 typ host generation 0/);
   assert.equal(candidateLines(b.description).length,4);
-  assert.ok(b.description.sdp.indexOf('a=candidate:vh1')<b.description.sdp.indexOf(originalHost));
+  assert.ok(b.description.sdp.indexOf('a=candidate:9 1 udp 2122259967')<b.description.sdp.indexOf(originalHost));
   assert.equal(OFFER.sdp.includes(originalHost),true);
   assert.ok(b.description.sdp.includes('a=ice-ufrag:xyz'));
   assert.ok(b.description.sdp.includes('a=ice-pwd:secret123'));
+});
+test('B: el nuevo candidato difiere SOLO en IP y prioridad; mantiene foundation, componente, puerto y atributos',()=>{
+  const b=ABC.transform(OFFER,'add',HOSTIP);
+  const oldParts=originalHost.slice('a=candidate:'.length).split(' ');
+  const newParts=b.changed[0].addedCandidate.slice('a=candidate:'.length).split(' ');
+  assert.equal(oldParts.length,newParts.length);
+  for(let i=0;i<oldParts.length;i++){
+    if(i===3){
+      assert.equal(Number(newParts[i]),Number(oldParts[i])-256);
+      assert.equal(Number(newParts[i])%256,Number(oldParts[i])%256);
+    }else if(i===4){
+      assert.equal(newParts[i],HOSTIP);
+    }else{
+      assert.equal(newParts[i],oldParts[i],'no alterar campo '+i);
+    }
+  }
+  assert.equal(b.description.sdp.includes(originalHost),true);
+  assert.equal(candidateLines(b.description).length,candidateLines(OFFER).length+1);
+  assert.equal(OFFER.sdp.includes(originalHost),true);
 });
 test('C: reemplaza SOLO la IP y no duplica la foundation ni altera la prioridad',()=>{
   const c=ABC.transform(OFFER,'replace',HOSTIP);
@@ -75,10 +94,10 @@ test('C conserva literalmente el algoritmo del laboratorio funcional',()=>{
 test('B no altera TCP, direcciones numéricas ni otros puertos, y respeta m-lines',()=>{
   const offer={type:'offer',sdp:
     'm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n'+
-    'a=candidate:1 1 udp 100 a.local 40101 typ host\r\n'+
+    'a=candidate:1 1 udp 1100 a.local 40101 typ host\r\n'+
     'a=candidate:2 1 tcp 50 b.local 9 typ host tcptype passive\r\n'+
     'm=video 9 UDP/TLS/RTP/SAVPF 96\r\n'+
-    'a=candidate:3 1 udp 200 c.local 44111 typ host\r\n'+
+    'a=candidate:3 1 udp 2200 c.local 44111 typ host\r\n'+
     'a=candidate:4 1 udp 98 1.2.3.4 59000 typ srflx\r\n'};
   const b=ABC.transform(offer,'add',HOSTIP);
   assert.equal(b.changed.length,2);
@@ -98,6 +117,11 @@ test('No se inventa duplicado si ya existe el host IP:puerto en el mismo media s
     'a=candidate:2 1 udp 200 172.20.10.1 40000 typ host\r\n'};
   assert.throws(()=>ABC.transform(offer,'add',HOSTIP),/No existen candidatos/);
 });
+test('B: no fabricar prioridades inválidas cuando el valor original sea demasiado bajo',()=>{
+  const d={type:'offer',sdp:'m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n'+
+    'a=candidate:1 1 udp 255 example.local 40000 typ host\r\n'};
+  assert.throws(()=>ABC.transform(d,'add',HOSTIP),/No existen candidatos/);
+});
 test('Las IP inválidas y las estrategias no previstas se rechazan antes de negociar',()=>{
   for(const ip of ['172.20.10.999','172.020.10.1','bad','172.20.10.1\nextra','']){
     assert.equal(ABC.validIPv4(ip),false);
@@ -111,8 +135,12 @@ test('Interfaz con A/B/C, historial, exportación JSON y lectura QR intacta',()=
   for(const id of ['roleHost','roleGuest','qrImage','scan','mdnsMode','mdnsIP',
     'saveTrial','copyComparison','clearComparison','abcRows','abcCount','copyFull','export','liveStats','qrVideo'])
     assert.ok(html.includes('id="'+id+'"'),id);
-  assert.match(html,/ice-candidates\.js\?v=ice-abc-20261115-v1/);
-  assert.match(html,/test\.js\?v=ice-abc-20261115-v1/);
+  assert.match(js,/const ABC_STORAGE_KEY = 'vwoma-ice-abc-results-v2'/);
+  assert.match(js,/webrtc-ice-abc-20261115-b-priority-v2/);
+  assert.match(js,/B · Se conserva la foundation original/);
+  assert.match(html,/B · Adición: misma foundation, prioridad −256/);
+  assert.match(html,/ice-candidates\.js\?v=ice-abc-20261115-v2/);
+  assert.match(html,/test\.js\?v=ice-abc-20261115-v2/);
   assert.match(js,/const QR_CHUNK_SIZE = 430, MAX_QR_PAGES = 30/);
   assert.match(js,/if\(count>1\)qrTimer=setInterval\(\(\)=>pageQR\(1\),2300\)/);
   assert.match(js,/IceABC\.addRemoteMdnsCandidates\(d,ip\)/);

@@ -1,6 +1,7 @@
 /* VWOMA ICE ABC - pure, testable candidates transformations.
- * A: original SDP. B: reproduces the old VWOMA alternative candidate
- *    (new foundation, priority +128). C: EXACT mDNS-replacement procedure
+ * A: original SDP. B: experiment retaining the original foundation,
+ *    lowering only the new candidate priority by 256 and changing its IP.
+ *    C: EXACT mDNS-replacement procedure
  *    copied from the working webrtc-lab/test.js.
  * No WebRTC network actions or browser storage here.
  */
@@ -62,16 +63,16 @@ function addRemoteMdnsCandidates(description,address) {
     const priority=Number(parts[3]);
     if(parts.length<8 || typ<0 || parts[typ+1]!=='host' ||
        parts[2].toLowerCase()!=='udp' || !/\.local$/i.test(parts[4]) ||
-       !Number.isSafeInteger(priority) || priority<1 ||
+       !Number.isSafeInteger(priority) || priority<=256 || priority>4294967295 ||
        !Number.isInteger(Number(parts[5])) || Number(parts[5])<1 || Number(parts[5])>65535){
        out.push(line);continue;
     }
     const key=[mediaSection,parts[1],parts[5]].join(':');
     if(!present.has(key)){
       const clone=parts.slice();
-      const number=changed.length+1;
-      clone[0]='vh'+number;
-      clone[3]=String(Math.min(4294967295,priority+128));
+      // Same foundation as the original mDNS candidate (hypothesis under
+      // test). Change only IP and priority; 256 preserves component bits.
+      clone[3]=String(priority-256);
       clone[4]=address;
       const candidate='a=candidate:'+clone.join(' ');
       out.push(candidate);
