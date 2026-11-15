@@ -1,0 +1,28 @@
+name: VWOMA ICE ABC experimental verification
+
+on:
+  push:
+    branches:
+      - "refactor/vwoma-ice-abc-lab-20261115"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: JavaScript syntax
+        run: |
+          node --check pruebas/ice-abc/ice-candidates.js
+          node --check pruebas/ice-abc/test.js
+          node --check pruebas/ice-abc/tests/ice-abc.test.cjs
+      - name: ABC transformation and measurement assertions
+        run: node --test pruebas/ice-abc/tests/*.test.cjs
+      - name: Preserve known-working VWOMA regression checks
+        run: cd pruebas && node --test tests/hotspot-ice.test.cjs tests/qr-pairing-timing.test.cjs tests/record-transfer.test.cjs tests/transfer-integration.test.cjs tests/results-view.test.cjs tests/ui-events.test.cjs tests/exports.test.cjs tests/measure-guide.test.cjs tests/setup-redesign.test.cjs
