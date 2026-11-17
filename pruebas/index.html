@@ -1017,7 +1017,7 @@
                             <label>FFT mínima<select id="jointOmaFFT"><option value="1024">1024</option><option value="2048">2048</option><option value="4096" selected>4096</option><option value="8192">8192</option><option value="16384">16384</option></select></label>
                         </div>
                         <div class="joint-actions"><button id="jointOmaAnalyze" type="button" class="vwoma-action" data-vwoma-icon="activity">Calcular valores singulares</button><button id="jointOmaReset" class="joint-secondary" type="button" data-vwoma-icon="reset">Restablecer zoom</button></div>
-                        <p class="joint-help">Welch con cinco ventanas de Hann, aproximadamente un 50 % de solape y eliminación de tendencia. El relleno con ceros interpola el espectro, pero no mejora la resolución física.</p>
+                        <p class="joint-help">Welch con cinco ventanas de Hann, con solape aproximado del 50 % cuando la longitud lo permite, y eliminación de tendencia. El relleno con ceros interpola el espectro, pero no mejora la resolución física.</p>
                         <p id="jointOmaStatus" class="joint-help" role="status" aria-live="polite">Listo para analizar.</p>
                         <p id="jointOmaMetrics" class="joint-help"></p>
                         <p id="jointOmaWarnings" class="joint-oma-warnings" role="note"></p>
@@ -1047,6 +1047,7 @@
                         <div id="jointOmaShapePanel" hidden>
                             <h4>Forma modal estimada</h4>
                             <p id="jointOmaShapeQuality" class="joint-help"></p>
+                            <div id="jointOmaShapeMap" class="joint-oma-shape-map" aria-label="Distribución espacial de la forma modal en planta"></div>
                             <div class="joint-oma-plot"><canvas id="jointOmaShape" aria-label="Forma modal normalizada en los puntos medidos"></canvas></div>
                             <div id="jointOmaModalTables" class="joint-oma-table"></div>
                         </div>
