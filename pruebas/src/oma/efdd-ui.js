@@ -100,7 +100,8 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
       row.meta?.setup?.singleSensor&&row.meta?.device?.id&&row.meta?.plan);
     if(!eligible.length)throw Error('No hay setups con un único acelerómetro guardados en este navegador.');
     const sessionMatches=eligible.filter(row=>row.meta.session===s.session);
-    const candidates=sessionMatches.length?sessionMatches:eligible;
+    const candidates=(sessionMatches.length?sessionMatches:eligible)
+      .slice().sort((a,b)=>String(a.meta.created).localeCompare(String(b.meta.created)));
     const session=candidates.at(-1).meta.session;
     const same=candidates.filter(row=>row.meta.session===session)
       .sort((a,b)=>String(a.meta.created).localeCompare(String(b.meta.created)));
@@ -127,6 +128,7 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
   }
   async function analyze(){
     const st=state();
+    if(!Chart)throw Error('No se ha cargado Chart.js. Recarga la página con conexión.');
     text('jointOmaStatus','Calculando matrices espectrales y descomposición FDD…');
     // Allow the status update to paint before CPU-heavy FFT and eigensolver.
     await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
@@ -212,8 +214,14 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
     st.selected=st.modes.indexOf(mode);
     text('jointOmaStatus','Pico seleccionado: '+fmt(mode.frequencyHz)+' Hz · SV'+mode.branch+
       ' · banda '+fmt(mode.bandHz[0])+'–'+fmt(mode.bandHz[1])+' Hz.');
-    if(st.charts.singular){st.charts.singular.destroy();delete st.charts.singular;}
-    plotSpectra();renderModes();
+    updateMarkers();renderModes();
+  }
+  function updateMarkers(){
+    const st=state(),chart=st.charts.singular;
+    if(!chart||!st.analysis)return;
+    const index=st.analysis.rank;
+    chart.data.datasets[index].data=st.modes.map(m=>({x:m.frequencyHz,y:Math.max(m.peakPsd,1e-22)}));
+    chart.update('none'); // keep the user's zoom while adding or deleting peaks
   }
   function renderModes(){
     const st=state(),holder=$('jointOmaModeList');
@@ -235,7 +243,7 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
       remove.setAttribute('aria-label','Eliminar pico '+(i+1));
       remove.onclick=()=>{
         st.modes.splice(i,1);st.selected=st.modes.length?Math.min(i,st.modes.length-1):-1;
-        st.charts.singular?.destroy?.();delete st.charts.singular;plotSpectra();renderModes();
+        updateMarkers();renderModes();
       };
       card.append(label,remove);holder.append(card);
     });
@@ -337,17 +345,21 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
     }
   }
   function bindEvents(guard){
-    $('jointOmaFiles').onchange=guard(async e=>{
+    const localGuard=fn=>guard(async(...args)=>{
+      try{return await fn(...args)}
+      catch(e){text('jointOmaStatus',e?.message||String(e));throw e}
+    });
+    $('jointOmaFiles').onchange=localGuard(async e=>{
       await importFiles(e.target.files);e.target.value='';
     });
-    $('jointOmaCurrent').onclick=guard(chooseCurrent);
-    $('jointOmaLoadCampaign').onclick=guard(loadCampaign);
-    $('jointOmaAnalyze').onclick=guard(analyze);
-    $('jointOmaAddPeak').onclick=guard(()=>addPeak());
-    $('jointOmaReset').onclick=guard(resetZoom);
-    $('jointOmaExportJSON').onclick=guard(exportJSON);
-    $('jointOmaExportCSV').onclick=guard(exportCSV);
-    $('jointOmaClear').onclick=guard(()=>{
+    $('jointOmaCurrent').onclick=localGuard(chooseCurrent);
+    $('jointOmaLoadCampaign').onclick=localGuard(loadCampaign);
+    $('jointOmaAnalyze').onclick=localGuard(analyze);
+    $('jointOmaAddPeak').onclick=localGuard(()=>addPeak());
+    $('jointOmaReset').onclick=localGuard(resetZoom);
+    $('jointOmaExportJSON').onclick=localGuard(exportJSON);
+    $('jointOmaExportCSV').onclick=localGuard(exportCSV);
+    $('jointOmaClear').onclick=localGuard(()=>{
       state().files=[];state().source='';invalidate();renderOMA();
     });
   }
