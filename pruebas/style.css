@@ -2900,3 +2900,26 @@ body.joint-measure-fixed .joint-instrument-head {touch-action:manipulation;}
 #jointApp #jointPanelOMA .joint-oma-shape-map p {
   margin: 2px 4px 10px;
 }
+
+/* OMA: synthetic verification dataset / reference mode comparison. */
+#jointApp #jointPanelOMA .joint-oma-demo-info {
+  padding: 12px 14px;
+  margin: 12px 0;
+  border-left: 3px solid var(--vwoma-blue,#2673ab);
+  border-radius: 7px;
+  background: #f1f7fb;
+  color: #27455e;
+  font-size: .9rem;
+  line-height: 1.55;
+}
+#jointApp #jointPanelOMA .joint-oma-demo-compare {
+  padding: 9px 12px;
+  font-weight: 650;
+  color: #154f76;
+  border-bottom: 1px solid #bdd8e7;
+  line-height: 1.65;
+}
+#jointApp #jointPanelOMA #jointOmaDemo {
+  min-width: min(100%,250px);
+  white-space: normal;
+}
