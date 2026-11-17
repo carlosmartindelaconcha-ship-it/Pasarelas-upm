@@ -117,7 +117,7 @@ function mac(a,b){
 }
 function crossSpectra(run,fs,nfft,fmax){
   const n=run.channels.length,N=run.channels[0].values.length;
-  if(n>8)throw Error('Máximo ocho acelerómetros simultáneos.');
+  if(n>9)throw Error('Máximo nueve acelerómetros simultáneos.');
   const length=Math.min(Math.floor(N/3),8192),hop=Math.floor(length/2);
   if(length<64)throw Error('Ensayo demasiado corto para Welch.');
   const bins=Math.min(Math.floor(fmax*nfft/fs),nfft/2)+1,window=new Float64Array(length);
@@ -156,7 +156,7 @@ function crossSpectra(run,fs,nfft,fmax){
   return {n,re,im,bins,segments,windowSeconds:length/fs,channels:run.channels.map(c=>c.point),setup:run.setup};
 }
 function compute(inputs,opts={}){
-  if(!Array.isArray(inputs)||inputs.length<1||inputs.length>24)throw Error('Selecciona entre 1 y 24 ensayos.');
+  if(!Array.isArray(inputs)||inputs.length<1||inputs.length>64)throw Error('Selecciona entre 1 y 64 ensayos.');
   const axis=['x','y','z'].includes(opts.axis)?opts.axis:'z',requestedHz=clamp(Number(opts.maxHz)||30,1,60);
   const period=Math.max(...inputs.flatMap(d=>d.records?.filter(r=>r.samples?.length).map(r=>sampleRows(r,axis,d.windowMasterMs).period)||[]));
   if(!finite(period))throw Error('No hay muestras válidas para OMA.');
@@ -174,7 +174,7 @@ function compute(inputs,opts={}){
       points.set(c.point.id,c.point);
     }
   }
-  if(points.size>48)throw Error('Máximo 48 puntos.');
+  if(points.size>64)throw Error('Máximo 64 puntos.');
   const requested=[1024,2048,4096,8192,16384].includes(Number(opts.nfft))?Number(opts.nfft):4096;
   const maxLength=Math.max(...runs.map(r=>Math.min(Math.floor(r.channels[0].values.length/3),8192)));
   const nfft=S.nextPowerOfTwo(Math.max(requested,maxLength));
