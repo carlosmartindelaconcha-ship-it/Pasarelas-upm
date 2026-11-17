@@ -532,7 +532,8 @@
     const {renderOMA,bindEvents:bindOmaEvents} =
         globalThis.VWOMAEFDDUI.createController({
             s,$,Chart:typeof Chart==='undefined'?null:Chart,
-            efdd:globalThis.VWOMAEFDD,comparisonExport,download,
+            efdd:globalThis.VWOMAEFDD,demo:globalThis.VWOMAOmaDemo,
+            comparisonExport,download,
             storedRuns,storedChunks,escape,tell
         });
 
