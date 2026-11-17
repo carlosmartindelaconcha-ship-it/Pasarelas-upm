@@ -24,6 +24,7 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
     catch{return null;}
   };
   const fmt=(v,d=3)=>Number.isFinite(v)?Number(v).toFixed(d):'—';
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const getNames=()=>state().files.map(x=>x.name);
   function invalidate(){
     const st=state();st.analysis=null;st.modes=[];st.selected=-1;st.lastInput=null;
@@ -254,6 +255,49 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
       state().charts[key]?.destroy?.();delete state().charts[key];
     }
   }
+  function renderShapeMap(points,result){
+    const target=$('jointOmaShapeMap');
+    target.replaceChildren();
+    if(!points?.length)return;
+    const NS='http://www.w3.org/2000/svg';
+    const node=(tag,attributes={},label=null)=>{
+      const element=document.createElementNS(NS,tag);
+      for(const [key,value] of Object.entries(attributes))
+        element.setAttribute(key,String(value));
+      if(label!==null)element.textContent=String(label);
+      return element;
+    };
+    const svg=node('svg',{viewBox:'0 0 680 245',role:'img',
+      'aria-label':'Forma modal en planta. Azul: desplazamiento positivo; naranja: negativo.',
+      preserveAspectRatio:'xMidYMid meet'});
+    svg.append(node('rect',{x:34,y:20,width:612,height:178,rx:8,
+      fill:'#f3f8fc',stroke:'#b4cfdf','stroke-width':1.5}));
+    for(let i=1;i<10;i++)svg.append(node('path',{
+      d:'M '+(34+61.2*i)+' 20 V 198',stroke:'#e0eaf2','stroke-width':1
+    }));
+    const L=Math.max(.01,Number(result.planLength)||Math.max(...points.map(p=>p.x))),
+      W=Math.max(.01,Number(result.planWidth)||Math.max(...points.map(p=>p.y)));
+    for(const p of points){
+      const x=34+612*clamp(p.x/L,0,1),y=198-178*clamp(p.y/W,0,1);
+      const phi=p.re,amp=Math.abs(phi),color=phi>=0?'#176bb0':'#ce6d4d';
+      const circle=node('circle',{cx:x,cy:y,r:(6+14*amp).toFixed(2),
+        fill:color,'fill-opacity':(.3+.65*amp).toFixed(2),
+        stroke:color,'stroke-width':2});
+      circle.append(node('title',{},p.id+' · φ = '+fmt(phi,3)+
+        ' · X='+fmt(p.x,2)+' m · Y='+fmt(p.y,2)+' m'));
+      svg.append(circle);
+      svg.append(node('text',{x,y:y-22,fill:'#254763',
+        'font-size':12,'text-anchor':'middle','font-weight':600},p.id));
+    }
+    svg.append(node('text',{x:35,y:225,fill:'#667d91','font-size':12},'X=0'));
+    svg.append(node('text',{x:646,y:225,fill:'#667d91','font-size':12,'text-anchor':'end'},
+      'X='+fmt(L,1)+' m'));
+    target.append(svg);
+    const legend=document.createElement('p');
+    legend.className='joint-help';
+    legend.textContent='Círculos azules: φ positivo · Naranjas: φ negativo · Tamaño proporcional a |φ|.';
+    target.append(legend);
+  }
   function renderModeDetail(mode){
     destroyDetailCharts();
     const section=$('jointOmaModeDetail');
@@ -277,7 +321,9 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
     const table=$('jointOmaModalTables');table.replaceChildren();
     const modeShape=mode.shape;
     $('jointOmaShapePanel').hidden=!modeShape;
+    $('jointOmaShapeMap').replaceChildren();
     if(!modeShape)return;
+    renderShapeMap(modeShape.points,state().analysis);
     text('jointOmaShapeQuality','Componentes en fase: '+fmt(modeShape.realness*100,1)+' %. Referencia de fase: amplitud dominante o punto maestro.');
     if(Chart)state().charts.shape=new Chart($('jointOmaShape').getContext('2d'),{
       type:'line',data:{datasets:[
