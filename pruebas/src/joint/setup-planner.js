@@ -222,9 +222,11 @@
       setMarkup(masterInput,'options',options);
       masterInput.value=s.setupMasterChoice||'';
       $('jointSetupMasterField').hidden=solo;
-      $('jointSetupAutoHint').textContent=solo?
+      const hint=solo?
         'Con un solo acelerómetro se genera un setup por punto. Traslada el móvil entre ensayos; las medidas no son simultáneas.':
         'La propuesta automática estima la cobertura espacial; puedes modificar las asignaciones antes de activar cada setup. No garantiza identificar todos los modos.';
+      if($('jointSetupAutoHint').textContent!==hint)
+        $('jointSetupAutoHint').textContent=hint;
       $('jointSetupPhoneCount').textContent=String(1+participants.length);
       $('jointSetupSensorCount').textContent=String(available.length);
       masterInput.disabled=solo||!host||!!running()||!!s.transaction||!!s.run;
