@@ -229,7 +229,7 @@
       $('jointSetupSensorCount').textContent=String(available.length);
       masterInput.disabled=solo||!host||!!running()||!!s.transaction||!!s.run;
       generateButton.disabled=!host||available.length<(solo?1:2)||!!running()||!!s.transaction||!!s.run;
-      const mode=s.setupMode||'auto';
+      const mode=solo?'auto':(s.setupMode||'auto');
       const manualMode=mode==='manual';
       $('jointSetupModeAuto').setAttribute('aria-pressed',String(!manualMode));
       $('jointSetupModeManual').setAttribute('aria-pressed',String(manualMode));
@@ -339,12 +339,13 @@
     function generateSetups(){
       requireHostEdit();
       if(s.run)throw Error('Prepara un nuevo ensayo antes de generar los setups.');
-      if(s.setupMode==='manual')throw Error('Selecciona el modo automático para generar propuestas.');
+      if(s.setupMode==='manual'&&peers().length)throw Error('Selecciona el modo automático para generar propuestas.');
       if(s.setupPlan?.setups.some(x=>x.measuredRunId||x.completedRunId))
         throw Error('Ya hay medidas registradas en esta campaña. No puedes reemplazar su planificación.');
       const guestIds=peers().map(p=>p.id);
       const plan=generate(s.plan,s.id,guestIds,s.setupMasterChoice);
       s.setupPlan={...plan,mode:'auto',signature:currentSignature()};
+      s.setupMode='auto';
       renderSetups();
       tell(plan.setups.length+' setups generados. Revisa la distribución y activa el primero.');
       return plan;
@@ -352,6 +353,8 @@
     function setSetupMode(mode){
       requireHostEdit();
       if(!['auto','manual'].includes(mode))throw Error('Modo de planificación desconocido.');
+      if(mode==='manual'&&!peers().length)
+        throw Error('Con un único acelerómetro utiliza Propuestas automáticas y edita cada setup.');
       if(s.run)throw Error('Prepara otro ensayo antes de cambiar el modo de planificación.');
       if(s.setupMode===mode)return;
       if(s.setupPlan){
