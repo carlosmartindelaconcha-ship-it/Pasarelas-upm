@@ -102,7 +102,7 @@ function generate(seed=20261117){
       modes:truth}
   };
 }
-const api=Object.freeze({generate,bridgePoints,modalShape,modes,whiteNoiseStd,
+const api=Object.freeze({generate,bridgePoints,modalShape,modes,whiteNoiseStd,seededNormal,
   sampleRateHz:fs,durationSeconds:duration,samplesPerSensor:count});
 if(typeof module==='object'&&module.exports)module.exports=api;
 else root.VWOMAOmaDemo=api;
