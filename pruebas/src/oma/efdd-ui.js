@@ -4,7 +4,7 @@
  */
 (function registerOmaUI(root){
 'use strict';
-function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,storedChunks,escape,tell}){
+function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedRuns,storedChunks,escape,tell}){
   const state=()=>s.oma||(s.oma={files:[],analysis:null,modes:[],selected:-1,charts:{},source:'',lastInput:null});
   const text=(id,value)=>{const el=$(id);if(el&&el.textContent!==value)el.textContent=value;};
   const number=(id,fallback=null)=>{const v=$(id).value;return v===''?fallback:Number(v);};
@@ -46,6 +46,17 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
   }
   function renderFileList(){
     const st=state();
+    const sim=st.files.length===1?st.files[0].data.simulation:null;
+    const demoInfo=$('jointOmaDemoInfo');
+    demoInfo.hidden=!sim;
+    if(sim){
+      demoInfo.textContent='PRUEBA SINTÉTICA · '+sim.sensors+' acelerómetros simultáneos · 50 × 10,5 m · '+
+        sim.durationSeconds+' s · '+sim.sampleRateHz+' Hz · '+sim.samplesPerSensor+
+        ' muestras por sensor · ruido blanco gaussiano independiente σ = '+
+        fmt(sim.whiteNoiseStdMps2,2)+' m/s² (PSD esperada uniforme). Modos: '+
+        sim.modes.map(m=>m.name+' '+m.frequencyHz+' Hz').join(' · ')+
+        '. Toca cada pico del FDD para recuperar su forma y compararla con la teórica.';
+    }
     if(st.files.length){
       $('jointOmaFilesList').textContent=st.files.map((f,i)=>
         (i+1)+'. '+f.name).join(' · ');
@@ -123,11 +134,46 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
     state().files=files;state().source='archive';invalidate();renderFileList();
     text('jointOmaStatus',files.length+' setups individuales recuperados. El FDD combinará sus PSD sin inventar fases.');
   }
+  async function loadDemo(){
+    if(!demo?.generate)throw Error('No se ha cargado el generador de prueba.');
+    text('jointOmaStatus','Generando 180 s de señales con 14 acelerómetros y ruido blanco…');
+    await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
+    const data=demo.generate();
+    const st=state();st.files=[normalize(data,'Demo sintética · 14 acelerómetros · 3 minutos')];
+    st.source='demo';
+    invalidate();
+    $('jointOmaAxis').value='z';
+    $('jointOmaMaximum').value='25';
+    $('jointOmaFFT').value='4096';
+    renderFileList();
+    await analyze();
+  }
   function sampleSources(){
     const st=state();if(st.files.length)return st.files.map(f=>f.data);
     const current=canUseCurrent();
     if(!current)throw Error('Importa archivos JSON o termina primero un ensayo.');
     return [current];
+  }
+  function computeAsync(inputs,settings){
+    if(typeof Worker!=='function')return Promise.resolve().then(()=>efdd.compute(inputs,settings));
+    return new Promise((resolve,reject)=>{
+      let worker;
+      try{worker=new Worker('src/oma/efdd-worker.js?v=20261117-demo14-v1');}
+      catch(_){resolve(efdd.compute(inputs,settings));return;}
+      const id=Date.now();
+      worker.onmessage=event=>{
+        if(event.data?.id!==id)return;
+        worker.terminate();
+        if(event.data.success)resolve(event.data.result);
+        else reject(Error(event.data.error||'Error de cálculo EFDD.'));
+      };
+      worker.onerror=event=>{
+        worker.terminate();
+        reject(Error('Error en el proceso de cálculo EFDD: '+(event.message||'No se puede cargar el worker.')));
+      };
+      try{worker.postMessage({id,action:'compute',inputs,options:settings});}
+      catch(error){worker.terminate();reject(error);}
+    });
   }
   async function analyze(){
     const st=state();
@@ -136,7 +182,7 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
     // Allow the status update to paint before CPU-heavy FFT and eigensolver.
     await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
     const inputs=sampleSources();
-    const answer=efdd.compute(inputs,options());
+    const answer=await computeAsync(inputs,options());
     destroyCharts();st.analysis=answer;st.modes=[];st.selected=-1;st.lastInput=inputs;
     renderAnalysis();
     text('jointOmaStatus',answer.sourceCount+' ensayo(s) · '+answer.channels.length+
@@ -361,6 +407,7 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
       axis:r.axis,kind:r.kind,sourceCount:r.sourceCount,fs:r.fs,df:r.df,
       nfft:r.nfft,windows:r.segments,windowSeconds:r.windowSeconds,
       channels:r.channels,reference:r.reference,warnings:r.warnings,
+      simulation:st.files.length===1?st.files[0].data.simulation||null:null,
       spectralData:r.frequency.map((frequency,i)=>({frequencyHz:frequency,singularValues:r.data[i].values})),
       selectedPeaks:st.modes
     });
@@ -402,6 +449,7 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
     });
     $('jointOmaCurrent').onclick=localGuard(chooseCurrent);
     $('jointOmaLoadCampaign').onclick=localGuard(loadCampaign);
+    $('jointOmaDemo').onclick=localGuard(loadDemo);
     $('jointOmaAnalyze').onclick=localGuard(analyze);
     $('jointOmaAddPeak').onclick=localGuard(()=>addPeak());
     $('jointOmaReset').onclick=localGuard(resetZoom);
@@ -411,7 +459,7 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
       state().files=[];state().source='';invalidate();renderOMA();
     });
   }
-  return Object.freeze({renderOMA,bindEvents,importFiles,chooseCurrent,loadCampaign,
+  return Object.freeze({renderOMA,bindEvents,importFiles,chooseCurrent,loadCampaign,loadDemo,
     analyze,addPeak,exportJSON,exportCSV,normalize,renderModes});
 }
 const api=Object.freeze({createController});
