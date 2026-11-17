@@ -225,6 +225,7 @@ function compute(inputs,opts={}){
   if(kind==='reference')warnings.push('Setups con referencia fija: combinación aproximada S_iM/S_MM, no SVD de una matriz simultánea global.');
   if(fmax<requestedHz-.01)warnings.push('El rango se ha limitado a '+fmax.toFixed(2)+' Hz por Nyquist.');
   return {kind,axis,fs,fmax,nfft,df,frequency:freq,channels:shown,rank,data:entries,warnings,
+    planLength:Number(geometry.length),planWidth:Number(geometry.width),
     segments:all.map(s=>s.segments),windowSeconds:all.map(s=>s.windowSeconds),sourceCount:inputs.length,
     reference:commonRef?ref:null};
 }
