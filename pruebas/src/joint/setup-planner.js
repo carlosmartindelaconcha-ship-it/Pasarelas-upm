@@ -1,5 +1,6 @@
 /* VWOMA | Planificación de setups multipunto.
- * M es un acelerómetro de referencia fijo durante todos los ensayos.
+ * Con un solo móvil M recorre todos los puntos (un setup por punto).
+ * Con varios móviles M es una referencia fija en todos los ensayos.
  * La observabilidad modal se ESTIMA con funciones seno de una viga
  * biapoyada: no sustituye identificar las formas modales reales.
  * Algoritmo puro separado de DOM, WebRTC, adquisición y gráficas.
@@ -88,10 +89,34 @@
     if(!plan||!Number.isFinite(plan.length)||!Number.isFinite(plan.width)||
        plan.length<=0||plan.width<=0||!Array.isArray(plan.points))throw Error('Geometría del plano no válida.');
     const sensors=plan.points.filter(sensor);
-    if(sensors.length<2)throw Error('Necesitas al menos dos puntos con sensor para generar setups.');
-    if(!Array.isArray(guestIds)||!guestIds.length||!unique(guestIds)||guestIds.includes(hostId))
-      throw Error('Conecta al menos un móvil participante válido.');
+    if(!sensors.length)throw Error('Añade al menos un punto de medida en Plano.');
+    if(!Array.isArray(guestIds)||!unique(guestIds)||guestIds.includes(hostId))
+      throw Error('La lista de móviles participantes no es válida.');
     const proposed=chooseMaster(plan);
+    // Solo hay un acelerómetro: no existe referencia fija. El maestro
+    // recorre todos los puntos, de uno en uno, con ensayos independientes.
+    if(guestIds.length===0){
+      const ordered=[...sensors].sort((a,b)=>a.x-b.x||a.y-b.y||byId(a,b));
+      return {
+        masterPointId:null,
+        recommendedMasterPointId:proposed.id,
+        masterScore:null,
+        singleSensor:true,
+        setups:ordered.map((p,index)=>({
+          index:index+1,
+          assignments:[{deviceId:hostId,pointId:p.id}],
+          quality:null,
+          measuredRunId:null,
+          completedRunId:null
+        })),
+        activeIndex:null,
+        selectedIndex:0,
+        history:[]
+      };
+    }
+    // Con dos o más acelerómetros conservamos SIN CAMBIOS el método
+    // maestro fijo + participantes móviles.
+    if(sensors.length<2)throw Error('Necesitas al menos dos puntos con sensor para generar setups.');
     const master=chooseMaster(plan,masterPointId);
     const other=sensors.filter(p=>p.id!==master.id);
     const count=Math.ceil(other.length/guestIds.length);
@@ -152,7 +177,8 @@
     const syncReady=()=>{
       if(s.role!=='host'||!s.calibration.complete)return false;
       const participants=peers();
-      if(!participants.length||!s.syncCalibration.accepted)return false;
+      if(!participants.length)return true; // sin pares no hay relojes que sincronizar
+      if(!s.syncCalibration.accepted)return false;
       const calibrated=(s.syncCalibration.peerIds||[]).slice().sort();
       return calibrated.length===participants.length&&
         calibrated.every((id,i)=>id===participants.map(p=>p.id).sort()[i]);
@@ -185,6 +211,7 @@
       const participants=peers();
       const available=s.plan.points.filter(sensor);
       const host=s.role==='host';
+      const solo=participants.length===0;
       const ready=syncReady();
       const proposed=available.length?chooseMaster(s.plan).id:null;
       const previousChoice=s.setupMasterChoice;
@@ -194,16 +221,22 @@
         (p.id===proposed?' · recomendado':'')+'</option>').join('');
       setMarkup(masterInput,'options',options);
       masterInput.value=s.setupMasterChoice||'';
+      $('jointSetupMasterField').hidden=solo;
+      const hint=solo?
+        'Con un solo acelerómetro se genera un setup por punto. Traslada el móvil entre ensayos; las medidas no son simultáneas.':
+        'La propuesta automática estima la cobertura espacial; puedes modificar las asignaciones antes de activar cada setup. No garantiza identificar todos los modos.';
+      if($('jointSetupAutoHint').textContent!==hint)
+        $('jointSetupAutoHint').textContent=hint;
       $('jointSetupPhoneCount').textContent=String(1+participants.length);
       $('jointSetupSensorCount').textContent=String(available.length);
-      masterInput.disabled=!host||!!running()||!!s.transaction||!!s.run;
-      generateButton.disabled=!host||!participants.length||available.length<2||!!running()||!!s.transaction||!!s.run;
-      const mode=s.setupMode||'auto';
+      masterInput.disabled=solo||!host||!!running()||!!s.transaction||!!s.run;
+      generateButton.disabled=!host||available.length<(solo?1:2)||!!running()||!!s.transaction||!!s.run;
+      const mode=solo?'auto':(s.setupMode||'auto');
       const manualMode=mode==='manual';
       $('jointSetupModeAuto').setAttribute('aria-pressed',String(!manualMode));
       $('jointSetupModeManual').setAttribute('aria-pressed',String(manualMode));
       $('jointSetupModeAuto').disabled=!host||!!running()||!!s.transaction||!!s.run;
-      $('jointSetupModeManual').disabled=!host||!!running()||!!s.transaction||!!s.run;
+      $('jointSetupModeManual').disabled=solo||!host||!!running()||!!s.transaction||!!s.run;
       $('jointSetupAutoControls').hidden=manualMode;
       $('jointSetupAutoHint').hidden=manualMode;
       $('jointSetupManualControls').hidden=!manualMode;
@@ -218,9 +251,9 @@
           escape(p.id)+' · X '+p.x+' m</option>').join('')+'</select></label>';
       }).join('');
       setMarkup($('jointSetupManualAssignments'),'manual',manualChoices||
-        '<p class="joint-help">Conecta un móvil participante para crear un setup.</p>');
+        '<p class="joint-help">El modo manual requiere varios acelerómetros. Con uno solo utiliza Propuestas automáticas y edita cada setup.</p>');
       const plan=s.setupPlan,valid=currentValid();
-      const choseMaster=plan&&plan.masterPointId===s.setupMasterChoice;
+      const choseMaster=plan&&(plan.singleSensor||plan.masterPointId===s.setupMasterChoice);
       const fresh=valid&&choseMaster;
       const active=plan?.activeIndex;
       const index=Number.isInteger(plan?.selectedIndex)?plan.selectedIndex:0;
@@ -233,13 +266,16 @@
         summary.textContent='Tu punto se actualizará automáticamente al activar cada setup.';
         setMarkup(list,'list','');setMarkup(preview,'preview','');return;
       }
-      if(!participants.length)status.textContent='Conecta al menos un participante para organizar los setups.';
+      if(solo)status.textContent=!available.length?'Añade puntos de medida en Plano.':
+        !ready?'Puedes generar setups para un único acelerómetro. Calibra sus ejes antes de medir.':
+        'Un único acelerómetro: el maestro se desplazará de un punto a otro entre setups.';
       else if(available.length<2)status.textContent='Añade al menos dos sensores en Plano.';
       else if(!ready)status.textContent='Puedes planificar ya los setups; para medir deberás completar la calibración y la sincronización.';
       else status.textContent='Móviles sincronizados. El maestro permanecerá fijo en todos los setups.';
       if(!plan){
-        summary.textContent=manualMode?
-          'Selecciona el punto fijo del maestro y asigna al menos un participante. Puedes crear los setups de uno en uno.':
+        summary.textContent=solo?
+          'Pulsa «Generar propuestas» para crear un setup por cada punto del plano.':
+          manualMode?'Selecciona el punto fijo del maestro y asigna al menos un participante. Puedes crear los setups de uno en uno.':
           'Elige el maestro y pulsa «Generar propuestas». Después podrás editarlas.';
         setMarkup(list,'list','');setMarkup(preview,'preview','');
         $('jointSetupEditor').hidden=true;return;
@@ -250,7 +286,7 @@
         $('jointSetupEditor').hidden=true;return;
       }
       summary.textContent=plan.setups.length+' setups '+(plan.mode==='manual'?'manuales':'propuestos')+
-        ' · maestro fijo en '+plan.masterPointId+' · '+
+        (plan.singleSensor?' · un acelerómetro móvil · ':' · maestro fijo en '+plan.masterPointId+' · ')+
         (plan.setups.filter(x=>x.completedRunId).length)+' completados. '+
         (!ready?'Termina la sincronización antes de activar uno.':'Selecciona uno para editarlo o medir.');
       const devices=new Map(connected().map((d,i)=>[d.id,{...d,code:i===0?'M':'S'+i}]));
@@ -259,14 +295,22 @@
         const previewMarkup=symbols.planSvg({
           plan:s.plan,assignments:selected.assignments,masterId:s.id,
           measured:symbols.measuredPoints(plan),escapeText:escape
-        })+'<p>Rojo: maestro · Azul: esclavos activos · Verde: puntos ya medidos · Gris: pendientes · Triángulos: apoyos.</p>';
+        })+'<p>'+(plan.singleSensor?
+          'Rojo: posición actual del único acelerómetro · Verde: puntos medidos · Gris: pendientes · Triángulos: apoyos.':
+          'Rojo: maestro · Azul: esclavos activos · Verde: puntos ya medidos · Gris: pendientes · Triángulos: apoyos.')+'</p>';
         setMarkup(preview,'preview',previewMarkup);
       }else setMarkup(preview,'preview','');
       const canEdit=!!selected&&!selected.measuredRunId&&!s.run&&!running()&&!s.transaction;
       $('jointSetupEditor').hidden=!canEdit;
       $('jointSetupSaveEdit').disabled=!canEdit;
       const selectedByDevice=new Map(selected?.assignments.map(a=>[a.deviceId,a.pointId])||[]);
-      const editorMarkup=peers().map((peer,i)=>{
+      const editorMarkup=plan.singleSensor?
+        '<label>Punto del acelerómetro M'+
+          '<select data-setup-edit-device="'+escape(s.id)+'" aria-label="Editar punto del único acelerómetro">'+
+          available.map(p=>'<option value="'+escape(p.id)+'"'+
+            (p.id===selectedByDevice.get(s.id)?' selected':'')+'>'+
+            escape(p.id)+' · X '+p.x+' m</option>').join('')+'</select></label>':
+        peers().map((peer,i)=>{
         const value=selectedByDevice.get(peer.id)||'';
         return '<label>'+escape(peer.name||'Participante '+(i+1))+
           '<select data-setup-edit-device="'+escape(peer.id)+'" aria-label="Editar punto de '+escape(peer.name||peer.id)+'">'+
@@ -297,12 +341,13 @@
     function generateSetups(){
       requireHostEdit();
       if(s.run)throw Error('Prepara un nuevo ensayo antes de generar los setups.');
-      if(s.setupMode==='manual')throw Error('Selecciona el modo automático para generar propuestas.');
+      if(s.setupMode==='manual'&&peers().length)throw Error('Selecciona el modo automático para generar propuestas.');
       if(s.setupPlan?.setups.some(x=>x.measuredRunId||x.completedRunId))
         throw Error('Ya hay medidas registradas en esta campaña. No puedes reemplazar su planificación.');
       const guestIds=peers().map(p=>p.id);
       const plan=generate(s.plan,s.id,guestIds,s.setupMasterChoice);
       s.setupPlan={...plan,mode:'auto',signature:currentSignature()};
+      s.setupMode='auto';
       renderSetups();
       tell(plan.setups.length+' setups generados. Revisa la distribución y activa el primero.');
       return plan;
@@ -310,6 +355,8 @@
     function setSetupMode(mode){
       requireHostEdit();
       if(!['auto','manual'].includes(mode))throw Error('Modo de planificación desconocido.');
+      if(mode==='manual'&&!peers().length)
+        throw Error('Con un único acelerómetro utiliza Propuestas automáticas y edita cada setup.');
       if(s.run)throw Error('Prepara otro ensayo antes de cambiar el modo de planificación.');
       if(s.setupMode===mode)return;
       if(s.setupPlan){
@@ -361,7 +408,16 @@
       const index=plan.selectedIndex,selected=plan.setups[index];
       if(!selected||selected.measuredRunId)throw Error('No puedes editar un setup que ya tiene un ensayo.');
       if(plan.masterPointId!==s.setupMasterChoice)throw Error('La referencia del maestro no coincide.');
-      const entries=assignmentsFrom('data-setup-edit-device');
+      let entries;
+      if(plan.singleSensor){
+        const local=[...document.querySelectorAll('[data-setup-edit-device]')]
+          .find(select=>select.getAttribute('data-setup-edit-device')===s.id);
+        if(!local||!s.plan.points.some(p=>sensor(p)&&p.id===local.value))
+          throw Error('Elige un punto de medida válido para el acelerómetro.');
+        entries=[{deviceId:s.id,pointId:local.value}];
+      }else{
+        entries=assignmentsFrom('data-setup-edit-device');
+      }
       selected.assignments=entries;
       selected.quality=null;
       if(plan.activeIndex===index)plan.activeIndex=null;
@@ -376,7 +432,7 @@
     function applySetup(index=s.setupPlan?.selectedIndex){
       requireHostEdit();
       if(s.run)throw Error('Antes de cambiar de setup, descarga los resultados y pulsa «Preparar otro ensayo».');
-      if(!syncReady()||!currentValid()||s.setupPlan?.masterPointId!==s.setupMasterChoice)
+      if(!syncReady()||!currentValid()||(!s.setupPlan?.singleSensor&&s.setupPlan?.masterPointId!==s.setupMasterChoice))
         throw Error('Los setups están desactualizados; vuelve a generarlos.');
       const setup=s.setupPlan?.setups?.[index];
       if(!setup)throw Error('Selecciona un setup válido.');
@@ -392,14 +448,19 @@
       }
       s.setupPlan.activeIndex=index;s.setupPlan.selectedIndex=index;
       savePlan();renderDevices();renderSetups();
-      tell('Setup '+(index+1)+' activado. Mantén M en '+s.setupPlan.masterPointId+
-        ' y coloca los participantes en sus puntos antes de medir.');
+      tell(s.setupPlan.singleSensor?
+        'Setup '+(index+1)+' activado. Coloca el acelerómetro M en '+
+          setup.assignments.find(a=>a.deviceId===s.id).pointId+' antes de medir.':
+        'Setup '+(index+1)+' activado. Mantén M en '+s.setupPlan.masterPointId+
+          ' y coloca los participantes en sus puntos antes de medir.');
     }
     function markMeasured(){
       const plan=s.setupPlan;
       if(!plan||!s.run?.finished||s.run.state!=='finished'||plan.activeIndex===null)return;
       const setup=plan.setups[plan.activeIndex];
-      if(setup&&s.run.plan.points.some(p=>p.device===s.id&&p.id===plan.masterPointId)){
+      const measuredByMaster=setup?.assignments.find(a=>a.deviceId===s.id)?.pointId;
+      if(setup&&measuredByMaster&&
+          s.run.plan.points.some(p=>p.device===s.id&&p.id===measuredByMaster)){
         setup.measuredRunId=s.run.id;
         if(!Array.isArray(plan.history))plan.history=[];
         if(!plan.history.some(h=>h.runId===s.run.id))plan.history.push({

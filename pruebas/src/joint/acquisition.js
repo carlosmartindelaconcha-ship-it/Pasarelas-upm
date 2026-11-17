@@ -38,7 +38,8 @@
         const synchronizationCalibration=solo?{phase:'not-required',accepted:false,gesture:null,results:{},models:{},correctionMs:0}:structuredClone(s.syncCalibration);
         const setup=s.role==='host'&&s.setupPlan?.activeIndex!=null?{
             index:s.setupPlan.activeIndex+1,total:s.setupPlan.setups.length,
-            masterPointId:s.setupPlan.masterPointId
+            masterPointId:s.setupPlan.masterPointId,
+            singleSensor:!!s.setupPlan.singleSensor
         }:null;
         s.run={id,session:s.session,start,end,plannedEnd:end,duration,state:'armed',created:new Date().toISOString(),plan:runPlan,setup,initialClock:model,networkClock:structuredClone(networkModel),finalClock:model,syncModels,synchronizationCalibration,samples:[],incidents:[],persisted:0,chunkIndex:0,previewBaseline,device:{id:s.id,name:s.name,role:s.role,point:structuredClone(pointFor()||null),calibration:structuredClone(s.calibration)},sync:[]};
         for(const sample of s.recent){const t=finite(sample[8])?sample[8]:toMaster(sample[7],model);if(t>=start-1000&&t<=end+1000)appendSample(s.run,sample);}
@@ -55,7 +56,10 @@
         // transmitir PREPARE/START_AT a móviles sin sensor asignado.
         const peers=planned?connected.filter(p=>!!pointFor(p.id)):connected;
         const solo=peers.length===0;
-        if(planned&&solo)throw Error('El setup activo necesita al menos un participante conectado.');
+        // Las campañas de un único acelerómetro no requieren pares WebRTC.
+        // Las campañas multipunto anteriores siguen exigiendo participantes.
+        if(planned&&solo&&!s.setupPlan.singleSensor)
+            throw Error('El setup activo necesita al menos un participante conectado.');
         if(!pointFor())throw Error('Asigna el maestro a un punto del plano.');
         if(!solo&&s.plan.points.some(q=>q.device&&q.device!==s.id&&!peers.some(p=>p.id===q.device)))throw Error('Hay un punto asignado a un móvil desconectado. Conéctalo o elimina su asignación.');
         for(const p of peers) {

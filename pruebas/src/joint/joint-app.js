@@ -148,7 +148,7 @@
         $('jointStart').hidden=s.role!=='host'||measuring;
         const needsSetupActivation=!!s.setupPlan&&
             (s.setupPlan.activeIndex===null||!currentValid()||
-             s.setupPlan.masterPointId!==s.setupMasterChoice);
+             (!s.setupPlan.singleSensor&&s.setupPlan.masterPointId!==s.setupMasterChoice));
         $('jointStart').disabled=measuring||needsSetupActivation||
             !s.calibration.complete||(hasParticipants&&!s.syncCalibration.accepted);
         $('jointStartLabel').textContent='Iniciar medida';
