@@ -6,7 +6,7 @@
     'use strict';
     function bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
-        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, createManualSetup, setSetupMode, editSelectedSetup, selectSetup, applySetup, confirmMeasured, renderMeasureGuide,
+        tab, renderResults, renderOMA, bindOmaEvents, renderSyncCalibration, renderSetups, generateSetups, createManualSetup, setSetupMode, editSelectedSetup, selectSetup, applySetup, confirmMeasured, renderMeasureGuide,
         createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
@@ -21,7 +21,8 @@
     $('openJointButton').addEventListener('click',guard(open));
     $('standaloneTestButton').addEventListener('click',guard(openStandaloneTest));
     $('jointExit').addEventListener('click',resetSession);
-    document.querySelectorAll('[data-joint-tab]').forEach(b=>b.onclick=()=>{tab(b.dataset.jointTab,{fromUser:true});if(b.dataset.jointTab==='Results')renderResults();if(b.dataset.jointTab==='Sync')renderSyncCalibration();if(b.dataset.jointTab==='Setups')renderSetups();});
+    document.querySelectorAll('[data-joint-tab]').forEach(b=>b.onclick=()=>{tab(b.dataset.jointTab,{fromUser:true});if(b.dataset.jointTab==='Results')renderResults();if(b.dataset.jointTab==='OMA')renderOMA();if(b.dataset.jointTab==='Sync')renderSyncCalibration();if(b.dataset.jointTab==='Setups')renderSetups();});
+    bindOmaEvents(guard);
     $('jointCreate').onclick=guard(createJointSession);
     $('jointJoin').onclick=()=>openPair();$('jointPair').onclick=guard(()=>pairingAction(invite));
     $('jointRetryPair').onclick=guard(retryPair);

@@ -14,7 +14,7 @@
     <title>VWOMA · PRUEBAS · Pasarelas UPM</title>
 
     <!-- Nuestro CSS -->
-    <link rel="stylesheet" href="style.css?v=20261114-setup-workflow-v1">
+    <link rel="stylesheet" href="style.css?v=20261117-efdd-v1">
 
     <!-- MapLibre -->
     <link
@@ -776,6 +776,7 @@
                     <button type="button" id="jointTabMeasure" role="tab" aria-controls="jointPanelMeasure" aria-selected="false" data-joint-tab="Measure" data-vwoma-icon="activity">Medir</button>
                     <button type="button" id="jointTabResults" role="tab" aria-label="Resultados" aria-controls="jointPanelResults" aria-selected="false" data-joint-tab="Results" data-vwoma-icon="chart"><span class="joint-tab-full">Resultados</span><span class="joint-tab-compact" aria-hidden="true">Datos</span></button>
                     <button type="button" id="jointTabCompare" role="tab" aria-controls="jointPanelCompare" aria-selected="false" data-joint-tab="Compare" data-vwoma-icon="compare">Comparar</button>
+                        <button type="button" id="jointTabOMA" role="tab" aria-controls="jointPanelOMA" aria-selected="false" data-joint-tab="OMA" data-vwoma-icon="activity">OMA · EFDD</button>
                     </div>
                 </div>
                 <div id="jointPanelPlan" role="tabpanel" aria-labelledby="jointTabPlan">
@@ -990,6 +991,69 @@
                     <div class="joint-axis-compare"><div class="chart-heading"><h4>Y estructural · transversal</h4><button type="button" class="chart-control" data-joint-compare-reset="Y" data-vwoma-icon="reset">Restablecer zoom</button></div><div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvasY" aria-label="Aceleraciones Y estructurales comparadas"></canvas></div></div>
                     <div class="joint-axis-compare"><div class="chart-heading"><h4>Z estructural · vertical, sin continua</h4><button type="button" class="chart-control" data-joint-compare-reset="Z" data-vwoma-icon="reset">Restablecer zoom</button></div><div class="joint-compare-wrap joint-compare-chart-wrap"><canvas id="jointCompareCanvasZ" aria-label="Aceleraciones Z estructurales comparadas sin componente continua"></canvas></div></div>
                 </div>
+                <div id="jointPanelOMA" role="tabpanel" aria-labelledby="jointTabOMA" hidden>
+                    <div class="joint-section-head">
+                        <div><h3>Análisis modal operacional · FDD / EFDD</h3>
+                        <p>Valores singulares de la matriz de densidades espectrales cruzadas. Elige tú los picos; EFDD identifica la campana por MAC y estima el amortiguamiento mediante la autocorrelación.</p></div>
+                    </div>
+                    <section class="joint-oma-section">
+                        <h4>1. Elegir datos</h4>
+                        <p id="jointOmaSource" class="joint-help">Importa ensayos o analiza el registro terminado.</p>
+                        <div class="joint-actions">
+                            <label class="joint-file joint-oma-file">Importar ensayos JSON
+                                <input id="jointOmaFiles" type="file" accept=".json,application/json" multiple></label>
+                            <button type="button" id="jointOmaCurrent" class="joint-secondary" data-vwoma-icon="activity">Usar último ensayo</button>
+                            <button type="button" id="jointOmaLoadCampaign" class="joint-secondary" data-vwoma-icon="folder">Cargar campaña local</button>
+                            <button type="button" id="jointOmaClear" class="joint-secondary" data-vwoma-icon="trash">Vaciar datos</button>
+                        </div>
+                        <p id="jointOmaFilesList" class="joint-help">No hay archivos cargados.</p>
+                        <p class="joint-help">Para varios setups, importa los JSON exportados desde el maestro; la campaña local recupera las medidas itinerantes de un único móvil. Se aceptan registros brutos o procesados.</p>
+                    </section>
+                    <section class="joint-oma-section">
+                        <h4>2. Calcular FDD</h4>
+                        <div class="joint-oma-fields">
+                            <label>Eje estructural<select id="jointOmaAxis"><option value="z" selected>Z · vertical</option><option value="x">X · longitudinal</option><option value="y">Y · transversal</option></select></label>
+                            <label>Frecuencia máxima (Hz)<input id="jointOmaMaximum" type="number" min="1" max="60" step="1" value="30"></label>
+                            <label>FFT mínima<select id="jointOmaFFT"><option value="1024">1024</option><option value="2048">2048</option><option value="4096" selected>4096</option><option value="8192">8192</option><option value="16384">16384</option></select></label>
+                        </div>
+                        <div class="joint-actions"><button id="jointOmaAnalyze" type="button" class="vwoma-action" data-vwoma-icon="activity">Calcular valores singulares</button><button id="jointOmaReset" class="joint-secondary" type="button" data-vwoma-icon="reset">Restablecer zoom</button></div>
+                        <p class="joint-help">Welch con cinco ventanas de Hann, con solape aproximado del 50 % cuando la longitud lo permite, y eliminación de tendencia. El relleno con ceros interpola el espectro, pero no mejora la resolución física.</p>
+                        <p id="jointOmaStatus" class="joint-help" role="status" aria-live="polite">Listo para analizar.</p>
+                        <p id="jointOmaMetrics" class="joint-help"></p>
+                        <p id="jointOmaWarnings" class="joint-oma-warnings" role="note"></p>
+                        <div class="joint-oma-plot" id="jointOmaPlotWrap"><canvas id="jointOmaSingular" aria-label="Espectro FDD de valores singulares para seleccionar picos"></canvas></div>
+                    </section>
+                    <section class="joint-oma-section">
+                        <h4>3. Peak picking manual</h4>
+                        <p class="joint-help">Toca un máximo de la gráfica o introduce su frecuencia. La banda EFDD puede limitarse manualmente. El MAC se aplica cuando hay vectores singulares disponibles.</p>
+                        <div class="joint-oma-fields">
+                            <label>Rama singular<select id="jointOmaBranch"><option value="0">SV1</option></select></label>
+                            <label>Frecuencia del pico (Hz)<input id="jointOmaPeak" type="number" min="0.001" step="0.001" placeholder="P. ej. 2.50"></label>
+                            <label>MAC mínimo<input id="jointOmaMac" type="number" min="0.4" max="0.99" step="0.05" value="0.8"></label>
+                            <label>Potencia relativa mínima<input id="jointOmaLevel" type="number" min="0.0001" max="0.3" step="0.005" value="0.01"></label>
+                            <label>Banda desde (Hz) · opcional<input id="jointOmaBandMin" type="number" min="0" step="0.01" placeholder="Auto"></label>
+                            <label>Banda hasta (Hz) · opcional<input id="jointOmaBandMax" type="number" min="0" step="0.01" placeholder="Auto"></label>
+                        </div>
+                        <div class="joint-actions"><button id="jointOmaAddPeak" type="button" class="vwoma-action" data-vwoma-icon="plus">Añadir pico</button><button type="button" id="jointOmaExportJSON" disabled class="joint-secondary" data-vwoma-icon="download">Exportar EFDD JSON</button><button type="button" id="jointOmaExportCSV" disabled class="joint-secondary" data-vwoma-icon="file">Exportar modos CSV</button></div>
+                        <p id="jointOmaEmpty" class="joint-help">Selecciona una frecuencia tocando la gráfica o introduciéndola manualmente.</p>
+                        <div id="jointOmaModeList" class="joint-oma-mode-list"></div>
+                    </section>
+                    <section id="jointOmaModeDetail" class="joint-oma-section" hidden>
+                        <h4>4. Modo seleccionado · EFDD</h4>
+                        <p id="jointOmaModeInfo" class="joint-oma-result"></p>
+                        <p id="jointOmaModeWarning" class="joint-oma-warnings"></p>
+                        <h4>Correlación reconstruida y amortiguamiento</h4>
+                        <div class="joint-oma-plot"><canvas id="jointOmaDecay" aria-label="Autocorrelación EFDD y envolvente exponencial"></canvas></div>
+                        <div id="jointOmaShapePanel" hidden>
+                            <h4>Forma modal estimada</h4>
+                            <p id="jointOmaShapeQuality" class="joint-help"></p>
+                            <div id="jointOmaShapeMap" class="joint-oma-shape-map" aria-label="Distribución espacial de la forma modal en planta"></div>
+                            <div class="joint-oma-plot"><canvas id="jointOmaShape" aria-label="Forma modal normalizada en los puntos medidos"></canvas></div>
+                            <div id="jointOmaModalTables" class="joint-oma-table"></div>
+                        </div>
+                    </section>
+                    <p class="joint-help">Interpretación experimental: con un solo sensor itinerante sin referencia no se puede recuperar la fase relativa ni una forma modal espacial. Para ello se necesitan medidas simultáneas o una referencia fija entre setups. Las frecuencias y amortiguamientos estimados deben contrastarse con registros de suficiente duración y calidad.</p>
+                </div>
             </div>
             <dialog id="jointPairDialog" aria-labelledby="jointPairTitle"><div class="joint-dialog-heading"><h3 id="jointPairTitle">Conectar móvil</h3><button id="jointPairClose" class="joint-secondary" type="button" data-vwoma-icon="close">Cerrar</button></div>
                 <p id="jointPairHelp"></p>
@@ -1051,12 +1115,14 @@
     <script defer src="src/joint/exports.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
-    <script defer src="src/joint/tab-navigation.js?v=20261114-setup-workflow-v1"></script>
+    <script defer src="src/oma/efdd-core.js?v=20261117-efdd-v1"></script>
+    <script defer src="src/oma/efdd-ui.js?v=20261117-efdd-v1"></script>
+    <script defer src="src/joint/tab-navigation.js?v=20261117-efdd-v1"></script>
     <script defer src="src/joint/scroll-navigation.js?v=20261114-nav-shell-v1"></script>
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
-    <script defer src="src/joint/ui-events.js?v=20261114-setup-workflow-v1"></script>
+    <script defer src="src/joint/ui-events.js?v=20261117-efdd-v1"></script>
     <script defer src="src/joint/measure-guide.js?v=20261114-phone-status-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261117-single-sensor-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261117-efdd-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-setups-v2"></script>
 
 

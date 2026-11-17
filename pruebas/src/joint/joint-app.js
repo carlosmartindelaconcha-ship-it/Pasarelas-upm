@@ -526,6 +526,16 @@
             clampTemporalXAxis,keepTemporalYAxisCentered,formatYAxisTick
         });
 
+    // OMA/EFDD remains independent of acquisition and WebRTC. The source
+    // may be the current finished joint trial, exported JSON, or recovered
+    // individual setups from this browser.
+    const {renderOMA,bindEvents:bindOmaEvents} =
+        globalThis.VWOMAEFDDUI.createController({
+            s,$,Chart:typeof Chart==='undefined'?null:Chart,
+            efdd:globalThis.VWOMAEFDD,comparisonExport,download,
+            storedRuns,storedChunks,escape,tell
+        });
+
     // Mantiene la leyenda NATIVA de Chart.js (recuadros y tachado al ocultar).
     // Un solo clic en X/Y/Z debe cambiar ambas graficas a la vez.
     function toggleJointAxis(event, legendItem, legend) {
@@ -674,7 +684,7 @@
         document.documentElement.classList.remove('joint-workspace-active');
         releaseWake();
         for(const chart of s.compareCharts||[])chart.destroy();s.compareCharts=[];
-        s.role=null;s.session=null;s.setupPlan=null;s.setupMasterChoice=null;s.setupMarkupCache=null;s.setupMode='auto';s.manualGuestPoints={};s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planFilter='support';s.planPointers.clear();
+        s.oma=null;s.role=null;s.session=null;s.setupPlan=null;s.setupMasterChoice=null;s.setupMarkupCache=null;s.setupMode='auto';s.manualGuestPoints={};s.run=null;s.results.clear();s.compareExport=null;s.pending=null;s.transaction=null;s.syncLog=[];s.recent=[];s.rateTimes=[];s.preview=[];s.planView=null;s.planPan=null;s.planPinch=null;s.planFilter='support';s.planPointers.clear();
         s.calibration={map:{},active:null,complete:false,guidePhase:'idle'};s.syncCalibration={phase:'idle',accepted:false,gesture:null,results:{},models:{},correctionMs:0};$('jointCalibration').hidden=true;$('jointCalibrationOverride').hidden=true;
         s.syncModel={offset:0,drift:0,reference:0,rtt:null,count:0,updated:0};s.id=uid();
         root.hidden=true;$('jointLanding').hidden=false;$('jointWorkspace').hidden=true;
@@ -690,7 +700,7 @@
     }
     function createJointSession() {
         open();s.id=uid();s.role='host';s.name='Maestro';s.session=uid();
-        s.setupPlan=null;s.setupMasterChoice=null;s.setupMarkupCache=null;s.setupMode='auto';s.manualGuestPoints={};
+        s.oma=null;s.setupPlan=null;s.setupMasterChoice=null;s.setupMarkupCache=null;s.setupMode='auto';s.manualGuestPoints={};
         try{const stored=localStorage.getItem('upm-joint-plan-vwoma-preview-v1');if(stored)s.plan=checkPlan(JSON.parse(stored));}catch(e){tell('No se pudo recuperar el plano anterior.',true);}
         if(!s.plan.points.length)s.plan.points=[
             {id:'P1',name:'P1',x:s.plan.length/2,y:s.plan.width/2,axis:'z',angle:0,kind:'sensor',device:s.id},
@@ -708,7 +718,7 @@
     }
     globalThis.VWOMAUIEvents.bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
-        tab, renderResults, renderSyncCalibration, renderSetups, generateSetups, createManualSetup, setSetupMode, editSelectedSetup, selectSetup, applySetup, confirmMeasured, renderMeasureGuide,
+        tab, renderResults, renderOMA, bindOmaEvents, renderSyncCalibration, renderSetups, generateSetups, createManualSetup, setSetupMode, editSelectedSetup, selectSetup, applySetup, confirmMeasured, renderMeasureGuide,
         createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
