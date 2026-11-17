@@ -2713,3 +2713,172 @@ body.joint-measure-fixed:not(.joint-measuring) #jointPanelMeasure > .joint-instr
 /* Durante los ensayos, el icono de medida se oculta sin eliminar su panel
    del DOM; al concluir vuelve directamente a Setups para validar los datos. */
 body.joint-measure-fixed .joint-instrument-head {touch-action:manipulation;}
+
+
+/* ================================
+   OMA / EFDD — experimental module
+   ================================ */
+#jointApp #jointPanelOMA {
+  width: 100%;
+  min-width: 0;
+  padding-bottom: 2rem;
+}
+#jointApp #jointPanelOMA .joint-oma-section {
+  border: 1px solid var(--vwoma-border,#d5e3ef);
+  background: #fff;
+  border-radius: 13px;
+  padding: clamp(12px,2.5vw,22px);
+  margin: 14px 0;
+  min-width: 0;
+}
+#jointApp #jointPanelOMA .joint-oma-section h4 {
+  font-size: 1.04rem;
+  color: var(--vwoma-navy,#071d54);
+  margin: 0 0 12px;
+}
+#jointApp #jointPanelOMA .joint-oma-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(min(100%,185px),1fr));
+  gap: 10px 14px;
+  margin: 12px 0;
+}
+#jointApp #jointPanelOMA .joint-oma-fields label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  font-size: .88rem;
+  font-weight: 600;
+  color: #29445e;
+}
+#jointApp #jointPanelOMA select,
+#jointApp #jointPanelOMA input[type=number] {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid #bfd1e1;
+  border-radius: 8px;
+  color: #182f46;
+  background: #fff;
+  font-size: 1rem;
+}
+#jointApp #jointPanelOMA .joint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin: 10px 0;
+}
+#jointApp #jointPanelOMA .joint-actions > button,
+#jointApp #jointPanelOMA .joint-actions > label.joint-oma-file {
+  min-height: 42px;
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+#jointApp #jointPanelOMA .joint-oma-file input[type=file] {
+  display: block;
+  max-width: 245px;
+  min-width: 0;
+  font-size: .82rem;
+  margin-top: 5px;
+}
+#jointApp #jointPanelOMA .joint-oma-plot {
+  position: relative;
+  box-sizing: border-box;
+  border: 1px solid #d7e5f0;
+  border-radius: 10px;
+  background: #fbfdff;
+  width: 100%;
+  min-height: 270px;
+  height: clamp(270px,45vw,440px);
+  padding: 8px;
+  overflow: hidden;
+}
+#jointApp #jointPanelOMA .joint-oma-plot canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+#jointApp #jointPanelOMA .joint-oma-warnings {
+  color: #925017;
+  font-size: .9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#jointApp #jointPanelOMA .joint-oma-result {
+  font-weight: 700;
+  color: var(--vwoma-navy,#071d54);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+#jointApp #jointPanelOMA #jointOmaStatus,
+#jointApp #jointPanelOMA #jointOmaFilesList {
+  overflow-wrap: anywhere;
+}
+#jointApp #jointPanelOMA .joint-oma-mode-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(min(100%,290px),1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+#jointApp #jointPanelOMA .joint-oma-mode-card {
+  border: 1px solid #d3e1ec;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  background: #f8fbfe;
+}
+#jointApp #jointPanelOMA .joint-oma-mode-card.is-selected {
+  border-color: #3879aa;
+  background: #eaf4fc;
+}
+#jointApp #jointPanelOMA .joint-oma-mode-card button:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  font-size: .85rem;
+  line-height: 1.4;
+}
+#jointApp #jointPanelOMA .joint-oma-mode-card button:last-child {
+  flex: 0 0 auto;
+  font-size: .78rem;
+}
+#jointApp #jointPanelOMA .joint-oma-table {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-top: 12px;
+}
+#jointApp #jointPanelOMA .joint-oma-table table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 460px;
+  font-size: .83rem;
+  text-align: right;
+}
+#jointApp #jointPanelOMA .joint-oma-table th,
+#jointApp #jointPanelOMA .joint-oma-table td {
+  padding: 7px 9px;
+  border-bottom: 1px solid #dce7ef;
+}
+#jointApp #jointPanelOMA .joint-oma-table th:first-child,
+#jointApp #jointPanelOMA .joint-oma-table td:first-child {
+  text-align: left;
+}
+@media(max-width:540px) {
+  #jointApp #jointPanelOMA .joint-oma-section {padding: 12px;margin: 10px 0;}
+  #jointApp #jointPanelOMA .joint-oma-fields {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 9px;
+  }
+  #jointApp #jointPanelOMA .joint-oma-fields label {font-size:.78rem;}
+  #jointApp #jointPanelOMA .joint-oma-plot {height: 285px;min-height: 285px;}
+  #jointApp #jointPanelOMA .joint-actions > button {font-size:.85rem;}
+  #jointApp #jointPanelOMA .joint-oma-mode-list {grid-template-columns:1fr;}
+}
