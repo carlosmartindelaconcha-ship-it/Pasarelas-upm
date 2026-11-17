@@ -75,7 +75,9 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
   async function importFiles(fileList){
     const files=[...fileList];
     if(!files.length)return;
-    if(files.length>24)throw Error('Importa como máximo 24 archivos.');
+    if(files.length>64)throw Error('Importa como máximo 64 archivos.');
+    if(files.reduce((sum,f)=>sum+f.size,0)>150000000)
+      throw Error('Los archivos superan 150 MB en conjunto. Reduce el tamaño de la campaña.');
     const st=state(),next=[];
     for(const f of files){
       if(f.size>65000000)throw Error(f.name+': supera el máximo de 65 MB.');
@@ -108,7 +110,7 @@ function createController({s,$,Chart,efdd,comparisonExport,download,storedRuns,s
       .sort((a,b)=>String(a.meta.created).localeCompare(String(b.meta.created)));
     const bySetup=new Map();
     for(const row of same)bySetup.set(row.meta.setup.index,row);
-    const selected=[...bySetup.values()].sort((a,b)=>a.meta.setup.index-b.meta.setup.index).slice(0,24);
+    const selected=[...bySetup.values()].sort((a,b)=>a.meta.setup.index-b.meta.setup.index).slice(0,64);
     if(!selected.length)throw Error('No hay setups completos en la campaña.');
     const files=[];
     for(const row of selected){
