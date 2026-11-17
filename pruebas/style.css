@@ -2882,3 +2882,21 @@ body.joint-measure-fixed .joint-instrument-head {touch-action:manipulation;}
   #jointApp #jointPanelOMA .joint-actions > button {font-size:.85rem;}
   #jointApp #jointPanelOMA .joint-oma-mode-list {grid-template-columns:1fr;}
 }
+
+#jointApp #jointPanelOMA .joint-oma-shape-map {
+  padding: 8px 8px 2px;
+  border: 1px solid #d7e5f0;
+  border-radius: 10px;
+  margin: 12px 0;
+  background: #fbfdff;
+  max-width: 100%;
+}
+#jointApp #jointPanelOMA .joint-oma-shape-map svg {
+  display: block;
+  width: 100%;
+  max-height: 330px;
+  height: auto;
+}
+#jointApp #jointPanelOMA .joint-oma-shape-map p {
+  margin: 2px 4px 10px;
+}
