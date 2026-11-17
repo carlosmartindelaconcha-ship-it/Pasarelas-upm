@@ -3,7 +3,7 @@
  */
 (function registerTabNavigation(root) {
   'use strict';
-  const NAMES=Object.freeze(['Plan','Devices','Sync','Setups','Measure','Results','Compare']);
+  const NAMES=Object.freeze(['Plan','Devices','Sync','Setups','Measure','Results','Compare','OMA']);
   function createNavigation({$,window,raf,renderComparison,onMeasureVisible=()=>{},isRecording=()=>false,onChange=()=>{}}) {
     let current=null;
     const shell=$('jointNavShell'),sentinel=$('jointNavSentinel');
