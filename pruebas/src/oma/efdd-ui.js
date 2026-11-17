@@ -370,31 +370,78 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     const modeShape=mode.shape;
     $('jointOmaShapePanel').hidden=!modeShape;
     $('jointOmaShapeMap').replaceChildren();
+    $('jointOmaDemoCompare').hidden=true;
     if(!modeShape)return;
+    const demoModes=state().files.length===1?state().files[0].data.simulation?.modes:null;
+    const expected=demoModes?.find(m=>Math.abs(m.frequencyHz-mode.frequencyHz)<.65)||null;
+    const truth=new Map((expected?.signedShape||[]).map(p=>[p.id,p.value]));
+    const dot=modeShape.points.reduce((sum,p)=>sum+(truth.get(p.id)||0)*p.re,0);
+    const sign=dot>=0?1:-1;
+    if(expected){
+      const target=modeShape.points.map(p=>({re:truth.get(p.id)||0,im:0}));
+      const measured=modeShape.points.map(p=>({re:p.re,im:p.im}));
+      const m=efdd.mac(target,measured);
+      $('jointOmaDemoCompare').hidden=false;
+      text('jointOmaDemoCompare','VALIDACIÓN SINTÉTICA · '+expected.name+
+        ' · frecuencia teórica '+fmt(expected.frequencyHz,2)+' Hz · frecuencia estimada '+
+        fmt(mode.frequencyHz,3)+' Hz · MAC respecto a la forma teórica '+fmt(m,5)+
+        ' (1 es coincidencia perfecta).');
+    }
     renderShapeMap(modeShape.points,state().analysis);
-    text('jointOmaShapeQuality','Componentes en fase: '+fmt(modeShape.realness*100,1)+' %. Referencia de fase: amplitud dominante o punto maestro.');
+    text('jointOmaShapeQuality','Componentes en fase: '+fmt(modeShape.realness*100,1)+
+      ' %. Referencia de fase: amplitud dominante o punto maestro.');
+    const points=modeShape.points,ys=points.map(p=>p.y);
+    const mid=(Math.min(...ys)+Math.max(...ys))/2;
+    const separate=Math.max(...ys)-Math.min(...ys)>1e-4;
+    const groups=separate?
+      [{title:'Lado izquierdo',items:points.filter(p=>p.y<=mid),color:'#176bb0'},
+       {title:'Lado derecho',items:points.filter(p=>p.y>mid),color:'#c56c39'}]:
+      [{title:'Sensores',items:points,color:'#176bb0'}];
+    const datasets=[];
+    for(const group of groups){
+      const sorted=group.items.slice().sort((a,b)=>a.x-b.x);
+      datasets.push({label:group.title+' · Re φ',
+        data:sorted.map(p=>({x:p.x,y:p.re})),
+        borderColor:group.color,backgroundColor:group.color,pointRadius:4,
+        borderWidth:2.2,showLine:true,parsing:false});
+      datasets.push({label:group.title+' · Im φ',
+        data:sorted.map(p=>({x:p.x,y:p.im})),
+        borderColor:group.color,borderDash:[3,5],borderWidth:1.15,
+        pointRadius:2,showLine:true,parsing:false});
+      if(expected){
+        datasets.push({label:group.title+' · Teórica',
+          data:sorted.map(p=>({x:p.x,y:sign*(truth.get(p.id)||0)})),
+          borderColor:'#556576',backgroundColor:'#556576',
+          borderDash:[7,4],borderWidth:1.8,pointRadius:2,
+          showLine:true,parsing:false});
+      }
+    }
     if(Chart)state().charts.shape=new Chart($('jointOmaShape').getContext('2d'),{
-      type:'line',data:{datasets:[
-        {label:'Forma real',data:modeShape.points.map(p=>({x:p.x,y:p.re})),
-          borderColor:'#176bb0',backgroundColor:'#176bb0',showLine:true,pointRadius:5,parsing:false},
-        {label:'Parte imaginaria',data:modeShape.points.map(p=>({x:p.x,y:p.im})),
-          borderColor:'#ce6d4d',backgroundColor:'#ce6d4d',showLine:true,pointRadius:4,parsing:false}
-      ]},options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+      type:'line',data:{datasets},options:{
+        responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+        plugins:{legend:{position:'top'}},
         scales:{x:{type:'linear',title:{display:true,text:'Coordenada longitudinal X (m)'}},
-          y:{min:-1.1,max:1.1,title:{display:true,text:'Forma modal normalizada'}}}}});
+          y:{min:-1.1,max:1.1,title:{display:true,text:'Forma modal normalizada'}}}
+      }
+    });
     const tableEl=document.createElement('table');
     const head=document.createElement('thead');const tr=document.createElement('tr');
-    for(const cell of ['Punto','X (m)','Y (m)','Re φ','Im φ','|φ|']){
+    const headers=['Punto','X (m)','Y (m)','Re φ','Im φ','|φ|'];
+    if(expected)headers.push('φ teórica');
+    for(const cell of headers){
       const th=document.createElement('th');th.textContent=cell;tr.append(th);
     }
     head.append(tr);tableEl.append(head);
     const body=document.createElement('tbody');
-    for(const p of modeShape.points){
-      const tr=document.createElement('tr');
-      for(const value of [p.id,fmt(p.x,2),fmt(p.y,2),fmt(p.re,3),fmt(p.im,3),fmt(p.amplitude,3)]){
-        const td=document.createElement('td');td.textContent=value;tr.append(td);
+    for(const p of points){
+      const row=document.createElement('tr');
+      const values=[p.id,fmt(p.x,2),fmt(p.y,2),fmt(p.re,3),
+        fmt(p.im,3),fmt(p.amplitude,3)];
+      if(expected)values.push(fmt(sign*(truth.get(p.id)||0),3));
+      for(const value of values){
+        const td=document.createElement('td');td.textContent=value;row.append(td);
       }
-      body.append(tr);
+      body.append(row);
     }
     tableEl.append(body);table.append(tableEl);
   }
