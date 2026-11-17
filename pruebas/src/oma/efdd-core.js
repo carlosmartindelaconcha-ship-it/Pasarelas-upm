@@ -117,7 +117,7 @@ function mac(a,b){
 }
 function crossSpectra(run,fs,nfft,fmax){
   const n=run.channels.length,N=run.channels[0].values.length;
-  if(n>9)throw Error('Máximo nueve acelerómetros simultáneos.');
+  if(n>16)throw Error('Máximo dieciséis acelerómetros simultáneos.');
   const length=Math.min(Math.floor(N/3),8192),hop=Math.floor(length/2);
   if(length<64)throw Error('Ensayo demasiado corto para Welch.');
   const bins=Math.min(Math.floor(fmax*nfft/fs),nfft/2)+1,window=new Float64Array(length);
