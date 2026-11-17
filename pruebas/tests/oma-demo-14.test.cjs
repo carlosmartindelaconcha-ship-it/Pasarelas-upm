@@ -32,7 +32,7 @@ test('14 acelerómetros: 7 por cada lado; 50 x 10.5 m; 180 s @ 60 Hz',()=>{
 
 test('generación reproducible con semilla fija y señales no idénticas entre sensores',()=>{
   const a=sample(),b=sample();
-  for(const [i,j] of [[0,0],[10,48],[9000,10799]])
+  for(const [i,j] of [[0,0],[10,48],[13,10799]])
     assert.deepEqual(a.records[i].samples[j],b.records[i].samples[j]);
   assert.notEqual(a.records[0].samples[3333].z,a.records[7].samples[3333].z);
 });
