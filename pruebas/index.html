@@ -864,7 +864,7 @@
                     <div class="joint-section-head">
                         <div>
                             <h3>Campaña de setups</h3>
-                            <p>Prepara los puntos de medida manualmente o utiliza propuestas automáticas. El maestro permanece fijo.</p>
+                            <p>Prepara los puntos de medida manualmente o con propuestas automáticas. Con varios acelerómetros, el maestro permanece fijo.</p>
                         </div>
                     </div>
                     <p id="jointSetupStatus" class="joint-help" aria-live="polite">Define los puntos y conecta los móviles.</p>
@@ -877,7 +877,7 @@
                         <button id="jointSetupModeAuto" type="button" aria-pressed="true" class="joint-secondary" data-vwoma-icon="setups">Propuestas automáticas</button>
                     </div>
                     <div class="joint-setup-settings">
-                        <label>Sensor fijo del maestro
+                        <label id="jointSetupMasterField">Sensor fijo del maestro
                             <select id="jointSetupMaster" aria-label="Sensor de referencia fijo del maestro"></select>
                         </label>
                         <div id="jointSetupAutoControls"><button id="jointGenerateSetups" type="button" class="vwoma-action" data-vwoma-icon="setups">Generar propuestas</button></div>
@@ -893,7 +893,7 @@
                     <div id="jointSetupPreview" class="joint-setup-preview" aria-label="Distribución espacial del setup seleccionado"></div>
                     <div id="jointSetupEditor" class="joint-setup-editor" hidden>
                         <h4>Editar distribución del setup seleccionado</h4>
-                        <p class="joint-help">El maestro permanece fijo. Puedes reasignar participantes o dejarlos en espera.</p>
+                        <p class="joint-help">Modifica los puntos asignados antes de activar el setup. Con varios móviles el maestro permanece fijo.</p>
                         <div id="jointSetupEditAssignments" class="joint-setup-manual-fields"></div>
                         <button id="jointSetupSaveEdit" type="button" class="joint-secondary" data-vwoma-icon="save">Guardar distribución</button>
                     </div>
@@ -1040,12 +1040,12 @@
     <script defer src="app.js?v=20261114-post-test-anchor-v1"></script>
     <script defer src="src/joint/plan-controller.js?v=20261114-plan-steps-v5"></script>
     <script defer src="src/joint/setup-symbols.js?v=20261114-phone-status-v1"></script>
-    <script defer src="src/joint/setup-planner.js?v=20261114-setup-workflow-v1"></script>
+    <script defer src="src/joint/setup-planner.js?v=20261117-single-sensor-v1"></script>
     <script defer src="src/joint/hotspot-ice.js?v=20261115-auto-ice-d-v1"></script>
     <script defer src="src/joint/webrtc-transport.js?v=20261115-auto-ice-d-v1"></script>
     <script defer src="src/joint/clock-model.js?v=20261109-modular-clock-v1"></script>
     <script defer src="src/joint/persistence.js?v=20261109-modular-persistence-v1"></script>
-    <script defer src="src/joint/acquisition.js?v=20261114-setups-v2"></script>
+    <script defer src="src/joint/acquisition.js?v=20261117-single-sensor-v1"></script>
     <script defer src="src/joint/calibration-math.js?v=20261115-sync-signed-axes-v1"></script>
     <script defer src="src/joint/calibration-controller.js?v=20261115-sync-signed-axes-v1"></script>
     <script defer src="src/joint/exports.js?v=20261114-setups-v2"></script>
@@ -1056,7 +1056,7 @@
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/ui-events.js?v=20261114-setup-workflow-v1"></script>
     <script defer src="src/joint/measure-guide.js?v=20261114-phone-status-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261115-sync-signed-axes-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261117-single-sensor-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-setups-v2"></script>
 
 
