@@ -169,7 +169,10 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
       };
       worker.onerror=event=>{
         worker.terminate();
-        reject(Error('Error en el proceso de cálculo EFDD: '+(event.message||'No se puede cargar el worker.')));
+        // A browser may block workers while still permitting ordinary JS.
+        // Keep the feature usable in that case, albeit with UI-thread work.
+        try{resolve(efdd.compute(inputs,settings));}
+        catch(error){reject(error);}
       };
       try{worker.postMessage({id,action:'compute',inputs,options:settings});}
       catch(error){worker.terminate();reject(error);}
