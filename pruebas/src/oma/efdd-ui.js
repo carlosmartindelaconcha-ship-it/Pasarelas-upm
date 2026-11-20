@@ -194,16 +194,23 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
   function branchColors(i){return ['rgba(23,107,176,1)','rgba(211,84,64,.58)','rgba(35,128,105,.32)'][i%3];}
   const selectedPeakGuide={
     id:'selectedPeakGuide',
+    // Se dibuja en cada repintado de Chart.js (incluido pan/zoom), no como una serie que el plugin de zoom pueda perder.
     afterDatasetsDraw(chart,args,options){
-      const xValue=options?.frequency;
-      if(!Number.isFinite(xValue))return;
-      const x=chart.scales.x.getPixelForValue(xValue),area=chart.chartArea,ctx=chart.ctx;
-      if(!Number.isFinite(x)||x<area.left||x>area.right)return;
+      const pick=options?.pick;
+      if(!pick||!Number.isFinite(pick.hz)||!Number.isFinite(pick.psd))return;
+      const x=chart.scales.x.getPixelForValue(pick.hz);
+      const y=chart.scales.y.getPixelForValue(Math.max(pick.psd,1e-22));
+      const area=chart.chartArea,ctx=chart.ctx;
+      if(!Number.isFinite(x)||!Number.isFinite(y)||x<area.left||x>area.right||y<area.top||y>area.bottom)return;
       ctx.save();
       ctx.strokeStyle='#c9413a';
       ctx.lineWidth=1.5;
       ctx.setLineDash([5,4]);
       ctx.beginPath();ctx.moveTo(x,area.top);ctx.lineTo(x,area.bottom);ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();ctx.arc(x,y,8,0,Math.PI*2);
+      ctx.fillStyle='#d14c45';ctx.fill();
+      ctx.lineWidth=2.5;ctx.strokeStyle='#174a7c';ctx.stroke();
       ctx.restore();
     }
   };
@@ -246,9 +253,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     })),showLine:false,pointRadius:5.5,pointHoverRadius:6,
       pointBorderColor:'#174a7c',pointBackgroundColor:'#d14c45',
       pointBorderWidth:2,parsing:false};
-    const candidate={label:'',data:st.pick?[{
-      x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)
-    }]:[],showLine:false,pointRadius:8,pointHoverRadius:8,
+    const candidate={label:'',data:[],showLine:false,pointRadius:0,pointHoverRadius:0,
       pointBorderColor:'#174a7c',pointBackgroundColor:'#d14c45',
       pointBorderWidth:2.5,parsing:false};
     series.push(confirmed,candidate);
@@ -264,7 +269,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
             zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},
             limits:{x:{min:0,max:result.fmax}}
           },
-          selectedPeakGuide:{frequency:st.pick?.hz}
+          selectedPeakGuide:{pick:st.pick}
         },
         scales:{
           x:{type:'linear',min:0,max:result.fmax,title:{display:true,text:'Frecuencia (Hz)'}},
@@ -334,8 +339,8 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     chart.data.datasets[index].data=st.modes.map(mode=>({
       x:mode.selectedHz??mode.frequencyHz,y:Math.max(mode.selectedPsd??mode.peakPsd,1e-22)
     }));
-    chart.data.datasets[index+1].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
-    chart.options.plugins.selectedPeakGuide.frequency=st.pick?.hz;
+    chart.data.datasets[index+1].data=[];
+    chart.options.plugins.selectedPeakGuide.pick=st.pick;
     $('jointOmaChoosePeak').disabled=!st.pick;
     chart.update('none'); // preserve the interactive zoom and pan
   }
