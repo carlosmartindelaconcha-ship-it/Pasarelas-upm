@@ -5,7 +5,7 @@
 (function registerOmaUI(root){
 'use strict';
 function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedRuns,storedChunks,escape,tell}){
-  const state=()=>s.oma||(s.oma={files:[],analysis:null,modes:[],selected:-1,charts:{},source:'',lastInput:null});
+  const state=()=>s.oma||(s.oma={files:[],analysis:null,modes:[],selected:-1,pick:null,charts:{},source:'',lastInput:null});
   const text=(id,value)=>{const el=$(id);if(el&&el.textContent!==value)el.textContent=value;};
   const number=(id,fallback=null)=>{const el=$(id),v=el?.value;return v===''||v==null?fallback:Number(v);};
   const options=()=>({
@@ -27,7 +27,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
   const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const getNames=()=>state().files.map(x=>x.name);
   function invalidate(){
-    const st=state();st.analysis=null;st.modes=[];st.selected=-1;st.lastInput=null;
+    const st=state();st.analysis=null;st.modes=[];st.selected=-1;st.pick=null;st.lastInput=null;
     destroyCharts();clearResults();
   }
   function destroyCharts(){
@@ -186,7 +186,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
     const inputs=sampleSources();
     const answer=await computeAsync(inputs,options());
-    destroyCharts();st.analysis=answer;st.modes=[];st.selected=-1;st.lastInput=inputs;
+    destroyCharts();st.analysis=answer;st.modes=[];st.selected=-1;st.pick=null;st.lastInput=inputs;
     renderAnalysis();
     text('jointOmaStatus',answer.sourceCount+' ensayo(s) · '+answer.channels.length+
       ' punto(s) · '+fmt(answer.fs,1)+' Hz · Δf '+fmt(answer.df,3)+' Hz. Selecciona manualmente un pico sobre el espectro.');
@@ -225,18 +225,27 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
       return {label:'SV'+(j+1),data,borderColor:branchColors(j),
         pointRadius:0,borderWidth:j===0?2.2:1.35,showLine:true,parsing:false,tension:0};
     });
-    const picked={label:'Picos elegidos',data:st.modes.map(m=>({
+    const picked={label:'Modos escogidos',data:st.modes.map(m=>({
       x:m.frequencyHz,y:Math.max(m.peakPsd,1e-22)
     })),borderColor:'#8d2f85',backgroundColor:'#8d2f85',showLine:false,
       pointRadius:5,pointHoverRadius:7,parsing:false};
-    series.push(picked);
+    const candidate={label:'Pico seleccionado',data:st.pick?[{
+      x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)
+    }]:[],borderColor:'#e17b17',backgroundColor:'#e17b17',showLine:false,
+      pointRadius:7,pointHoverRadius:8,parsing:false};
+    series.push(picked,candidate);
     st.charts.singular=new Chart($('jointOmaSingular').getContext('2d'),{
       type:'line',data:{datasets:series},options:{
         responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
         interaction:{mode:'nearest',intersect:false},
         plugins:{
           legend:{display:true,position:'top'},
-          tooltip:{enabled:true,callbacks:{label:ctx=>ctx.dataset.label+': '+scientific(ctx.parsed.y)}}
+          tooltip:{enabled:true,callbacks:{label:ctx=>ctx.dataset.label+': '+scientific(ctx.parsed.y)}},
+          zoom:{
+            pan:{enabled:true,mode:'xy'},
+            zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},
+            limits:{x:{min:0,max:result.fmax}}
+          }
         },
         scales:{
           x:{type:'linear',min:0,max:result.fmax,title:{display:true,text:'Frecuencia (Hz)'}},
@@ -254,8 +263,12 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
           const branch=element?.datasetIndex??0;
           if(Number.isFinite(rawHz)&&rawHz>0&&rawHz<=result.fmax){
             const pickedPeak=nearestPeak(result,rawHz,branch);
-            try{addPeak(pickedPeak.hz,pickedPeak.branch);}
-            catch(err){text('jointOmaStatus',err.message);}
+            const index=result.frequency.findIndex(f=>f===pickedPeak.hz);
+            const psd=Math.max(result.data[Math.max(0,index)]?.values[pickedPeak.branch]||0,1e-22);
+            st.pick={...pickedPeak,psd};
+            updateMarkers();
+            $('jointOmaChoosePeak').disabled=false;
+            text('jointOmaStatus','Pico marcado: '+fmt(pickedPeak.hz,3)+' Hz · SV'+(pickedPeak.branch+1)+'. Pulsa «Escoger pico» para añadirlo como modo.');
           }
         }
       }
@@ -295,13 +308,22 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     if(!chart||!st.analysis)return;
     const index=st.analysis.rank;
     chart.data.datasets[index].data=st.modes.map(m=>({x:m.frequencyHz,y:Math.max(m.peakPsd,1e-22)}));
-    chart.update('none'); // keep the user's zoom while adding or deleting peaks
+    chart.data.datasets[index+1].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
+    chart.update('none'); // preserve the interactive zoom and pan
+  }
+  function choosePeak(){
+    const pick=state().pick;
+    if(!pick)throw Error('Toca primero un pico del espectro.');
+    addPeak(pick.hz,pick.branch);
+    state().pick=null;
+    $('jointOmaChoosePeak').disabled=true;
+    updateMarkers();
   }
   function renderModes(){
     const st=state(),holder=$('jointOmaModeList');
     holder.replaceChildren();
     if(!st.modes.length){
-      text('jointOmaEmpty','Selecciona una frecuencia tocando la gráfica o introduciéndola manualmente.');
+      text('jointOmaEmpty','Toca un pico del espectro y después pulsa «Escoger pico».');
       $('jointOmaEmpty').hidden=false;
       $('jointOmaModeDetail').hidden=true;
       return;
@@ -498,23 +520,8 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     });
     download('VWOMA_EFDD_modos.csv','\uFEFF'+rows.join('\n'),'text/csv;charset=utf-8');
   }
-  function zoomSpectra(factor){
-    const chart=state().charts.singular,result=state().analysis;
-    if(!chart||!result)return;
-    const scale=chart.scales.x,min=Number.isFinite(scale.min)?scale.min:0,max=Number.isFinite(scale.max)?scale.max:result.fmax;
-    const span=clamp((max-min)*factor,Math.max(result.df*6,.05),result.fmax);
-    const center=(min+max)/2;
-    const nextMin=clamp(center-span/2,0,Math.max(0,result.fmax-span));
-    chart.options.scales.x.min=nextMin;
-    chart.options.scales.x.max=Math.min(result.fmax,nextMin+span);
-    chart.update('none');
-  }
   function resetZoom(){
-    const chart=state().charts.singular,result=state().analysis;
-    if(!chart||!result)return;
-    chart.options.scales.x.min=0;
-    chart.options.scales.x.max=result.fmax;
-    chart.update('none');
+    state().charts.singular?.resetZoom?.('none');
   }
   function renderOMA(){
     const st=state();renderFileList();
@@ -538,8 +545,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     $('jointOmaLoadCampaign').onclick=localGuard(loadCampaign);
     $('jointOmaDemo').onclick=localGuard(loadDemo);
     $('jointOmaAnalyze').onclick=localGuard(analyze);
-    $('jointOmaZoomIn').onclick=localGuard(()=>zoomSpectra(.55));
-    $('jointOmaZoomOut').onclick=localGuard(()=>zoomSpectra(1.8));
+    $('jointOmaChoosePeak').onclick=localGuard(choosePeak);
     $('jointOmaReset').onclick=localGuard(resetZoom);
     $('jointOmaExportJSON').onclick=localGuard(exportJSON);
     $('jointOmaExportCSV').onclick=localGuard(exportCSV);
