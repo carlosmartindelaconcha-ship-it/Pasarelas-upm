@@ -303,7 +303,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     const selectAt=(clientX,clientY)=>{
       const rect=canvas.getBoundingClientRect();
       // Chart.js trabaja en píxeles CSS, igual que clientX/clientY: no se reescala por el DPI del móvil.
-      const x=(clientX-rect.left)*(canvas.width/rect.width),y=(clientY-rect.top)*(canvas.height/rect.height);
+      const x=clientX-rect.left,y=clientY-rect.top;
       const hit=st.charts.singular.getElementsAtEventForMode({x,y},'nearest',{intersect:false,axis:'xy'},false)
         .find(item=>item.datasetIndex<visibleRank);
       activateTick(st.charts.singular,hit);
