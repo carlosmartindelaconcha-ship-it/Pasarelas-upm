@@ -1026,7 +1026,7 @@
                         <p id="jointOmaMetrics" class="joint-help"></p>
                         <p id="jointOmaWarnings" class="joint-oma-warnings" role="note"></p>
                         <div class="joint-oma-plot" id="jointOmaPlotWrap"><canvas id="jointOmaSingular" aria-label="Espectro FDD de valores singulares para seleccionar modos"></canvas></div>
-                        <div class="joint-actions"><button id="jointOmaReset" class="joint-secondary" type="button" data-vwoma-icon="reset">Restablecer zoom</button></div>
+                        <div class="joint-oma-pick-action"><button type="button" id="jointOmaChoosePeak" disabled class="vwoma-action" data-vwoma-icon="plus">Seleccionar punto</button><span id="jointOmaPickHelp" class="joint-help" aria-live="polite">Toca un pico del espectro para activar la selección.</span><button id="jointOmaReset" class="joint-secondary" type="button" data-vwoma-icon="reset">Restablecer zoom</button></div>
                     </section>
                     <section class="joint-oma-section">
                         <h4>3. Seleccionar modos</h4>
@@ -1037,7 +1037,7 @@
                             <label>Banda desde (Hz) · opcional<input id="jointOmaBandMin" type="number" min="0" step="0.01" placeholder="Auto"></label>
                             <label>Banda hasta (Hz) · opcional<input id="jointOmaBandMax" type="number" min="0" step="0.01" placeholder="Auto"></label>
                         </div></details>
-                        <div class="joint-actions"><button type="button" id="jointOmaChoosePeak" disabled class="vwoma-action" data-vwoma-icon="plus">Seleccionar punto</button><button type="button" id="jointOmaExportJSON" disabled class="joint-secondary" data-vwoma-icon="download">Exportar EFDD JSON</button><button type="button" id="jointOmaExportCSV" disabled class="joint-secondary" data-vwoma-icon="file">Exportar modos CSV</button></div>
+                        <div class="joint-actions"><button type="button" id="jointOmaExportJSON" disabled class="joint-secondary" data-vwoma-icon="download">Exportar EFDD JSON</button><button type="button" id="jointOmaExportCSV" disabled class="joint-secondary" data-vwoma-icon="file">Exportar modos CSV</button></div>
                         <p id="jointOmaEmpty" class="joint-help">Tras calcular el FDD, toca los picos que correspondan a los modos de interés.</p>
                         <div id="jointOmaModeList" class="joint-oma-mode-list"></div>
                     </section>
@@ -1121,7 +1121,7 @@
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
     <script defer src="src/oma/efdd-core.js?v=20261117-demo14-v1"></script>
     <script defer src="src/oma/efdd-demo.js?v=20261117-demo14-v1"></script>
-    <script defer src="src/oma/efdd-ui.js?v=20261120-oma-marker-v3"></script>
+    <script defer src="src/oma/efdd-ui.js?v=20261120-oma-pick-action-v4"></script>
     <script defer src="src/joint/tab-navigation.js?v=20261117-efdd-v1"></script>
     <script defer src="src/joint/scroll-navigation.js?v=20261114-nav-shell-v1"></script>
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
