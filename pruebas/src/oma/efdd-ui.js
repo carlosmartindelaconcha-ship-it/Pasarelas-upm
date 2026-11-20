@@ -282,6 +282,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
             st.pick={...pickedPeak,psd};
             updateMarkers();
             $('jointOmaChoosePeak').disabled=false;
+            text('jointOmaPickHelp','Punto activo: '+fmt(pickedPeak.hz,3)+' Hz · SV'+(pickedPeak.branch+1)+'.');
             text('jointOmaStatus','Punto activo: '+fmt(pickedPeak.hz,3)+' Hz · SV'+(pickedPeak.branch+1)+'. Pulsa «Seleccionar punto» para añadirlo como modo.');
           }
         }
@@ -323,6 +324,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     const index=Math.min(st.analysis.rank,3);
     chart.data.datasets[index].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
     chart.options.plugins.selectedPeakGuide.frequency=st.pick?.hz;
+    $('jointOmaChoosePeak').disabled=!st.pick;
     chart.update('none'); // preserve the interactive zoom and pan
   }
   function choosePeak(){
@@ -331,6 +333,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     addPeak(pick.hz,pick.branch);
     state().pick=null;
     $('jointOmaChoosePeak').disabled=true;
+    text('jointOmaPickHelp','Toca otro pico del espectro para seleccionar un nuevo punto.');
     updateMarkers();
   }
   function renderModes(){
