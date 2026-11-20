@@ -1026,18 +1026,18 @@
                         <p id="jointOmaMetrics" class="joint-help"></p>
                         <p id="jointOmaWarnings" class="joint-oma-warnings" role="note"></p>
                         <div class="joint-oma-plot" id="jointOmaPlotWrap"><canvas id="jointOmaSingular" aria-label="Espectro FDD de valores singulares para seleccionar modos"></canvas></div>
-                        <div class="joint-oma-zoom"><span>Vista horizontal</span><button id="jointOmaZoomIn" type="button" class="joint-secondary" data-vwoma-icon="plus">Acercar</button><button id="jointOmaZoomOut" type="button" class="joint-secondary" data-vwoma-icon="minus">Alejar</button><button id="jointOmaReset" class="joint-secondary" type="button" data-vwoma-icon="reset">Vista completa</button></div>
+                        <div class="joint-actions"><button id="jointOmaReset" class="joint-secondary" type="button" data-vwoma-icon="reset">Restablecer zoom</button></div>
                     </section>
                     <section class="joint-oma-section">
                         <h4>3. Seleccionar modos</h4>
-                        <p class="joint-help">Toca directamente un máximo del espectro. VWOMA se ajusta automáticamente al pico y añade el modo; vuelve a tocarlo para actualizarlo.</p>
+                        <p class="joint-help">Toca un máximo del espectro: quedará marcado en naranja. Cuando sea el que quieres, pulsa «Escoger pico» para añadirlo como modo.</p>
                         <details class="joint-oma-advanced"><summary>Ajuste avanzado del EFDD</summary><div class="joint-oma-fields">
                             <label>MAC mínimo<input id="jointOmaMac" type="number" min="0.4" max="0.99" step="0.05" value="0.8"></label>
                             <label>Potencia relativa mínima<input id="jointOmaLevel" type="number" min="0.0001" max="0.3" step="0.005" value="0.01"></label>
                             <label>Banda desde (Hz) · opcional<input id="jointOmaBandMin" type="number" min="0" step="0.01" placeholder="Auto"></label>
                             <label>Banda hasta (Hz) · opcional<input id="jointOmaBandMax" type="number" min="0" step="0.01" placeholder="Auto"></label>
                         </div></details>
-                        <div class="joint-actions"><button type="button" id="jointOmaExportJSON" disabled class="joint-secondary" data-vwoma-icon="download">Exportar EFDD JSON</button><button type="button" id="jointOmaExportCSV" disabled class="joint-secondary" data-vwoma-icon="file">Exportar modos CSV</button></div>
+                        <div class="joint-actions"><button type="button" id="jointOmaChoosePeak" disabled class="vwoma-action" data-vwoma-icon="plus">Escoger pico</button><button type="button" id="jointOmaExportJSON" disabled class="joint-secondary" data-vwoma-icon="download">Exportar EFDD JSON</button><button type="button" id="jointOmaExportCSV" disabled class="joint-secondary" data-vwoma-icon="file">Exportar modos CSV</button></div>
                         <p id="jointOmaEmpty" class="joint-help">Tras calcular el FDD, toca los picos que correspondan a los modos de interés.</p>
                         <div id="jointOmaModeList" class="joint-oma-mode-list"></div>
                     </section>
@@ -1121,7 +1121,7 @@
     <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
     <script defer src="src/oma/efdd-core.js?v=20261117-demo14-v1"></script>
     <script defer src="src/oma/efdd-demo.js?v=20261117-demo14-v1"></script>
-    <script defer src="src/oma/efdd-ui.js?v=20261120-oma-picking-v1"></script>
+    <script defer src="src/oma/efdd-ui.js?v=20261120-oma-confirm-v2"></script>
     <script defer src="src/joint/tab-navigation.js?v=20261117-efdd-v1"></script>
     <script defer src="src/joint/scroll-navigation.js?v=20261114-nav-shell-v1"></script>
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
