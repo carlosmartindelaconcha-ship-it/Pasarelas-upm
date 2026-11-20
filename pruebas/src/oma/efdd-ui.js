@@ -418,47 +418,46 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     }
   }
   function renderShapeMap(points,result){
-    const target=$('jointOmaShapeMap');
-    target.replaceChildren();
-    if(!points?.length)return;
-    const NS='http://www.w3.org/2000/svg';
-    const node=(tag,attributes={},label=null)=>{
-      const element=document.createElementNS(NS,tag);
-      for(const [key,value] of Object.entries(attributes))
-        element.setAttribute(key,String(value));
-      if(label!==null)element.textContent=String(label);
-      return element;
-    };
-    const svg=node('svg',{viewBox:'0 0 680 245',role:'img',
-      'aria-label':'Forma modal en planta. Azul: desplazamiento positivo; naranja: negativo.',
-      preserveAspectRatio:'xMidYMid meet'});
-    svg.append(node('rect',{x:34,y:20,width:612,height:178,rx:8,
-      fill:'#f3f8fc',stroke:'#b4cfdf','stroke-width':1.5}));
-    for(let i=1;i<10;i++)svg.append(node('path',{
-      d:'M '+(34+61.2*i)+' 20 V 198',stroke:'#e0eaf2','stroke-width':1
-    }));
-    const L=Math.max(.01,Number(result.planLength)||Math.max(...points.map(p=>p.x))),
-      W=Math.max(.01,Number(result.planWidth)||Math.max(...points.map(p=>p.y)));
-    for(const p of points){
-      const x=34+612*clamp(p.x/L,0,1),y=198-178*clamp(p.y/W,0,1);
-      const phi=p.re,amp=Math.abs(phi),color=phi>=0?'#176bb0':'#ce6d4d';
-      const circle=node('circle',{cx:x,cy:y,r:(6+14*amp).toFixed(2),
-        fill:color,'fill-opacity':(.3+.65*amp).toFixed(2),
-        stroke:color,'stroke-width':2});
-      circle.append(node('title',{},p.id+' · φ = '+fmt(phi,3)+
-        ' · X='+fmt(p.x,2)+' m · Y='+fmt(p.y,2)+' m'));
-      svg.append(circle);
-      svg.append(node('text',{x,y:y-22,fill:'#254763',
-        'font-size':12,'text-anchor':'middle','font-weight':600},p.id));
+    const target=$('jointOmaShapeMap');target.replaceChildren();
+    const help=document.createElement('p');help.className='joint-help';
+    const plan=state().files[0]?.data?.plan||s.plan;
+    const known=points.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.re)).map(p=>({x:p.x,y:p.y,z:p.re,id:p.id}));
+    for(const p of (plan?.points||[]))if(p.kind==='support'&&Number.isFinite(p.x)&&Number.isFinite(p.y))known.push({x:p.x,y:p.y,z:0,id:p.id,support:true});
+    const unique=[];
+    for(const p of known){const q=unique.find(v=>Math.hypot(v.x-p.x,v.y-p.y)<1e-8);if(q){if(Math.abs(q.z-p.z)>1e-8){help.textContent='Hay puntos coincidentes con valores modales distintos: no se puede interpolar.';target.append(help);return;}}else unique.push(p);}
+    if(unique.length<3){help.textContent='Se necesitan al menos tres posiciones conocidas para representar la superficie modal.';target.append(help);return;}
+    const kernel=r=>r<1e-12?0:r*r*(Math.log(r)-1);
+    const n=unique.length,scale=Math.max(Number(result.planLength)||1,Number(result.planWidth)||1);
+    const matrix=unique.map(p=>[...unique.map(q=>kernel(Math.hypot(p.x-q.x,p.y-q.y)/scale)),p.z]);
+    for(let k=0;k<n;k++){let pivot=k;for(let j=k+1;j<n;j++)if(Math.abs(matrix[j][k])>Math.abs(matrix[pivot][k]))pivot=j;
+      if(Math.abs(matrix[pivot][k])<1e-13){help.textContent='La geometría de los puntos no permite calcular una superficie biharmónica estable.';target.append(help);return;}
+      [matrix[k],matrix[pivot]]=[matrix[pivot],matrix[k]];const d=matrix[k][k];for(let j=k;j<=n;j++)matrix[k][j]/=d;
+      for(let row=0;row<n;row++)if(row!==k){const a=matrix[row][k];for(let j=k;j<=n;j++)matrix[row][j]-=a*matrix[k][j];}
     }
-    svg.append(node('text',{x:35,y:225,fill:'#667d91','font-size':12},'X=0'));
-    svg.append(node('text',{x:646,y:225,fill:'#667d91','font-size':12,'text-anchor':'end'},
-      'X='+fmt(L,1)+' m'));
-    target.append(svg);
-    const legend=document.createElement('p');
-    legend.className='joint-help';
-    legend.textContent='Círculos azules: φ positivo · Naranjas: φ negativo · Tamaño proporcional a |φ|.';
-    target.append(legend);
+    const coefficients=matrix.map(row=>row[n]);
+    const interpolate=(x,y)=>unique.reduce((v,p,j)=>v+coefficients[j]*kernel(Math.hypot(x-p.x,y-p.y)/scale),0);
+    const L=Number(result.planLength)||Math.max(...unique.map(p=>p.x)),W=Number(result.planWidth)||Math.max(...unique.map(p=>p.y));
+    if(!(L>0&&W>0)){help.textContent='Las dimensiones del plano no son válidas.';target.append(help);return;}
+    const nx=36,ny=18,grid=[];let max=0;
+    for(let j=0;j<=ny;j++){const row=[];for(let k=0;k<=nx;k++){const x=L*k/nx,y=W*j/ny,z=interpolate(x,y);row.push({x,y,z});max=Math.max(max,Math.abs(z));}grid.push(row);}
+    max=Math.max(max,...unique.map(p=>Math.abs(p.z)),1e-12);
+    const canvas=document.createElement('canvas');canvas.width=960;canvas.height=540;
+    canvas.style.cssText='display:block;width:100%;height:auto;touch-action:none;cursor:grab;background:#f7fafc;border-radius:10px';
+    canvas.setAttribute('aria-label','Superficie modal 3D interactiva. Arrastra para girar.');
+    target.append(canvas);help.textContent='Arrastra para girar · Azul: negativo · Blanco: cero · Rojo: positivo. Los valores representan la componente modal real normalizada.';target.append(help);
+    const ctx=canvas.getContext('2d');let az=-.7,el=.8;
+    const project=p=>{let x=(p.x/L-.5)*1.7,y=(p.y/W-.5)*Math.min(1.2,1.7*W/L),z=p.z/max*.65;
+      let a=x*Math.cos(az)-y*Math.sin(az),b=x*Math.sin(az)+y*Math.cos(az);
+      return {x:480+a*380,y:290+(b*Math.sin(el)-z*Math.cos(el))*300,depth:b*Math.cos(el)+z*Math.sin(el)};};
+    const color=z=>{let t=Math.max(-1,Math.min(1,z/max)),a=Math.abs(t);return t<0?'rgb('+Math.round(255-205*a)+','+Math.round(255-120*a)+',255)':'rgb(255,'+Math.round(255-190*a)+','+Math.round(255-190*a)+')';};
+    const draw=()=>{ctx.clearRect(0,0,960,540);const faces=[];
+      for(let j=0;j<ny;j++)for(let k=0;k<nx;k++){const p=[grid[j][k],grid[j][k+1],grid[j+1][k+1],grid[j+1][k]],v=p.map(project);faces.push({v,z:p.reduce((a,q)=>a+q.z,0)/4,d:v.reduce((a,q)=>a+q.depth,0)/4});}
+      faces.sort((a,b)=>a.d-b.d);for(const f of faces){ctx.beginPath();f.v.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=color(f.z);ctx.fill();ctx.strokeStyle='rgba(110,125,140,.18)';ctx.lineWidth=.5;ctx.stroke();}
+      for(const p of unique){const v=project(p);ctx.beginPath();ctx.arc(v.x,v.y,p.support?5:6,0,2*Math.PI);ctx.fillStyle=color(p.z);ctx.fill();ctx.strokeStyle='#263b50';ctx.lineWidth=2;ctx.stroke();}
+    };draw();let drag=null;
+    canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
+    canvas.addEventListener('pointermove',e=>{if(!drag)return;az+=(e.clientX-drag.x)*.01;el=Math.max(-1.4,Math.min(1.4,el+(e.clientY-drag.y)*.01));drag={x:e.clientX,y:e.clientY};draw();});
+    canvas.addEventListener('pointerup',()=>{drag=null;});canvas.addEventListener('pointercancel',()=>{drag=null;});
   }
   function renderModeDetail(mode){
     destroyDetailCharts();
