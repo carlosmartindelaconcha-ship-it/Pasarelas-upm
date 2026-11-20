@@ -242,7 +242,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
         pointRadius:0,borderWidth:j===0?2.2:1.35,showLine:true,parsing:false,tension:0};
     });
     const confirmed={label:'',data:st.modes.map(mode=>({
-      x:mode.selectedHz??mode.frequencyHz,y:Math.max(mode.peakPsd,1e-22)
+      x:mode.selectedHz??mode.frequencyHz,y:Math.max(mode.selectedPsd??mode.peakPsd,1e-22)
     })),showLine:false,pointRadius:5.5,pointHoverRadius:6,
       pointBorderColor:'#174a7c',pointBackgroundColor:'#d14c45',
       pointBorderWidth:2,parsing:false};
@@ -276,19 +276,15 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
         },
         onClick:(ev,elements,chart)=>{
           const element=elements.find(item=>item.datasetIndex<visibleRank);
-          const rawHz=element
-            ? chart.data.datasets[element.datasetIndex].data[element.index]?.x
-            : chart.scales.x.getValueForPixel(ev.x);
-          const branch=element?.datasetIndex??0;
-          if(Number.isFinite(rawHz)&&rawHz>0&&rawHz<=result.fmax){
-            const pickedPeak=nearestPeak(result,rawHz,branch);
-            const index=result.frequency.findIndex(f=>f===pickedPeak.hz);
-            const psd=Math.max(result.data[Math.max(0,index)]?.values[pickedPeak.branch]||0,1e-22);
-            st.pick={...pickedPeak,psd};
+          if(!element)return;
+          const point=chart.data.datasets[element.datasetIndex].data[element.index];
+          const hz=Number(point?.x),psd=Math.max(Number(point?.y)||0,1e-22),branch=element.datasetIndex;
+          if(Number.isFinite(hz)&&hz>0&&hz<=result.fmax){
+            st.pick={hz,psd,branch};
             updateMarkers();
             $('jointOmaChoosePeak').disabled=false;
-            text('jointOmaPickHelp','Punto activo: '+fmt(pickedPeak.hz,3)+' Hz · SV'+(pickedPeak.branch+1)+'.');
-            text('jointOmaStatus','Punto activo: '+fmt(pickedPeak.hz,3)+' Hz · SV'+(pickedPeak.branch+1)+'. Pulsa «Seleccionar punto» para añadirlo como modo.');
+            text('jointOmaPickHelp','Punto activo: '+fmt(hz,3)+' Hz · SV'+(branch+1)+'.');
+            text('jointOmaStatus','Punto activo: '+fmt(hz,3)+' Hz · SV'+(branch+1)+'. Pulsa «Seleccionar punto» para añadirlo como modo.');
           }
         }
       }
@@ -307,14 +303,16 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     $('jointOmaExportJSON').disabled=false;
     $('jointOmaExportCSV').disabled=false;
   }
-  function addPeak(hz,branch=0){
+  function addPeak(hz,branch=0,selectedPsd=null){
     const st=state(),r=st.analysis;
     if(!r)throw Error('Calcula primero el FDD.');
     if(!Number.isFinite(hz))throw Error('Toca un pico del espectro.');
     if(st.modes.length>=16)throw Error('Máximo 16 picos. Elimina uno antes de añadir otro.');
     const mode=efdd.estimate(r,hz,Math.min(branch,Math.max(0,r.rank-1)),efddOptions());
+    mode.frequencyHz=hz;
     mode.selectedHz=hz;
-    const duplicate=st.modes.findIndex(m=>m.branch===mode.branch&&Math.abs(m.frequencyHz-mode.frequencyHz)<.5*r.df);
+    mode.selectedPsd=selectedPsd;
+    const duplicate=st.modes.findIndex(m=>m.branch===mode.branch&&Math.abs(m.frequencyHz-hz)<.5*r.df);
     if(duplicate>=0){
       st.modes[duplicate]=mode;st.selected=duplicate;
     }else{st.modes.push(mode);st.selected=st.modes.length-1;}
@@ -329,7 +327,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     if(!chart||!st.analysis)return;
     const index=Math.min(st.analysis.rank,3);
     chart.data.datasets[index].data=st.modes.map(mode=>({
-      x:mode.selectedHz??mode.frequencyHz,y:Math.max(mode.peakPsd,1e-22)
+      x:mode.selectedHz??mode.frequencyHz,y:Math.max(mode.selectedPsd??mode.peakPsd,1e-22)
     }));
     chart.data.datasets[index+1].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
     chart.options.plugins.selectedPeakGuide.frequency=st.pick?.hz;
@@ -339,7 +337,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
   function choosePeak(){
     const pick=state().pick;
     if(!pick)throw Error('Toca primero un punto del espectro.');
-    addPeak(pick.hz,pick.branch);
+    addPeak(pick.hz,pick.branch,pick.psd);
     state().pick=null;
     $('jointOmaChoosePeak').disabled=true;
     text('jointOmaPickHelp','Toca otro pico del espectro para seleccionar un nuevo punto.');
