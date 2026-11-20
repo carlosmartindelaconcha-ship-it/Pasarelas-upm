@@ -275,7 +275,10 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
           }
         },
         onClick:(ev,elements,chart)=>{
-          const element=elements.find(item=>item.datasetIndex<visibleRank);
+          // No dependemos del estado previo del tooltip: el primer toque resuelve el tick más cercano.
+          const hits=chart.getElementsAtEventForMode(ev,'nearest',{intersect:false,axis:'xy'},false);
+          const element=hits.find(item=>item.datasetIndex<visibleRank)
+            ||elements.find(item=>item.datasetIndex<visibleRank);
           if(!element)return;
           const branch=element.datasetIndex;
           // Usamos el valor parseado por Chart.js: es exactamente el tick que se ha pulsado y el que muestra el tooltip.
