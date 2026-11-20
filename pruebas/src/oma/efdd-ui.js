@@ -196,7 +196,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     id:'selectedPeakGuide',
     afterDraw(chart){
       const area=chart.chartArea,ctx=chart.ctx;
-      const points=[...(chart.$omaConfirmedPicks||[]),...(chart.$omaSelectedPick?[chart.$omaSelectedPick]:[])];
+      const points=[...state().modes.map(mode=>({hz:mode.selectedHz??mode.frequencyHz,psd:mode.selectedPsd??mode.peakPsd})),...(state().pick?[state().pick]:[])];
       ctx.save();
       ctx.beginPath();ctx.rect(area.left,area.top,area.right-area.left,area.bottom-area.top);ctx.clip();
       for(const pick of points){
