@@ -195,8 +195,8 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
   const selectedPeakGuide={
     id:'selectedPeakGuide',
     // Se dibuja en cada repintado de Chart.js (incluido pan/zoom), no como una serie que el plugin de zoom pueda perder.
-    afterDatasetsDraw(chart,args,options){
-      const pick=options?.pick;
+    afterDraw(chart){
+      const pick=chart.$omaSelectedPick;
       if(!pick||!Number.isFinite(pick.hz)||!Number.isFinite(pick.psd))return;
       const x=chart.scales.x.getPixelForValue(pick.hz);
       const y=chart.scales.y.getPixelForValue(Math.max(pick.psd,1e-22));
@@ -269,7 +269,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
             zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},
             limits:{x:{min:0,max:result.fmax}}
           },
-          selectedPeakGuide:{pick:st.pick}
+          selectedPeakGuide:{}
         },
         scales:{
           x:{type:'linear',min:0,max:result.fmax,title:{display:true,text:'Frecuencia (Hz)'}},
@@ -299,6 +299,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
         }
       }
     });
+    st.charts.singular.$omaSelectedPick=st.pick||null;
   }
   function showWarnings(){
     const result=state().analysis;
@@ -340,7 +341,8 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
       x:mode.selectedHz??mode.frequencyHz,y:Math.max(mode.selectedPsd??mode.peakPsd,1e-22)
     }));
     chart.data.datasets[index+1].data=[];
-    chart.options.plugins.selectedPeakGuide.pick=st.pick;
+    // Estado propio de la gráfica: sobrevive a los redibujados internos de pan y zoom.
+    chart.$omaSelectedPick=st.pick||null;
     $('jointOmaChoosePeak').disabled=!st.pick;
     chart.update('none'); // preserve the interactive zoom and pan
   }
