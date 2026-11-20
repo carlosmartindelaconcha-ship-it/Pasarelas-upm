@@ -241,12 +241,17 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
       return {label:'SV'+(j+1),data,borderColor:branchColors(j),
         pointRadius:0,borderWidth:j===0?2.2:1.35,showLine:true,parsing:false,tension:0};
     });
+    const confirmed={label:'',data:st.modes.map(mode=>({
+      x:mode.frequencyHz,y:Math.max(mode.peakPsd,1e-22)
+    })),showLine:false,pointRadius:5.5,pointHoverRadius:6,
+      pointBorderColor:'#174a7c',pointBackgroundColor:'#d14c45',
+      pointBorderWidth:2,parsing:false};
     const candidate={label:'',data:st.pick?[{
       x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)
     }]:[],showLine:false,pointRadius:8,pointHoverRadius:8,
       pointBorderColor:'#174a7c',pointBackgroundColor:'#d14c45',
       pointBorderWidth:2.5,parsing:false};
-    series.push(candidate);
+    series.push(confirmed,candidate);
     st.charts.singular=new Chart($('jointOmaSingular').getContext('2d'),{
       type:'line',data:{datasets:series},plugins:[selectedPeakGuide],options:{
         responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
@@ -322,7 +327,10 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     const st=state(),chart=st.charts.singular;
     if(!chart||!st.analysis)return;
     const index=Math.min(st.analysis.rank,3);
-    chart.data.datasets[index].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
+    chart.data.datasets[index].data=st.modes.map(mode=>({
+      x:mode.frequencyHz,y:Math.max(mode.peakPsd,1e-22)
+    }));
+    chart.data.datasets[index+1].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
     chart.options.plugins.selectedPeakGuide.frequency=st.pick?.hz;
     $('jointOmaChoosePeak').disabled=!st.pick;
     chart.update('none'); // preserve the interactive zoom and pan
