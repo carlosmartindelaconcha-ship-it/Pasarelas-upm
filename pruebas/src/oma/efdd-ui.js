@@ -277,8 +277,10 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
         onClick:(ev,elements,chart)=>{
           const element=elements.find(item=>item.datasetIndex<visibleRank);
           if(!element)return;
-          const point=chart.data.datasets[element.datasetIndex].data[element.index];
-          const hz=Number(point?.x),psd=Math.max(Number(point?.y)||0,1e-22),branch=element.datasetIndex;
+          const branch=element.datasetIndex;
+          // Usamos el valor parseado por Chart.js: es exactamente el tick que se ha pulsado y el que muestra el tooltip.
+          const parsed=chart.getDatasetMeta(branch)?.controller?.getParsed(element.index);
+          const hz=Number(parsed?.x),psd=Math.max(Number(parsed?.y)||0,1e-22);
           if(Number.isFinite(hz)&&hz>0&&hz<=result.fmax){
             st.pick={hz,psd,branch};
             updateMarkers();
