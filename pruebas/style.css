@@ -2950,3 +2950,20 @@ body.joint-measure-fixed .joint-instrument-head {touch-action:manipulation;}
   color: #29445e;
   margin-right: 2px;
 }
+
+#jointApp #jointPanelOMA .joint-oma-pick-action {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px;
+  margin:10px 0 0;
+}
+#jointApp #jointPanelOMA .joint-oma-pick-action .joint-help {
+  flex:1 1 240px;
+  margin:0;
+  color:#29445e;
+}
+#jointApp #jointPanelOMA .joint-oma-pick-action .vwoma-action:disabled {
+  opacity:.48;
+  cursor:not-allowed;
+}
