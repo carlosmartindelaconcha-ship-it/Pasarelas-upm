@@ -286,7 +286,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     // En iOS el primer toque puede actualizar solo el tooltip y no disparar onClick de Chart.js.
     // Pointer-up distingue un toque de un arrastre y selecciona el tick ya en el primer gesto.
     const canvas=st.charts.singular.canvas;
-    let touchStart=null;
+    let touchStart=null,ignoreCanvasClickUntil=0;
     const activateTick=(chart,element)=>{
       if(!element)return;
       const branch=element.datasetIndex;
@@ -300,6 +300,14 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
       text('jointOmaPickHelp','Punto activo: '+fmt(hz,3)+' Hz · SV'+(branch+1)+'.');
       text('jointOmaStatus','Punto activo: '+fmt(hz,3)+' Hz · SV'+(branch+1)+'. Pulsa «Seleccionar punto» para añadirlo como modo.');
     };
+    const selectAt=(clientX,clientY)=>{
+      const rect=canvas.getBoundingClientRect();
+      // Chart.js trabaja en píxeles CSS, igual que clientX/clientY: no se reescala por el DPI del móvil.
+      const x=clientX-rect.left,y=clientY-rect.top;
+      const hit=st.charts.singular.getElementsAtEventForMode({x,y},'nearest',{intersect:false,axis:'xy'},false)
+        .find(item=>item.datasetIndex<visibleRank);
+      activateTick(st.charts.singular,hit);
+    };
     canvas.addEventListener('pointerdown',event=>{
       touchStart={x:event.clientX,y:event.clientY,moved:false,pointerId:event.pointerId};
     },{passive:true});
@@ -309,14 +317,18 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     },{passive:true});
     canvas.addEventListener('pointerup',event=>{
       const start=touchStart;touchStart=null;
-      if(!start||start.pointerId!==event.pointerId||start.moved
-        ||Math.hypot(event.clientX-start.x,event.clientY-start.y)>10)return;
-      const rect=canvas.getBoundingClientRect();
-      const x=(event.clientX-rect.left)*(st.charts.singular.width/rect.width);
-      const y=(event.clientY-rect.top)*(st.charts.singular.height/rect.height);
-      const hit=st.charts.singular.getElementsAtEventForMode({x,y},'nearest',{intersect:false,axis:'xy'},false)
-        .find(item=>item.datasetIndex<visibleRank);
-      activateTick(st.charts.singular,hit);
+      if(!start||start.pointerId!==event.pointerId)return;
+      if(start.moved||Math.hypot(event.clientX-start.x,event.clientY-start.y)>10){
+        ignoreCanvasClickUntil=Date.now()+500;return;
+      }
+      selectAt(event.clientX,event.clientY);
+      // Evita que el click sintético posterior de iOS duplique la selección.
+      ignoreCanvasClickUntil=Date.now()+500;
+    },{passive:true});
+    // Respaldo para navegadores que entregan click sin eventos pointer completos.
+    canvas.addEventListener('click',event=>{
+      if(Date.now()<ignoreCanvasClickUntil)return;
+      selectAt(event.clientX,event.clientY);
     },{passive:true});
   }
   function showWarnings(){
