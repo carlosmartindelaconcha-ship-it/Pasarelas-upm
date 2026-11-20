@@ -2923,3 +2923,30 @@ body.joint-measure-fixed .joint-instrument-head {touch-action:manipulation;}
   min-width: min(100%,250px);
   white-space: normal;
 }
+
+#jointApp #jointPanelOMA .joint-oma-advanced {
+  margin: 10px 0;
+  border: 1px solid #d7e5f0;
+  border-radius: 9px;
+  padding: 9px 12px;
+  color: #29445e;
+}
+#jointApp #jointPanelOMA .joint-oma-advanced summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: .9rem;
+}
+#jointApp #jointPanelOMA .joint-oma-advanced[open] summary { margin-bottom: 8px; }
+#jointApp #jointPanelOMA .joint-oma-zoom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+#jointApp #jointPanelOMA .joint-oma-zoom > span {
+  font-size: .85rem;
+  font-weight: 650;
+  color: #29445e;
+  margin-right: 2px;
+}
