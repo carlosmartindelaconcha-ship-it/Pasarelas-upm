@@ -191,7 +191,22 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     text('jointOmaStatus',answer.sourceCount+' ensayo(s) · '+answer.channels.length+
       ' punto(s) · '+fmt(answer.fs,1)+' Hz · Δf '+fmt(answer.df,3)+' Hz. Selecciona manualmente un pico sobre el espectro.');
   }
-  function branchColors(i){return ['#176bb0','#d35440','#238069'][i%3];}
+  function branchColors(i){return ['rgba(23,107,176,1)','rgba(211,84,64,.58)','rgba(35,128,105,.32)'][i%3];}
+  const selectedPeakGuide={
+    id:'selectedPeakGuide',
+    afterDatasetsDraw(chart,args,options){
+      const xValue=options?.frequency;
+      if(!Number.isFinite(xValue))return;
+      const x=chart.scales.x.getPixelForValue(xValue),area=chart.chartArea,ctx=chart.ctx;
+      if(!Number.isFinite(x)||x<area.left||x>area.right)return;
+      ctx.save();
+      ctx.strokeStyle='#c9413a';
+      ctx.lineWidth=1.5;
+      ctx.setLineDash([5,4]);
+      ctx.beginPath();ctx.moveTo(x,area.top);ctx.lineTo(x,area.bottom);ctx.stroke();
+      ctx.restore();
+    }
+  };
   function scientific(value){
     const n=Number(value);
     if(!Number.isFinite(n)||n===0)return '0';
@@ -215,7 +230,8 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     const st=state(),result=st.analysis;
     if(!result||!Chart)return;
     const stride=Math.max(1,Math.ceil(result.data.length/1600));
-    const series=Array.from({length:result.rank},(_,j)=>{
+    const visibleRank=Math.min(result.rank,3);
+    const series=Array.from({length:visibleRank},(_,j)=>{
       const data=[];
       for(let k=1;k<result.data.length;k+=stride){
         const last=Math.min(result.data.length,k+stride),group=Array.from({length:last-k},(_,i)=>k+i);
@@ -225,27 +241,25 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
       return {label:'SV'+(j+1),data,borderColor:branchColors(j),
         pointRadius:0,borderWidth:j===0?2.2:1.35,showLine:true,parsing:false,tension:0};
     });
-    const picked={label:'Modos escogidos',data:st.modes.map(m=>({
-      x:m.frequencyHz,y:Math.max(m.peakPsd,1e-22)
-    })),borderColor:'#8d2f85',backgroundColor:'#8d2f85',showLine:false,
-      pointRadius:5,pointHoverRadius:7,parsing:false};
-    const candidate={label:'Pico seleccionado',data:st.pick?[{
+    const candidate={label:'',data:st.pick?[{
       x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)
-    }]:[],borderColor:'#e17b17',backgroundColor:'#e17b17',showLine:false,
-      pointRadius:7,pointHoverRadius:8,parsing:false};
-    series.push(picked,candidate);
+    }]:[],showLine:false,pointRadius:8,pointHoverRadius:8,
+      pointBorderColor:'#174a7c',pointBackgroundColor:'#d14c45',
+      pointBorderWidth:2.5,parsing:false};
+    series.push(candidate);
     st.charts.singular=new Chart($('jointOmaSingular').getContext('2d'),{
-      type:'line',data:{datasets:series},options:{
+      type:'line',data:{datasets:series},plugins:[selectedPeakGuide],options:{
         responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
         interaction:{mode:'nearest',intersect:false},
         plugins:{
-          legend:{display:true,position:'top'},
+          legend:{display:true,position:'top',labels:{filter:item=>item.datasetIndex<visibleRank}},
           tooltip:{enabled:true,callbacks:{label:ctx=>ctx.dataset.label+': '+scientific(ctx.parsed.y)}},
           zoom:{
             pan:{enabled:true,mode:'xy'},
             zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},
             limits:{x:{min:0,max:result.fmax}}
-          }
+          },
+          selectedPeakGuide:{frequency:st.pick?.hz}
         },
         scales:{
           x:{type:'linear',min:0,max:result.fmax,title:{display:true,text:'Frecuencia (Hz)'}},
@@ -256,7 +270,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
           }
         },
         onClick:(ev,elements,chart)=>{
-          const element=elements.find(item=>item.datasetIndex<result.rank);
+          const element=elements.find(item=>item.datasetIndex<visibleRank);
           const rawHz=element
             ? chart.data.datasets[element.datasetIndex].data[element.index]?.x
             : chart.scales.x.getValueForPixel(ev.x);
@@ -268,7 +282,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
             st.pick={...pickedPeak,psd};
             updateMarkers();
             $('jointOmaChoosePeak').disabled=false;
-            text('jointOmaStatus','Pico marcado: '+fmt(pickedPeak.hz,3)+' Hz · SV'+(pickedPeak.branch+1)+'. Pulsa «Escoger pico» para añadirlo como modo.');
+            text('jointOmaStatus','Punto activo: '+fmt(pickedPeak.hz,3)+' Hz · SV'+(pickedPeak.branch+1)+'. Pulsa «Seleccionar punto» para añadirlo como modo.');
           }
         }
       }
@@ -306,14 +320,14 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
   function updateMarkers(){
     const st=state(),chart=st.charts.singular;
     if(!chart||!st.analysis)return;
-    const index=st.analysis.rank;
-    chart.data.datasets[index].data=st.modes.map(m=>({x:m.frequencyHz,y:Math.max(m.peakPsd,1e-22)}));
-    chart.data.datasets[index+1].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
+    const index=Math.min(st.analysis.rank,3);
+    chart.data.datasets[index].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
+    chart.options.plugins.selectedPeakGuide.frequency=st.pick?.hz;
     chart.update('none'); // preserve the interactive zoom and pan
   }
   function choosePeak(){
     const pick=state().pick;
-    if(!pick)throw Error('Toca primero un pico del espectro.');
+    if(!pick)throw Error('Toca primero un punto del espectro.');
     addPeak(pick.hz,pick.branch);
     state().pick=null;
     $('jointOmaChoosePeak').disabled=true;
@@ -323,7 +337,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     const st=state(),holder=$('jointOmaModeList');
     holder.replaceChildren();
     if(!st.modes.length){
-      text('jointOmaEmpty','Toca un pico del espectro y después pulsa «Escoger pico».');
+      text('jointOmaEmpty','Toca un punto del espectro y después pulsa «Seleccionar punto».');
       $('jointOmaEmpty').hidden=false;
       $('jointOmaModeDetail').hidden=true;
       return;
