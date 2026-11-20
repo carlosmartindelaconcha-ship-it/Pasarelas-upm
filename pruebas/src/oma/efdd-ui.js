@@ -279,7 +279,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
             ticks:{callback:value=>scientific(value)}
           }
         },
-        onClick:(ev,elements,chart)=>selectAt(ev.x,ev.y),
+        onClick:(ev,elements,chart)=>{ const hit=elements.find(item=>item.datasetIndex<visibleRank); if(hit)activateTick(chart,hit); },
       }
     });
     st.charts.singular.$omaSelectedPick=st.pick||null;
@@ -304,7 +304,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
       const rect=canvas.getBoundingClientRect();
       // Chart.js trabaja en píxeles CSS, igual que clientX/clientY: no se reescala por el DPI del móvil.
       const x=clientX-rect.left,y=clientY-rect.top;
-      const hit=st.charts.singular.getElementsAtEventForMode({x,y},'nearest',{intersect:false,axis:'xy'},false)
+      const hit=st.charts.singular.getElementsAtEventForMode({type:'click',x,y,native:{type:'click',clientX,clientY,target:canvas}},'nearest',{intersect:false,axis:'xy'},false)
         .find(item=>item.datasetIndex<visibleRank);
       activateTick(st.charts.singular,hit);
     };
