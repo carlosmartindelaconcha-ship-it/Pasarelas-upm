@@ -1015,29 +1015,30 @@
                         <h4>2. Calcular FDD</h4>
                         <div class="joint-oma-fields">
                             <label>Eje estructural<select id="jointOmaAxis"><option value="z" selected>Z · vertical</option><option value="x">X · longitudinal</option><option value="y">Y · transversal</option></select></label>
+                        </div>
+                        <details class="joint-oma-advanced"><summary>Opciones avanzadas del FDD</summary><div class="joint-oma-fields">
                             <label>Frecuencia máxima (Hz)<input id="jointOmaMaximum" type="number" min="1" max="60" step="1" value="30"></label>
                             <label>FFT mínima<select id="jointOmaFFT"><option value="1024">1024</option><option value="2048">2048</option><option value="4096" selected>4096</option><option value="8192">8192</option><option value="16384">16384</option></select></label>
-                        </div>
-                        <div class="joint-actions"><button id="jointOmaAnalyze" type="button" class="vwoma-action" data-vwoma-icon="activity">Calcular valores singulares</button><button id="jointOmaReset" class="joint-secondary" type="button" data-vwoma-icon="reset">Restablecer zoom</button></div>
-                        <p class="joint-help">Welch con cinco ventanas de Hann, con solape aproximado del 50 % cuando la longitud lo permite, y eliminación de tendencia. El relleno con ceros interpola el espectro, pero no mejora la resolución física.</p>
+                        </div></details>
+                        <div class="joint-actions"><button id="jointOmaAnalyze" type="button" class="vwoma-action" data-vwoma-icon="activity">Calcular valores singulares</button></div>
+                        <p class="joint-help">Welch con cinco ventanas de Hann, con solape aproximado del 50 % cuando la longitud lo permite, y eliminación de tendencia.</p>
                         <p id="jointOmaStatus" class="joint-help" role="status" aria-live="polite">Listo para analizar.</p>
                         <p id="jointOmaMetrics" class="joint-help"></p>
                         <p id="jointOmaWarnings" class="joint-oma-warnings" role="note"></p>
-                        <div class="joint-oma-plot" id="jointOmaPlotWrap"><canvas id="jointOmaSingular" aria-label="Espectro FDD de valores singulares para seleccionar picos"></canvas></div>
+                        <div class="joint-oma-plot" id="jointOmaPlotWrap"><canvas id="jointOmaSingular" aria-label="Espectro FDD de valores singulares para seleccionar modos"></canvas></div>
+                        <div class="joint-oma-zoom"><span>Vista horizontal</span><button id="jointOmaZoomIn" type="button" class="joint-secondary" data-vwoma-icon="plus">Acercar</button><button id="jointOmaZoomOut" type="button" class="joint-secondary" data-vwoma-icon="minus">Alejar</button><button id="jointOmaReset" class="joint-secondary" type="button" data-vwoma-icon="reset">Vista completa</button></div>
                     </section>
                     <section class="joint-oma-section">
-                        <h4>3. Peak picking manual</h4>
-                        <p class="joint-help">Toca un máximo de la gráfica o introduce su frecuencia. La banda EFDD puede limitarse manualmente. El MAC se aplica cuando hay vectores singulares disponibles.</p>
-                        <div class="joint-oma-fields">
-                            <label>Rama singular<select id="jointOmaBranch"><option value="0">SV1</option></select></label>
-                            <label>Frecuencia del pico (Hz)<input id="jointOmaPeak" type="number" min="0.001" step="0.001" placeholder="P. ej. 2.50"></label>
+                        <h4>3. Seleccionar modos</h4>
+                        <p class="joint-help">Toca directamente un máximo del espectro. VWOMA se ajusta automáticamente al pico y añade el modo; vuelve a tocarlo para actualizarlo.</p>
+                        <details class="joint-oma-advanced"><summary>Ajuste avanzado del EFDD</summary><div class="joint-oma-fields">
                             <label>MAC mínimo<input id="jointOmaMac" type="number" min="0.4" max="0.99" step="0.05" value="0.8"></label>
                             <label>Potencia relativa mínima<input id="jointOmaLevel" type="number" min="0.0001" max="0.3" step="0.005" value="0.01"></label>
                             <label>Banda desde (Hz) · opcional<input id="jointOmaBandMin" type="number" min="0" step="0.01" placeholder="Auto"></label>
                             <label>Banda hasta (Hz) · opcional<input id="jointOmaBandMax" type="number" min="0" step="0.01" placeholder="Auto"></label>
-                        </div>
-                        <div class="joint-actions"><button id="jointOmaAddPeak" type="button" class="vwoma-action" data-vwoma-icon="plus">Añadir pico</button><button type="button" id="jointOmaExportJSON" disabled class="joint-secondary" data-vwoma-icon="download">Exportar EFDD JSON</button><button type="button" id="jointOmaExportCSV" disabled class="joint-secondary" data-vwoma-icon="file">Exportar modos CSV</button></div>
-                        <p id="jointOmaEmpty" class="joint-help">Selecciona una frecuencia tocando la gráfica o introduciéndola manualmente.</p>
+                        </div></details>
+                        <div class="joint-actions"><button type="button" id="jointOmaExportJSON" disabled class="joint-secondary" data-vwoma-icon="download">Exportar EFDD JSON</button><button type="button" id="jointOmaExportCSV" disabled class="joint-secondary" data-vwoma-icon="file">Exportar modos CSV</button></div>
+                        <p id="jointOmaEmpty" class="joint-help">Tras calcular el FDD, toca los picos que correspondan a los modos de interés.</p>
                         <div id="jointOmaModeList" class="joint-oma-mode-list"></div>
                     </section>
                     <section id="jointOmaModeDetail" class="joint-oma-section" hidden>
