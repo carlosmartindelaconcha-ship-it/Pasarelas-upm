@@ -421,7 +421,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     const target=$('jointOmaShapeMap');target.replaceChildren();
     const help=document.createElement('p');help.className='joint-help';
     const plan=state().files[0]?.data?.plan||s.plan;
-    const known=points.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.re)).map(p=>({x:p.x,y:p.y,z:p.re,id:p.id}));
+    const known=points.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.re)).map(p=>({x:p.x,y:p.y,z:p.re,id:p.id,name:p.name}));
     for(const p of (plan?.points||[]))if(p.kind==='support'&&Number.isFinite(p.x)&&Number.isFinite(p.y))known.push({x:p.x,y:p.y,z:0,id:p.id,support:true});
     const unique=[];
     for(const p of known){const q=unique.find(v=>Math.hypot(v.x-p.x,v.y-p.y)<1e-8);if(q){if(Math.abs(q.z-p.z)>1e-8){help.textContent='Hay puntos coincidentes con valores modales distintos: no se puede interpolar.';target.append(help);return;}}else unique.push(p);}
@@ -444,20 +444,35 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     const canvas=document.createElement('canvas');canvas.width=960;canvas.height=540;
     canvas.style.cssText='display:block;width:100%;height:auto;touch-action:none;cursor:grab;background:#f7fafc;border-radius:10px';
     canvas.setAttribute('aria-label','Superficie modal 3D interactiva. Arrastra para girar.');
-    target.append(canvas);help.textContent='Arrastra para girar · Azul: negativo · Blanco: cero · Rojo: positivo. Los valores representan la componente modal real normalizada.';target.append(help);
-    const ctx=canvas.getContext('2d');let az=-.7,el=.8;
+    target.append(canvas);
+    const controls=document.createElement('div');controls.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:10px 0';
+    const makeButton=label=>{const b=document.createElement('button');b.type='button';b.className='joint-secondary';b.textContent=label;controls.append(b);return b;};
+    const zoomOut=makeButton('−'),zoomIn=makeButton('+'),labels=makeButton('Mostrar nombres');
+    labels.setAttribute('aria-pressed','false');zoomOut.setAttribute('aria-label','Alejar');zoomIn.setAttribute('aria-label','Acercar');
+    target.append(controls);help.textContent='Arrastra para girar · Pellizca para zoom · Azul: negativo · Blanco: cero · Rojo: positivo.';target.append(help);
+    const ctx=canvas.getContext('2d');let az=-.7,el=.8,zoom=1,showNames=false;
     const project=p=>{let x=(p.x/L-.5)*1.7,y=(p.y/W-.5)*Math.min(1.2,1.7*W/L),z=p.z/max*.65;
       let a=x*Math.cos(az)-y*Math.sin(az),b=x*Math.sin(az)+y*Math.cos(az);
-      return {x:480+a*380,y:290+(b*Math.sin(el)-z*Math.cos(el))*300,depth:b*Math.cos(el)+z*Math.sin(el)};};
+      return {x:480+zoom*a*380,y:270+zoom*(b*Math.sin(el)-z*Math.cos(el))*300,depth:b*Math.cos(el)+z*Math.sin(el)};};
     const color=z=>{let t=Math.max(-1,Math.min(1,z/max)),a=Math.abs(t);return t<0?'rgb('+Math.round(255-205*a)+','+Math.round(255-120*a)+',255)':'rgb(255,'+Math.round(255-190*a)+','+Math.round(255-190*a)+')';};
     const draw=()=>{ctx.clearRect(0,0,960,540);const faces=[];
       for(let j=0;j<ny;j++)for(let k=0;k<nx;k++){const p=[grid[j][k],grid[j][k+1],grid[j+1][k+1],grid[j+1][k]],v=p.map(project);faces.push({v,z:p.reduce((a,q)=>a+q.z,0)/4,d:v.reduce((a,q)=>a+q.depth,0)/4});}
       faces.sort((a,b)=>a.d-b.d);for(const f of faces){ctx.beginPath();f.v.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=color(f.z);ctx.fill();ctx.strokeStyle='rgba(110,125,140,.18)';ctx.lineWidth=.5;ctx.stroke();}
-      for(const p of unique){const v=project(p);ctx.beginPath();ctx.arc(v.x,v.y,p.support?5:6,0,2*Math.PI);ctx.fillStyle=color(p.z);ctx.fill();ctx.strokeStyle='#263b50';ctx.lineWidth=2;ctx.stroke();}
-    };draw();let drag=null;
-    canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
-    canvas.addEventListener('pointermove',e=>{if(!drag)return;az+=(e.clientX-drag.x)*.01;el=Math.max(-1.4,Math.min(1.4,el+(e.clientY-drag.y)*.01));drag={x:e.clientX,y:e.clientY};draw();});
-    canvas.addEventListener('pointerup',()=>{drag=null;});canvas.addEventListener('pointercancel',()=>{drag=null;});
+      for(const p of unique){const v=project(p);ctx.beginPath();ctx.arc(v.x,v.y,p.support?5:6,0,2*Math.PI);ctx.fillStyle=color(p.z);ctx.fill();ctx.strokeStyle='#263b50';ctx.lineWidth=2;ctx.stroke();
+        if(showNames&&p.id!=null){const label=String(p.name||p.id);ctx.font='bold 17px sans-serif';ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.strokeText(label,v.x+9,v.y-9);ctx.fillStyle='#183b58';ctx.fillText(label,v.x+9,v.y-9);}}
+    };
+    const setZoom=value=>{zoom=Math.max(.35,Math.min(5,value));draw();};
+    zoomIn.onclick=()=>setZoom(zoom*1.25);zoomOut.onclick=()=>setZoom(zoom/1.25);
+    labels.onclick=()=>{showNames=!showNames;labels.textContent=showNames?'Ocultar nombres':'Mostrar nombres';labels.setAttribute('aria-pressed',String(showNames));draw();};
+    canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*Math.exp(-e.deltaY*.001));},{passive:false});
+    const pointers=new Map();let lastDistance=null;
+    canvas.addEventListener('pointerdown',e=>{pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});lastDistance=null;canvas.setPointerCapture(e.pointerId);});
+    canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const previous=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(pointers.size===1){az+=(e.clientX-previous.x)*.01;el=Math.max(.12,Math.min(1.4,el+(e.clientY-previous.y)*.01));draw();}
+      else if(pointers.size===2){const [a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(lastDistance>0)setZoom(zoom*distance/lastDistance);lastDistance=distance;}
+    });
+    const release=e=>{pointers.delete(e.pointerId);lastDistance=null;};
+    canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);draw();
   }
   function renderModeDetail(mode){
     destroyDetailCharts();
