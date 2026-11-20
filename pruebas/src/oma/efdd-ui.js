@@ -242,7 +242,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
         pointRadius:0,borderWidth:j===0?2.2:1.35,showLine:true,parsing:false,tension:0};
     });
     const confirmed={label:'',data:st.modes.map(mode=>({
-      x:mode.frequencyHz,y:Math.max(mode.peakPsd,1e-22)
+      x:mode.selectedHz??mode.frequencyHz,y:Math.max(mode.peakPsd,1e-22)
     })),showLine:false,pointRadius:5.5,pointHoverRadius:6,
       pointBorderColor:'#174a7c',pointBackgroundColor:'#d14c45',
       pointBorderWidth:2,parsing:false};
@@ -313,6 +313,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     if(!Number.isFinite(hz))throw Error('Toca un pico del espectro.');
     if(st.modes.length>=16)throw Error('Máximo 16 picos. Elimina uno antes de añadir otro.');
     const mode=efdd.estimate(r,hz,Math.min(branch,Math.max(0,r.rank-1)),efddOptions());
+    mode.selectedHz=hz;
     const duplicate=st.modes.findIndex(m=>m.branch===mode.branch&&Math.abs(m.frequencyHz-mode.frequencyHz)<.5*r.df);
     if(duplicate>=0){
       st.modes[duplicate]=mode;st.selected=duplicate;
@@ -328,7 +329,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     if(!chart||!st.analysis)return;
     const index=Math.min(st.analysis.rank,3);
     chart.data.datasets[index].data=st.modes.map(mode=>({
-      x:mode.frequencyHz,y:Math.max(mode.peakPsd,1e-22)
+      x:mode.selectedHz??mode.frequencyHz,y:Math.max(mode.peakPsd,1e-22)
     }));
     chart.data.datasets[index+1].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
     chart.options.plugins.selectedPeakGuide.frequency=st.pick?.hz;
