@@ -279,27 +279,40 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
             ticks:{callback:value=>scientific(value)}
           }
         },
-        onClick:(ev,elements,chart)=>{
-          // No dependemos del estado previo del tooltip: el primer toque resuelve el tick más cercano.
-          const hits=chart.getElementsAtEventForMode(ev,'nearest',{intersect:false,axis:'xy'},false);
-          const element=hits.find(item=>item.datasetIndex<visibleRank)
-            ||elements.find(item=>item.datasetIndex<visibleRank);
-          if(!element)return;
-          const branch=element.datasetIndex;
-          // Usamos el valor parseado por Chart.js: es exactamente el tick que se ha pulsado y el que muestra el tooltip.
-          const parsed=chart.getDatasetMeta(branch)?.controller?.getParsed(element.index);
-          const hz=Number(parsed?.x),psd=Math.max(Number(parsed?.y)||0,1e-22);
-          if(Number.isFinite(hz)&&hz>0&&hz<=result.fmax){
-            st.pick={hz,psd,branch};
-            updateMarkers();
-            $('jointOmaChoosePeak').disabled=false;
-            text('jointOmaPickHelp','Punto activo: '+fmt(hz,3)+' Hz · SV'+(branch+1)+'.');
-            text('jointOmaStatus','Punto activo: '+fmt(hz,3)+' Hz · SV'+(branch+1)+'. Pulsa «Seleccionar punto» para añadirlo como modo.');
-          }
-        }
+        onClick:(ev,elements,chart)=>activateTick(chart,elements.find(item=>item.datasetIndex<visibleRank))
       }
     });
     st.charts.singular.$omaSelectedPick=st.pick||null;
+    // En iOS el primer toque puede actualizar solo el tooltip y no disparar onClick de Chart.js.
+    // Pointer-up distingue un toque de un arrastre y selecciona el tick ya en el primer gesto.
+    const canvas=st.charts.singular.canvas;
+    let touchStart=null;
+    const activateTick=(chart,element)=>{
+      if(!element)return;
+      const branch=element.datasetIndex;
+      if(branch>=visibleRank)return;
+      const parsed=chart.getDatasetMeta(branch)?.controller?.getParsed(element.index);
+      const hz=Number(parsed?.x),psd=Math.max(Number(parsed?.y)||0,1e-22);
+      if(!Number.isFinite(hz)||hz<=0||hz>result.fmax)return;
+      st.pick={hz,psd,branch};
+      updateMarkers();
+      $('jointOmaChoosePeak').disabled=false;
+      text('jointOmaPickHelp','Punto activo: '+fmt(hz,3)+' Hz · SV'+(branch+1)+'.');
+      text('jointOmaStatus','Punto activo: '+fmt(hz,3)+' Hz · SV'+(branch+1)+'. Pulsa «Seleccionar punto» para añadirlo como modo.');
+    };
+    canvas.addEventListener('pointerdown',event=>{
+      touchStart={x:event.clientX,y:event.clientY};
+    },{passive:true});
+    canvas.addEventListener('pointerup',event=>{
+      const start=touchStart;touchStart=null;
+      if(!start||Math.hypot(event.clientX-start.x,event.clientY-start.y)>10)return;
+      const rect=canvas.getBoundingClientRect();
+      const x=(event.clientX-rect.left)*(st.charts.singular.width/rect.width);
+      const y=(event.clientY-rect.top)*(st.charts.singular.height/rect.height);
+      const hit=st.charts.singular.getElementsAtEventForMode({x,y},'nearest',{intersect:false,axis:'xy'},false)
+        .find(item=>item.datasetIndex<visibleRank);
+      activateTick(st.charts.singular,hit);
+    },{passive:true});
   }
   function showWarnings(){
     const result=state().analysis;
