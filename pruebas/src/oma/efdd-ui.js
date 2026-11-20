@@ -263,7 +263,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
         interaction:{mode:'nearest',intersect:false},
         plugins:{
           legend:{display:true,position:'top',labels:{filter:item=>item.datasetIndex<visibleRank}},
-          tooltip:{enabled:true,callbacks:{label:ctx=>ctx.dataset.label+': '+scientific(ctx.parsed.y)}},
+          tooltip:{enabled:false},
           zoom:{
             pan:{enabled:true,mode:'xy'},
             zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},
@@ -279,7 +279,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
             ticks:{callback:value=>scientific(value)}
           }
         },
-        onClick:(ev,elements,chart)=>activateTick(chart,elements.find(item=>item.datasetIndex<visibleRank))
+        // La selección no vive aquí: Chart.js dispara onClick también al soltar algunos pans táctiles.
       }
     });
     st.charts.singular.$omaSelectedPick=st.pick||null;
@@ -301,11 +301,16 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
       text('jointOmaStatus','Punto activo: '+fmt(hz,3)+' Hz · SV'+(branch+1)+'. Pulsa «Seleccionar punto» para añadirlo como modo.');
     };
     canvas.addEventListener('pointerdown',event=>{
-      touchStart={x:event.clientX,y:event.clientY};
+      touchStart={x:event.clientX,y:event.clientY,moved:false,pointerId:event.pointerId};
+    },{passive:true});
+    canvas.addEventListener('pointermove',event=>{
+      if(touchStart&&event.pointerId===touchStart.pointerId
+        &&Math.hypot(event.clientX-touchStart.x,event.clientY-touchStart.y)>10)touchStart.moved=true;
     },{passive:true});
     canvas.addEventListener('pointerup',event=>{
       const start=touchStart;touchStart=null;
-      if(!start||Math.hypot(event.clientX-start.x,event.clientY-start.y)>10)return;
+      if(!start||start.pointerId!==event.pointerId||start.moved
+        ||Math.hypot(event.clientX-start.x,event.clientY-start.y)>10)return;
       const rect=canvas.getBoundingClientRect();
       const x=(event.clientX-rect.left)*(st.charts.singular.width/rect.width);
       const y=(event.clientY-rect.top)*(st.charts.singular.height/rect.height);
