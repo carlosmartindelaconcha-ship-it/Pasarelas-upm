@@ -1,0 +1,97 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const read=n=>fs.readFileSync(path.join(__dirname,'..',n),'utf8');
+test('los SVG X Y Z animados son exactamente un ciclo y mantienen el teléfono original',()=>{
+  for(const axis of ['x','y','z']){
+    const original=read('assets/calibration/telefono-eje-'+axis+'.svg');
+    const cycle=read('assets/calibration/telefono-eje-'+axis+'-un-ciclo.svg');
+    assert.equal((original.match(/<animateTransform\b/g)||[]).length,1);
+    assert.equal((cycle.match(/<animateTransform\b/g)||[]).length,1);
+    assert.match(cycle,/dur="2s"/);
+    assert.match(cycle,/repeatCount="1" fill="freeze"/);
+    assert.doesNotMatch(cycle,/repeatCount="indefinite"/);
+    assert.equal(cycle.replace('repeatCount="1" fill="freeze"','repeatCount="indefinite"')
+      .replace('dur="2s"','dur="3s"'),
+      original,'solo deben cambiar la duración y la repetición del SVG del eje '+axis);
+  }
+  assert.doesNotMatch(read('assets/calibration/telefono-ejes-reposo.svg'),/<animateTransform\b/);
+});
+
+test('botón Calibrar ejes precede a X Y Z deshabilitados y existe el texto del ejemplo',()=>{
+  const html=read('index.html'),a=html.indexOf('id="jointBeginCalibration"'),
+    b=html.indexOf('id="jointCalibrateX"');
+  assert.ok(a>=0&&b>a);
+  for(const axis of ['X','Y','Z'])assert.match(html,
+    new RegExp('id="jointCalibrate'+axis+'"[^>]*disabled'));
+  assert.match(html,/id="jointCalibrationExample"[^>]*hidden[^>]*>EJEMPLO: haz un SOLO movimiento de ida y vuelta con el móvil en CADA EJE/);
+  assert.match(html,/assets\/calibration\/telefono-ejes-reposo\.svg/);
+});
+
+test('contador QUIETO y AHORA en esquina superior derecha, con margen al borde',()=>{
+  const html=read('index.html');
+  const p=html.indexOf('id="jointCalibrationAnimation"');
+  const figure=html.slice(p,html.indexOf('</figure>',p));
+  assert.match(figure,/class="joint-calibration-visual"/);
+  assert.ok(figure.indexOf('class="joint-calibration-visual"') < figure.indexOf('id="jointCalibrationCountdown"'));
+  const css=read('style.css');
+  assert.match(css,/\.joint-calibration-visual\s*\{[^}]*position:relative/s);
+  const corner=css.match(/#jointCalibrationCountdown\.joint-countdown-overlay\s*\{([^}]*)\}/);
+  assert.ok(corner,'falta la regla especifica para la cuenta atras');
+  assert.match(corner[1],/top:clamp\(12px,3vw,18px\)/);
+  assert.match(corner[1],/right:clamp\(12px,3vw,18px\)/);
+  assert.match(corner[1],/left:auto/);
+  assert.match(corner[1],/transform:none/);
+  assert.match(corner[1],/max-width:calc\(50% - 16px\)/);
+  assert.match(css,/@keyframes jointCountdownCornerPulse/);
+});
+
+test('calibracion elegante: titulo ancho y acciones equilibradas para moviles',()=>{
+  const html=read('index.html');
+  const begin=html.indexOf('<section id="jointCalibration"');
+  const end=html.indexOf('</section>',begin);
+  const content=html.slice(begin,end);
+  const header=content.slice(content.indexOf('<div class="joint-calibration-head">'),
+    content.indexOf('</div>',content.indexOf('class="joint-calibration-head"'))+6);
+  assert.match(header,/id="jointCalibrationTitle">Calibración de ejes/);
+  assert.match(header,/id="jointCalibrationHelp"/);
+  assert.doesNotMatch(header,/<button\b/);
+  const actions=content.slice(content.indexOf('id="jointCalibrationControls"'),
+    content.indexOf('id="jointCalibrationOverride"'));
+  assert.ok(actions.indexOf('id="jointBeginCalibration"')>=0);
+  assert.ok(actions.indexOf('id="jointSkipCalibration"')>actions.indexOf('id="jointBeginCalibration"'));
+  assert.equal((html.match(/id="jointSkipCalibration"/g)||[]).length,1);
+  assert.doesNotMatch(content,/id="jointCalibrationState"/);
+  assert.doesNotMatch(actions,/data-vwoma-icon="arrow"/);
+  assert.ok(content.indexOf('id="jointManualCalibration"')>content.indexOf('id="jointCalibrationControls"'));
+  const css=read('style.css');
+  assert.match(css,/\.joint-calibration-head\s*\{[^}]*display:block/s);
+  assert.match(css,/\.joint-calibration-controls\s*\{[^}]*display:grid/s);
+  assert.match(css,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
+  assert.match(css,/\.joint-calibration-controls\[hidden\] \{display:none !important;\}/);
+  assert.match(css,/@media \(max-width:350px\)/);
+});
+
+test('ninguna cabecera secundaria hereda el fondo azul ni el relleno del encabezado principal',()=>{
+  const html=read('index.html');
+  const start=html.indexOf('<section id="jointCalibration"');
+  const end=html.indexOf('</section>',start);
+  const calibration=html.slice(start,end);
+  assert.match(calibration,/<div class="joint-calibration-head">/);
+  assert.doesNotMatch(calibration,/<header\b/,'un header anidado heredaba el fondo azul y el padding global');
+  assert.match(calibration,/id="jointCalibrationTitle"/);
+  assert.match(calibration,/id="jointCalibrationHelp"/);
+
+  const css=read('style.css');
+  // El encabezado general se aplica exclusivamente al header hijo directo del body.
+  assert.match(css,/^body > header \{\s*background-color:/m);
+  assert.match(css,/^body > header p \{/m);
+  assert.match(css,/^body\.recording-lock > header \{/m);
+  assert.doesNotMatch(css,/^header\s*\{/m);
+  assert.doesNotMatch(css,/^header p\s*\{/m);
+  assert.doesNotMatch(css,/^body\.recording-lock header/m);
+  assert.match(css,/\.joint-calibration-head\s*\{display:block;width:100%;min-width:0;/);
+  assert.equal((html.match(/id="jointSkipCalibration"/g)||[]).length,1);
+});
