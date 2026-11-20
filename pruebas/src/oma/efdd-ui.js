@@ -7,7 +7,7 @@
 function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedRuns,storedChunks,escape,tell}){
   const state=()=>s.oma||(s.oma={files:[],analysis:null,modes:[],selected:-1,charts:{},source:'',lastInput:null});
   const text=(id,value)=>{const el=$(id);if(el&&el.textContent!==value)el.textContent=value;};
-  const number=(id,fallback=null)=>{const v=$(id).value;return v===''?fallback:Number(v);};
+  const number=(id,fallback=null)=>{const el=$(id),v=el?.value;return v===''||v==null?fallback:Number(v);};
   const options=()=>({
     axis:$('jointOmaAxis').value,
     nfft:Number($('jointOmaFFT').value),
@@ -191,8 +191,26 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     text('jointOmaStatus',answer.sourceCount+' ensayo(s) · '+answer.channels.length+
       ' punto(s) · '+fmt(answer.fs,1)+' Hz · Δf '+fmt(answer.df,3)+' Hz. Selecciona manualmente un pico sobre el espectro.');
   }
-  function selectedBranch(){return Math.min(Number($('jointOmaBranch').value)||0,Math.max(0,state().analysis?.rank-1||0));}
   function branchColors(i){return ['#176bb0','#d35440','#238069'][i%3];}
+  function scientific(value){
+    const n=Number(value);
+    if(!Number.isFinite(n)||n===0)return '0';
+    return n.toExponential(0).replace('e+','e').replace('e-','e−');
+  }
+  function nearestPeak(result,hz,branch){
+    const values=result.data.map(row=>Math.max(row.values[branch]||0,1e-22));
+    let at=0,best=Infinity;
+    for(let i=1;i<result.frequency.length;i++){
+      const distance=Math.abs(result.frequency[i]-hz);
+      if(distance<best){best=distance;at=i;}
+    }
+    const radius=Math.max(3,Math.min(60,Math.round(.35/Math.max(result.df,1e-6))));
+    let peak=at,peakValue=values[at];
+    for(let i=Math.max(1,at-radius);i<=Math.min(values.length-2,at+radius);i++){
+      if(values[i]>=values[i-1]&&values[i]>=values[i+1]&&values[i]>peakValue){peak=i;peakValue=values[i];}
+    }
+    return {hz:result.frequency[peak],branch};
+  }
   function plotSpectra(){
     const st=state(),result=st.analysis;
     if(!result||!Chart)return;
@@ -216,18 +234,28 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
       type:'line',data:{datasets:series},options:{
         responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
         interaction:{mode:'nearest',intersect:false},
-        plugins:{legend:{display:true,position:'top'},tooltip:{enabled:true},
-          zoom:{zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'},
-            pan:{enabled:true,mode:'x'},limits:{x:{min:0,max:result.fmax}}}},
+        plugins:{
+          legend:{display:true,position:'top'},
+          tooltip:{enabled:true,callbacks:{label:ctx=>ctx.dataset.label+': '+scientific(ctx.parsed.y)}}
+        },
         scales:{
           x:{type:'linear',min:0,max:result.fmax,title:{display:true,text:'Frecuencia (Hz)'}},
-          y:{type:'logarithmic',title:{display:true,text:'Densidad espectral / valor singular (m²/s⁴/Hz)'}}
+          y:{
+            type:'logarithmic',
+            title:{display:true,text:'Densidad espectral / valor singular (m²/s⁴/Hz)'},
+            ticks:{callback:value=>scientific(value)}
+          }
         },
         onClick:(ev,elements,chart)=>{
-          const freq=chart.scales.x.getValueForPixel(ev.x);
-          if(Number.isFinite(freq)&&freq>0&&freq<=result.fmax){
-            $('jointOmaPeak').value=freq.toFixed(3);
-            try{addPeak(freq)}catch(err){text('jointOmaStatus',err.message);}
+          const element=elements.find(item=>item.datasetIndex<result.rank);
+          const rawHz=element
+            ? chart.data.datasets[element.datasetIndex].data[element.index]?.x
+            : chart.scales.x.getValueForPixel(ev.x);
+          const branch=element?.datasetIndex??0;
+          if(Number.isFinite(rawHz)&&rawHz>0&&rawHz<=result.fmax){
+            const pickedPeak=nearestPeak(result,rawHz,branch);
+            try{addPeak(pickedPeak.hz,pickedPeak.branch);}
+            catch(err){text('jointOmaStatus',err.message);}
           }
         }
       }
@@ -236,12 +264,6 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
   function showWarnings(){
     const result=state().analysis;
     $('jointOmaWarnings').textContent=result?.warnings?.join(' ')||'';
-    const branch=$('jointOmaBranch');
-    branch.replaceChildren();
-    for(let i=0;i<(result?.rank||1);i++){
-      const option=document.createElement('option');option.value=String(i);option.textContent='SV'+(i+1);
-      branch.append(option);
-    }
   }
   function renderAnalysis(){
     const st=state(),r=st.analysis;
@@ -252,20 +274,20 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     $('jointOmaExportJSON').disabled=false;
     $('jointOmaExportCSV').disabled=false;
   }
-  function addPeak(hz=number('jointOmaPeak')){
+  function addPeak(hz,branch=0){
     const st=state(),r=st.analysis;
     if(!r)throw Error('Calcula primero el FDD.');
-    if(!Number.isFinite(hz))throw Error('Indica una frecuencia numérica.');
+    if(!Number.isFinite(hz))throw Error('Toca un pico del espectro.');
     if(st.modes.length>=16)throw Error('Máximo 16 picos. Elimina uno antes de añadir otro.');
-    const mode=efdd.estimate(r,hz,selectedBranch(),efddOptions());
+    const mode=efdd.estimate(r,hz,Math.min(branch,Math.max(0,r.rank-1)),efddOptions());
     const duplicate=st.modes.findIndex(m=>m.branch===mode.branch&&Math.abs(m.frequencyHz-mode.frequencyHz)<.5*r.df);
     if(duplicate>=0){
       st.modes[duplicate]=mode;st.selected=duplicate;
     }else{st.modes.push(mode);st.selected=st.modes.length-1;}
     st.modes.sort((a,b)=>a.frequencyHz-b.frequencyHz);
     st.selected=st.modes.indexOf(mode);
-    text('jointOmaStatus','Pico seleccionado: '+fmt(mode.frequencyHz)+' Hz · SV'+mode.branch+
-      ' · banda '+fmt(mode.bandHz[0])+'–'+fmt(mode.bandHz[1])+' Hz.');
+    text('jointOmaStatus','Modo '+(st.selected+1)+' añadido: '+fmt(mode.frequencyHz)+
+      ' Hz · SV'+(mode.branch+1)+' · banda '+fmt(mode.bandHz[0])+'–'+fmt(mode.bandHz[1])+' Hz.');
     updateMarkers();renderModes();
   }
   function updateMarkers(){
@@ -476,8 +498,23 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     });
     download('VWOMA_EFDD_modos.csv','\uFEFF'+rows.join('\n'),'text/csv;charset=utf-8');
   }
+  function zoomSpectra(factor){
+    const chart=state().charts.singular,result=state().analysis;
+    if(!chart||!result)return;
+    const scale=chart.scales.x,min=Number.isFinite(scale.min)?scale.min:0,max=Number.isFinite(scale.max)?scale.max:result.fmax;
+    const span=clamp((max-min)*factor,Math.max(result.df*6,.05),result.fmax);
+    const center=(min+max)/2;
+    const nextMin=clamp(center-span/2,0,Math.max(0,result.fmax-span));
+    chart.options.scales.x.min=nextMin;
+    chart.options.scales.x.max=Math.min(result.fmax,nextMin+span);
+    chart.update('none');
+  }
   function resetZoom(){
-    state().charts.singular?.resetZoom?.();
+    const chart=state().charts.singular,result=state().analysis;
+    if(!chart||!result)return;
+    chart.options.scales.x.min=0;
+    chart.options.scales.x.max=result.fmax;
+    chart.update('none');
   }
   function renderOMA(){
     const st=state();renderFileList();
@@ -501,7 +538,8 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     $('jointOmaLoadCampaign').onclick=localGuard(loadCampaign);
     $('jointOmaDemo').onclick=localGuard(loadDemo);
     $('jointOmaAnalyze').onclick=localGuard(analyze);
-    $('jointOmaAddPeak').onclick=localGuard(()=>addPeak());
+    $('jointOmaZoomIn').onclick=localGuard(()=>zoomSpectra(.55));
+    $('jointOmaZoomOut').onclick=localGuard(()=>zoomSpectra(1.8));
     $('jointOmaReset').onclick=localGuard(resetZoom);
     $('jointOmaExportJSON').onclick=localGuard(exportJSON);
     $('jointOmaExportCSV').onclick=localGuard(exportCSV);
