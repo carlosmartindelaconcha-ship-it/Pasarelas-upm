@@ -253,7 +253,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     })),showLine:false,pointRadius:5.5,pointHoverRadius:6,
       pointBorderColor:'#174a7c',pointBackgroundColor:'#d14c45',
       pointBorderWidth:2,parsing:false};
-    const candidate={label:'',data:[],showLine:false,pointRadius:0,pointHoverRadius:0,
+    const candidate={label:'',data:st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[],showLine:false,pointRadius:8,pointHoverRadius:8,
       pointBorderColor:'#174a7c',pointBackgroundColor:'#d14c45',
       pointBorderWidth:2.5,parsing:false};
     series.push(confirmed,candidate);
@@ -279,7 +279,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
             ticks:{callback:value=>scientific(value)}
           }
         },
-        // La selección no vive aquí: Chart.js dispara onClick también al soltar algunos pans táctiles.
+        onClick:(ev,elements,chart)=>selectAt(ev.x,ev.y),
       }
     });
     st.charts.singular.$omaSelectedPick=st.pick||null;
@@ -303,7 +303,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     const selectAt=(clientX,clientY)=>{
       const rect=canvas.getBoundingClientRect();
       // Chart.js trabaja en píxeles CSS, igual que clientX/clientY: no se reescala por el DPI del móvil.
-      const x=clientX-rect.left,y=clientY-rect.top;
+      const x=(clientX-rect.left)*(canvas.width/rect.width),y=(clientY-rect.top)*(canvas.height/rect.height);
       const hit=st.charts.singular.getElementsAtEventForMode({x,y},'nearest',{intersect:false,axis:'xy'},false)
         .find(item=>item.datasetIndex<visibleRank);
       activateTick(st.charts.singular,hit);
@@ -370,7 +370,7 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     chart.data.datasets[index].data=st.modes.map(mode=>({
       x:mode.selectedHz??mode.frequencyHz,y:Math.max(mode.selectedPsd??mode.peakPsd,1e-22)
     }));
-    chart.data.datasets[index+1].data=[];
+    chart.data.datasets[index+1].data=st.pick?[{x:st.pick.hz,y:Math.max(st.pick.psd,1e-22)}]:[];
     // Estado propio de la gráfica: sobrevive a los redibujados internos de pan y zoom.
     chart.$omaSelectedPick=st.pick||null;
     $('jointOmaChoosePeak').disabled=!st.pick;
