@@ -350,7 +350,7 @@
     }
     /* Browser storage and run recovery are delegated to the persistence layer.
        Database name is explicit so /pruebas/ can use a separate data store. */
-    const {persist, persistBeforeClosing, storedRuns, storedChunks} =
+    const {persist, persistBeforeClosing, storedRuns, storedChunks, saveCampaignSetup, storedCampaignSetups} =
         globalThis.VWOMAPersistence.createPersistence({
             s, runMeta, incident, tell,
             databaseName:'upm-joint-vwoma-preview-v1',
@@ -502,7 +502,7 @@
     }
     function localRecord() {return s.run?{...runMeta(s.run),samples:s.run.samples}:null;}
     /* Binary file download, validated exports and common-grid interpolation. */
-    const {download,exportSession,processedCommonExport,exportProcessedJson,exportProcessedCsv,exportCsv,comparisonExport,validComparisonExport,samplePeriodMs,structuralValue,resampleAxis,detrendPoints} =
+    const {download,exportSession,buildSessionExport,processedCommonExport,exportProcessedJson,exportProcessedCsv,exportCsv,comparisonExport,validComparisonExport,samplePeriodMs,structuralValue,resampleAxis,detrendPoints} =
         globalThis.VWOMAExports.createExports({
             s,finite,median,MAX_PEERS,toMaster,validModel,correctedVector,localRecord,
             document,Blob:typeof Blob==='undefined'?null:Blob,
@@ -534,7 +534,7 @@
             s,$,Chart:typeof Chart==='undefined'?null:Chart,
             efdd:globalThis.VWOMAEFDD,demo:globalThis.VWOMAOmaDemo,
             comparisonExport,download,
-            storedRuns,storedChunks,escape,tell
+            storedRuns,storedChunks,storedCampaignSetups,escape,tell
         });
 
     // Mantiene la leyenda NATIVA de Chart.js (recuadros y tachado al ocultar).
@@ -717,9 +717,30 @@
         s.selected=s.plan.points.find(p=>p.kind==='support')?.id||null;
         workspace();tell('Define el plano con sensores, apoyos y puntos de interpolación.');
     }
+    async function confirmAndArchiveSetup(){
+        requireHostEdit();
+        const plan=s.setupPlan,run=s.run;
+        if(!plan||plan.activeIndex===null||!run?.finished||run.state!=='finished')throw Error('Termina primero un ensayo válido para confirmar el setup.');
+        const setup=plan.setups[plan.activeIndex];
+        if(!setup||setup.measuredRunId!==run.id||run.setup?.index!==setup.index)throw Error('El ensayo no corresponde al setup activo.');
+        const snapshot=buildSessionExport();
+        if(!snapshot.complete||!snapshot.records.length||snapshot.records.some(r=>!r.samples?.length))throw Error('Faltan registros o muestras. Comprueba la transferencia en Resultados.');
+        snapshot.savedAt=new Date().toISOString();
+        await saveCampaignSetup(snapshot);
+        confirmMeasured();
+        if(confirm('Setup '+setup.index+' guardado en este navegador. ¿Descargar también su JSON?'))download('setup_'+setup.index+'_'+run.id+'.json',snapshot);
+        if(plan.setups.every(item=>!!item.completedRunId)){
+            const available=await storedCampaignSetups();
+            const selected=plan.setups.map(item=>available.find(entry=>entry.session===s.session&&entry.runId===item.completedRunId));
+            if(selected.every(Boolean)){
+                const campaign={schema:'vwoma-oma-campaign-v1',session:s.session,created:new Date().toISOString(),setups:selected};
+                if(confirm('Campaña completada. ¿Descargar un JSON con todos los setups?'))download('campana_oma_'+s.session+'.json',campaign);
+            }else tell('Faltan setups en el almacenamiento local; conserva los JSON individuales.',true);
+        }
+    }
     globalThis.VWOMAUIEvents.bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
-        tab, renderResults, renderOMA, bindOmaEvents, renderSyncCalibration, renderSetups, generateSetups, createManualSetup, setSetupMode, editSelectedSetup, selectSetup, applySetup, confirmMeasured, renderMeasureGuide,
+        tab, renderResults, renderOMA, bindOmaEvents, renderSyncCalibration, renderSetups, generateSetups, createManualSetup, setSetupMode, editSelectedSetup, selectSetup, applySetup, confirmMeasured:confirmAndArchiveSetup, renderMeasureGuide,
         createJointSession, openPair, pairingAction,
         invite, retryPair, prepareSafariConnection, stopScan, readCode, scanCode,
         createGuestAnswer, requireHostEdit, checkPlan, savePlan, tell, addPoint,
