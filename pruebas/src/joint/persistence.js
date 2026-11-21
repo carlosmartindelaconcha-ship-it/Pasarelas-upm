@@ -65,7 +65,24 @@
                 req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
             });
         }
-        return Object.freeze({db, storeBatch, persist, persistBeforeClosing, storedRuns, storedChunks});
+        async function saveCampaignSetup(data) {
+            if(!data?.session||!data?.runId||!Number.isInteger(data?.setup?.index))throw Error('Faltan datos para guardar el setup.');
+            const database=await db();
+            const key='oma-campaign:'+encodeURIComponent(data.session)+':'+String(data.setup.index).padStart(8,'0')+':'+encodeURIComponent(data.runId);
+            await new Promise((resolve,reject)=>{
+                const tx=database.transaction('chunks','readwrite');
+                tx.objectStore('chunks').put({key,campaignSetup:data});
+                tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('No se pudo guardar el setup.'));
+            });
+        }
+        async function storedCampaignSetups() {
+            const database=await db(),range=IDBKeyRange.bound('oma-campaign:','oma-campaign:\uffff');
+            return await new Promise((resolve,reject)=>{
+                const req=database.transaction('chunks').objectStore('chunks').getAll(range);
+                req.onsuccess=()=>resolve(req.result.map(x=>x.campaignSetup).filter(Boolean));req.onerror=()=>reject(req.error);
+            });
+        }
+        return Object.freeze({db, storeBatch, persist, persistBeforeClosing, storedRuns, storedChunks, saveCampaignSetup, storedCampaignSetups});
     }
     const api=Object.freeze({createPersistence});
     if(typeof module==='object'&&module.exports)module.exports=api;
