@@ -4,7 +4,7 @@
  */
 (function registerOmaUI(root){
 'use strict';
-function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedRuns,storedChunks,escape,tell}){
+function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedRuns,storedChunks,storedCampaignSetups,escape,tell}){
   const state=()=>s.oma||(s.oma={files:[],analysis:null,modes:[],selected:-1,pick:null,charts:{},source:'',lastInput:null});
   const text=(id,value)=>{const el=$(id);if(el&&el.textContent!==value)el.textContent=value;};
   const number=(id,fallback=null)=>{const el=$(id),v=el?.value;return v===''||v==null?fallback:Number(v);};
@@ -89,16 +89,21 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     if(files.length>64)throw Error('Importa como máximo 64 archivos.');
     if(files.reduce((sum,f)=>sum+f.size,0)>150000000)
       throw Error('Los archivos superan 150 MB en conjunto. Reduce el tamaño de la campaña.');
-    const st=state(),next=[];
+    const st=state(),next=[];let hasCampaign=false;
     for(const f of files){
-      if(f.size>65000000)throw Error(f.name+': supera el máximo de 65 MB.');
+      if(f.size>150000000)throw Error(f.name+': supera el máximo de 150 MB.');
       const raw=await f.text();
       let data;
       try{data=JSON.parse(raw);}catch{throw Error(f.name+': no es JSON válido.');}
-      next.push(normalize(data,f.name));
+      if(data?.schema==='vwoma-oma-campaign-v1'){
+        if(!Array.isArray(data.setups)||!data.setups.length)throw Error(f.name+': la campaña no contiene setups.');
+        hasCampaign=true;data.setups.forEach((entry,index)=>next.push(normalize(entry,f.name+' · Setup '+(entry.setup?.index??index+1))));
+      }else next.push(normalize(data,f.name));
+      if(next.length>64)throw Error('La campaña supera 64 setups.');
     }
     st.files=next;st.source='files';invalidate();renderFileList();
-    text('jointOmaStatus',next.length+' archivos preparados. Configura el eje y calcula FDD.');
+    text('jointOmaStatus',next.length+' setups preparados.');
+    if(hasCampaign)await analyze();
   }
   function chooseCurrent(){
     const current=canUseCurrent();
@@ -107,32 +112,33 @@ function createController({s,$,Chart,efdd,demo,comparisonExport,download,storedR
     invalidate();renderFileList();
   }
   async function loadCampaign(){
-    if(typeof storedRuns!=='function'||typeof storedChunks!=='function')
-      throw Error('No está disponible la recuperación de registros de campaña.');
-    const records=await storedRuns();
-    const eligible=records.filter(row=>row.meta?.state==='finished'&&
-      row.meta?.setup?.singleSensor&&row.meta?.device?.id&&row.meta?.plan);
-    if(!eligible.length)throw Error('No hay setups con un único acelerómetro guardados en este navegador.');
-    const sessionMatches=eligible.filter(row=>row.meta.session===s.session);
-    const candidates=(sessionMatches.length?sessionMatches:eligible)
-      .slice().sort((a,b)=>String(a.meta.created).localeCompare(String(b.meta.created)));
-    const session=candidates.at(-1).meta.session;
-    const same=candidates.filter(row=>row.meta.session===session)
-      .sort((a,b)=>String(a.meta.created).localeCompare(String(b.meta.created)));
-    const bySetup=new Map();
-    for(const row of same)bySetup.set(row.meta.setup.index,row);
-    const selected=[...bySetup.values()].sort((a,b)=>a.meta.setup.index-b.meta.setup.index).slice(0,64);
-    if(!selected.length)throw Error('No hay setups completos en la campaña.');
-    const files=[];
-    for(const row of selected){
-      const chunks=await storedChunks(row.key),rows=chunks.flatMap(chunk=>chunk.rows||[]);
-      if(!rows.length)continue;
-      files.push(normalize({...row.meta,samples:rows},
-        'Setup '+row.meta.setup.index+' · '+(row.meta.device.point?.id||'M')));
+    if(typeof storedCampaignSetups==='function'){
+      const all=(await storedCampaignSetups()).filter(x=>x?.complete&&x?.session&&x?.setup&&x?.records?.length);
+      if(all.length){
+        const current=all.filter(x=>x.session===s.session),pool=current.length?current:all;
+        const latest=pool.slice().sort((a,b)=>String(a.savedAt||'').localeCompare(String(b.savedAt||''))).at(-1);
+        const bySetup=new Map();
+        for(const entry of pool.filter(x=>x.session===latest.session).sort((a,b)=>String(a.savedAt||'').localeCompare(String(b.savedAt||''))))bySetup.set(entry.setup.index,entry);
+        const selected=[...bySetup.values()].sort((a,b)=>a.setup.index-b.setup.index);
+        if(selected.length>64)throw Error('La campaña supera 64 setups.');
+        state().files=selected.map(entry=>normalize(entry,'Setup '+entry.setup.index));
+        state().source='archive';invalidate();renderFileList();await analyze();return;
+      }
     }
+    if(typeof storedRuns!=='function'||typeof storedChunks!=='function')throw Error('No está disponible la recuperación de campaña.');
+    const records=await storedRuns();
+    const eligible=records.filter(row=>row.meta?.state==='finished'&&row.meta?.setup?.singleSensor&&row.meta?.device?.id&&row.meta?.plan);
+    if(!eligible.length)throw Error('No hay setups completos guardados en este navegador.');
+    const current=eligible.filter(row=>row.meta.session===s.session);
+    const pool=(current.length?current:eligible).slice().sort((a,b)=>String(a.meta.created).localeCompare(String(b.meta.created)));
+    const session=pool.at(-1).meta.session,bySetup=new Map();
+    for(const row of pool.filter(row=>row.meta.session===session))bySetup.set(row.meta.setup.index,row);
+    const selected=[...bySetup.values()].sort((a,b)=>a.meta.setup.index-b.meta.setup.index);
+    if(selected.length>64)throw Error('La campaña supera 64 setups.');
+    const files=[];
+    for(const row of selected){const rows=(await storedChunks(row.key)).flatMap(chunk=>chunk.rows||[]);if(rows.length)files.push(normalize({...row.meta,samples:rows},'Setup '+row.meta.setup.index));}
     if(!files.length)throw Error('Los registros guardados no contienen muestras.');
-    state().files=files;state().source='archive';invalidate();renderFileList();
-    text('jointOmaStatus',files.length+' setups individuales recuperados. El FDD combinará sus PSD sin inventar fases.');
+    state().files=files;state().source='archive';invalidate();renderFileList();await analyze();
   }
   async function loadDemo(){
     if(!demo?.generate)throw Error('No se ha cargado el generador de prueba.');
