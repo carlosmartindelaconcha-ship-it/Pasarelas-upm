@@ -12,7 +12,7 @@
         document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
     }
 
-    function exportSession() {
+    function buildSessionExport() {
         if(!s.run?.finished)throw Error('Termina primero el ensayo.');
         const records=[...s.results.values()].map(r=>{
             // Keep originals; use one final model per record to avoid time jumps.
@@ -21,7 +21,10 @@
             return {...r,exportClock:valid?model:r.initialClock,samples:r.samples.map(row=>({raw:row,masterTimeMs:finite(row[8])?row[8]:toMaster(row[7],valid?model:r.initialClock)}))};
         });
         const expected=s.run.plan.points.filter(p=>p.device).map(p=>p.device);
-        download('ensayo_conjunto_'+s.run.id+'.json',{schema:'pasarelas-upm-joint-export-v1',session:s.session,plan:s.run.plan,setup:s.run.setup||null,windowMasterMs:{start:s.run.start,end:s.run.end},complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,p.samples])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'});
+        return {schema:'pasarelas-upm-joint-export-v1',runId:s.run.id,session:s.session,plan:s.run.plan,setup:s.run.setup||null,windowMasterMs:{start:s.run.start,end:s.run.end},complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,p.samples])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'};
+    }
+    function exportSession() {
+        const data=buildSessionExport();download('ensayo_conjunto_'+s.run.id+'.json',data);
     }
     function processedCommonExport() {
         const data=comparisonExport();if(!data)throw Error('Termina primero el ensayo y recibe los registros disponibles.');
@@ -96,7 +99,7 @@
         return points.map(p=>({x:p.x,y:p.y-(m*p.x+b)}));
     }
 
-        return Object.freeze({download,exportSession,processedCommonExport,exportProcessedJson,exportProcessedCsv,exportCsv,comparisonExport,validComparisonExport,samplePeriodMs,structuralValue,resampleAxis,detrendPoints});
+        return Object.freeze({download,exportSession,buildSessionExport,processedCommonExport,exportProcessedJson,exportProcessedCsv,exportCsv,comparisonExport,validComparisonExport,samplePeriodMs,structuralValue,resampleAxis,detrendPoints});
     }
     const api=Object.freeze({createExports});
     if(typeof module==='object'&&module.exports)module.exports=api;
