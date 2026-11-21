@@ -314,8 +314,8 @@
     }
     $('jointNewRun').onclick=guard(()=>prepareAnotherRun('next'));
     $('jointMeasureGoSetups').onclick=guard(()=>{tab('Setups');renderSetups();});
-    $('jointMeasureComplete').onclick=guard(()=>{
-        confirmMeasured();
+    $('jointMeasureComplete').onclick=guard(async()=>{
+        await confirmMeasured();
         renderMeasureGuide();
     });
     $('jointMeasureNext').onclick=guard(()=>prepareAnotherRun('next'));
