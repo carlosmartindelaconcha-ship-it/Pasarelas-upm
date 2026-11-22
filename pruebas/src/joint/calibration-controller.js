@@ -15,6 +15,51 @@
         const SYNC_GESTURE_MS=6000, SYNC_READY_MS=3000, SYNC_DEMO_MS=7500;
         const syncAsset=(axis,kind)=>'assets/joint/telefono-sincronizacion-eje-'+axis.toUpperCase()+'-tabla-madera-'+kind+'.svg?v=20261114-physical-sync-board-v1';
         let syncDemoSequence=0;
+        // Las señales de diagnóstico permanecen fuera del estado exportado del ensayo.
+        let syncWaveforms={},syncWaveCharts=[];
+        function clearSyncWaveforms(){
+            for(const chart of syncWaveCharts)chart.destroy();
+            syncWaveCharts=[];syncWaveforms={};
+            $('jointSyncWaveforms')?.replaceChildren();
+        }
+        function renderSyncWaveforms(){
+            const root=$('jointSyncWaveforms');
+            if(!root||s.role!=='host'||typeof Chart==='undefined')return;
+            for(const chart of syncWaveCharts)chart.destroy();
+            syncWaveCharts=[];root.replaceChildren();
+            for(const axis of ['x','y','z']){
+                const group=syncWaveforms[axis];if(!group)continue;
+                for(const entry of group){
+                    const box=document.createElement('section');
+                    const heading=document.createElement('h4');
+                    heading.textContent='Eje '+axis.toUpperCase()+(group.length>1?' · '+entry.name:'');
+                    const note=document.createElement('p');note.className='joint-help';
+                    const current=s.syncCalibration?.results?.[entry.peerId];
+                    const final=!!current?.accepted&&Number.isFinite(current.correctionMs)&&s.syncCalibration?.phase==='accepted';
+                    const correction=final?current.correctionMs:entry.lag;
+                    note.textContent=entry.error?'Corrección no disponible: '+entry.error:
+                        (final?'Corrección final aplicada: ':'Corrección provisional del eje: ')+correction.toFixed(1)+' ms; signo '+(entry.polarity<0?'invertido':'conservado')+'. Señales filtradas y sin tendencia.';
+                    const wrap=document.createElement('div');wrap.className='joint-oma-plot';
+                    const canvas=document.createElement('canvas');canvas.setAttribute('aria-label','Comparación de sincronización del eje '+axis.toUpperCase());
+                    wrap.append(canvas);box.append(heading,note,wrap);root.append(box);
+                    const series=(rows,shift=0,sign=1)=>rows.map(row=>({x:(row[0]-entry.start-shift)/1000,y:row[1]*sign}));
+                    const datasets=[
+                        {label:'Maestro',data:series(entry.master),borderColor:'#176bb0'},
+                        {label:'Participante',data:series(entry.participant),borderColor:'#dc6b43'},
+                    ];
+                    if(!entry.error)datasets.push({label:'Participante corregido',data:series(entry.participant,correction,entry.polarity),borderColor:'#278060',borderDash:[6,3]});
+                    datasets.forEach(d=>Object.assign(d,{pointRadius:0,borderWidth:2,parsing:false,showLine:true}));
+                    const reset=document.createElement('button');reset.type='button';reset.className='joint-secondary';reset.textContent='Restablecer zoom';box.append(reset);
+                    const chart=new Chart(canvas.getContext('2d'),{type:'line',data:{datasets},options:{
+                        responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+                        interaction:{mode:'nearest',intersect:false},
+                        plugins:{legend:{position:'top'},zoom:{pan:{enabled:true,mode:'xy'},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'}}},
+                        scales:{x:{type:'linear',title:{display:true,text:'Tiempo (s)'}},y:{title:{display:true,text:'Aceleración (m/s²)'}}}
+                    }});
+                    syncWaveCharts.push(chart);reset.onclick=()=>chart.resetZoom?.();
+                }
+            }
+        }
         const syncTextCache=new WeakMap();
         function stableSyncText(element,value) {
             // TextContent replaces the text node even when the displayed text
@@ -388,6 +433,7 @@
         if(!peers.length)throw Error('Conecta al menos un participante.');
         for(const p of peers)if(!p.status?.sensor||!p.status?.calibrated||!p.status?.visible)throw Error(p.name+' debe tener el acelerómetro visible y los tres ejes calibrados.');
         // El estado se exporta con el ensayo: guarda IDs, nunca objetos RTCPeerConnection.
+        clearSyncWaveforms();
         const id=uid();s.syncCalibration={phase:'network',accepted:false,gesture:null,results:{},models:{},correctionMs:0,id,peerIds:peers.map(p=>p.id)};tab('Sync');renderSyncCalibration();
         tell('Midiendo 200 intercambios de reloj a 20 Hz por participante (unos 10 s)…');
         try {
@@ -429,13 +475,20 @@
     function finalizeSyncGesture(id,axis) {
         const state=s.syncCalibration,g=state.gesture;if(s.role!=='host'||state.id!==id||!g||g.id!==id||['accepted','failed','applying'].includes(state.phase))return;
         state.phase='processing';const masterSamples=g.samples,masterCalibration=s.calibration;
+        syncWaveforms[axis]=[];
+        const masterSeries=filteredGestureSeries(masterSamples,axis,masterCalibration);
         state.results[s.id]??={axes:{},accepted:true,correctionMs:0};
         let missing=[];
         const peers=(state.peerIds||[]).map(peerId=>s.peers.get(peerId)).filter(Boolean);
         for(const peerId of state.peerIds||[])if(!s.peers.has(peerId))missing.push('un participante desconectado');
         for(const p of peers){const result=state.results[p.id];if(!result?.windows?.[axis]){missing.push(p.name);continue;}
             result.axes??={};result.axes[axis]=estimateGestureAxis(masterSamples,result.windows[axis],axis,masterCalibration,result.calibration,g.start,g.end);
+            const estimate=result.axes[axis];
+            syncWaveforms[axis].push({peerId:p.id,name:p.name,start:g.start,
+                master:masterSeries,participant:filteredGestureSeries(result.windows[axis],axis,result.calibration),
+                lag:Number.isFinite(estimate.lag)?estimate.lag:0,polarity:estimate.polarity||1,error:estimate.error||null});
         }
+        renderSyncWaveforms();
         if(missing.length){
             state.phase='gesture-ready';state.gesture=null;
             state.lastFeedback='No llegaron todos los datos de '+axis.toUpperCase()+'. Repite ese eje.';
@@ -528,6 +581,7 @@
         state.pendingSignAcks=state.pendingSignAcks.filter(key=>key!==peerId);
         if(!state.pendingSignAcks.length){
             state.phase='accepted';state.accepted=true;
+            renderSyncWaveforms();
             state.lastFeedback='✓ Sincronización completa. Signos coherentes con el maestro.';
             tell('Sincronización física validada: todos los signos confirmados. Revisa los setups antes de medir.');
             renderSyncCalibration();renderDevices();onSyncAccepted();
