@@ -805,7 +805,8 @@
                     <div id="jointDevices" class="joint-device-list"></div>
                     <p class="joint-warning">El RTT mide la ida y vuelta de los mensajes. El desfase estimado corresponde a los relojes de las páginas, no al desfase físico entre sensores. Una conexión directa no certifica el SSID.</p>
                 </div>
-                <div id="jointPanelSync" role="tabpanel" aria-labelledby="jointTabSync" hidden>
+                    <div id="jointPanelSync" role="tabpanel" aria-labelledby="jointTabSync" hidden>
+                    <section class="joint-physical-sync" aria-labelledby="rttBenchmarkTitle"><h4 id="rttBenchmarkTitle">Prueba de frecuencia de intercambio</h4><p>Conecta un participante y mantén ambos móviles con la pantalla activa. Se comparan 20, 50, 100, 250, 500 y 1000 intercambios por segundo durante 30 segundos por frecuencia. La frecuencia real depende del navegador.</p><div class="joint-actions"><button type="button" id="rttBenchmarkStart" class="joint-secondary">Iniciar prueba RTT</button><button type="button" id="rttBenchmarkStop" class="joint-secondary" hidden>Detener prueba</button><button type="button" id="rttBenchmarkDownload" class="joint-secondary" hidden>Descargar resultados JSON</button></div><p id="rttBenchmarkStatus" class="joint-help" aria-live="polite">La prueba no modifica la sincronización del ensayo.</p><div id="rttBenchmarkResults"></div></section>
                     <div class="joint-section-head"><div><h3>Calibración y sincronización</h3><p>Calibra los ejes de cada móvil. Si utilizas varios, comprueba después su sincronización.</p></div><span id="jointSyncState" class="joint-calibration-state">Pendiente</span></div>
                     <section id="jointCalibration" class="joint-calibration" hidden aria-labelledby="jointCalibrationTitle">
   <div class="joint-calibration-head">
@@ -1128,7 +1129,7 @@
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/ui-events.js?v=20261121-campaign-idb-v1"></script>
     <script defer src="src/joint/measure-guide.js?v=20261114-phone-status-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261122-sync-json-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261122-rtt-benchmark-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-setups-v2"></script>
 
 

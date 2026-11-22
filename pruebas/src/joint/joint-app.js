@@ -188,6 +188,75 @@
             modelOffsetAt, offsetResidual, selectedForModel, syncMetric } = clockModel;
     const toMaster=(t,m=s.syncModel)=>clockModel.toMaster(t,m);
 
+    // Diagnostic traffic has its own protocol and never enters the clock model.
+    let rttExperiment=null, rttExperimentResult=null;
+    const benchmarkRates=[20,50,100,250,500,1000];
+    const percentile=(values,p)=>{
+        if(!values.length)return null;
+        const a=values.slice().sort((x,y)=>x-y),pos=(a.length-1)*p,lo=Math.floor(pos);
+        return a[lo]+(a[Math.ceil(pos)]-a[lo])*(pos-lo);
+    };
+    function showRttExperiment(){
+        const result=rttExperimentResult;
+        $('rttBenchmarkDownload').hidden=!result;
+        if(!result){$('rttBenchmarkResults').textContent='';return;}
+        const fmt=n=>n==null?'—':n.toFixed(2);
+        $('rttBenchmarkResults').innerHTML='<div style="overflow-x:auto"><table><thead><tr><th>Objetivo (Hz)</th><th>Real (Hz)</th><th>Respuestas</th><th>RTT mín. (ms)</th><th>P10</th><th>Mediana</th><th>P90</th><th>Offset mediano (ms)</th></tr></thead><tbody>'+result.stages.map(x=>'<tr><td>'+x.targetHz+'</td><td>'+fmt(x.actualHz)+'</td><td>'+x.received+' / '+x.sent+'</td><td>'+fmt(x.minRtt)+'</td><td>'+fmt(x.p10Rtt)+'</td><td>'+fmt(x.medianRtt)+'</td><td>'+fmt(x.p90Rtt)+'</td><td>'+fmt(x.medianOffset)+'</td></tr>').join('')+'</tbody></table></div>';
+    }
+    function finishRttStage(stage,elapsed){
+        const values=stage.exchanges.map(x=>x.rtt),offsets=stage.exchanges.map(x=>x.offset);
+        Object.assign(stage,{elapsedMs:elapsed,actualHz:1000*stage.sent/elapsed,received:values.length,
+            minRtt:values.length?Math.min(...values):null,p10Rtt:percentile(values,.1),medianRtt:percentile(values,.5),p90Rtt:percentile(values,.9),p10Offset:percentile(offsets,.1),medianOffset:percentile(offsets,.5),p90Offset:percentile(offsets,.9)});
+    }
+    async function runRttExperiment(){
+        if(rttExperiment)return;
+        if(s.role!=='host')throw Error('Inicia la prueba en el móvil maestro.');
+        if(running()||s.transaction)throw Error('Termina el ensayo antes de iniciar la prueba.');
+        const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
+        if(peers.length!==1)throw Error('Conecta exactamente un participante para esta prueba.');
+        const peer=peers[0],experiment={id:uid(),peer,pending:new Map(),cancelled:false};
+        rttExperiment=experiment;
+        rttExperimentResult={schema:'vwoma-rtt-benchmark-v1',created:new Date().toISOString(),participant:peer.name,network:peer.network,stages:[],complete:false};
+        $('rttBenchmarkStart').disabled=true;$('rttBenchmarkStop').hidden=false;showRttExperiment();
+        try{
+            for(const rate of benchmarkRates){
+                if(experiment.cancelled||peer.channel?.readyState!=='open'||running()||s.transaction)break;
+                const stage={targetHz:rate,sent:0,sendFailures:0,maxBufferedBytes:0,exchanges:[]};
+                rttExperimentResult.stages.push(stage);
+                const started=now(),duration=30000,interval=1000/rate;
+                let next=started,sequence=0,lastStatus=started-250;
+                while(!experiment.cancelled&&peer.channel?.readyState==='open'&&!running()&&!s.transaction&&now()-started<duration){
+                    const current=now();
+                    if(current>=next){
+                        const id=experiment.id+':'+rate+':'+(sequence++),t1=now();
+                        stage.maxBufferedBytes=Math.max(stage.maxBufferedBytes,peer.channel.bufferedAmount||0);
+                        experiment.pending.set(id,{t1,stage});
+                        if(send(peer,{type:'RTT_BENCH_REQUEST',id,t1}))stage.sent++;
+                        else {experiment.pending.delete(id);stage.sendFailures++;}
+                        // Do not compensate for late callbacks with artificial bursts.
+                        next=Math.max(next+interval,now());
+                    }
+                    if(now()-lastStatus>=250){$('rttBenchmarkStatus').textContent='Objetivo '+rate+' Hz · '+Math.min(30,Math.floor((now()-started)/1000))+' / 30 s · enviados '+stage.sent;lastStatus=now();}
+                    await pause(Math.max(0,next-now()));
+                }
+                const elapsed=now()-started;
+                // Allow late replies from this stage without transmitting more messages.
+                await pause(2000);
+                for(const [id,pending] of experiment.pending)if(pending.stage===stage)experiment.pending.delete(id);
+                finishRttStage(stage,elapsed);showRttExperiment();
+            }
+            rttExperimentResult.complete=!experiment.cancelled&&rttExperimentResult.stages.length===benchmarkRates.length&&rttExperimentResult.stages.every(x=>x.elapsedMs>=29900);
+            $('rttBenchmarkStatus').textContent=rttExperimentResult.complete?'Prueba terminada. Descarga el JSON para analizar los intercambios.':'Prueba detenida o interrumpida; se conservan los resultados disponibles.';
+        }finally{rttExperiment=null;$('rttBenchmarkStart').disabled=false;$('rttBenchmarkStop').hidden=true;showRttExperiment();}
+    }
+    $('rttBenchmarkStart').onclick=guard(runRttExperiment);
+    $('rttBenchmarkStop').onclick=()=>{if(rttExperiment)rttExperiment.cancelled=true;};
+    $('rttBenchmarkDownload').onclick=()=>{
+        if(!rttExperimentResult)return;
+        const url=URL.createObjectURL(new Blob([JSON.stringify(rttExperimentResult,null,2)],{type:'application/json'}));
+        const a=document.createElement('a');a.href=url;a.download='prueba-rtt.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    };
+
     function syncOnce(p,phase='idle',runId=null) {
         if(p.channel?.readyState!=='open')return;
         const id=uid(),t1=now();p.requests.set(id,{time:t1,phase,runId});send(p,{type:'SYNC_REQUEST',id,t1});
@@ -204,6 +273,19 @@
     }
 
     async function onMessage(p,m,received) {
+        if(m.type==='RTT_BENCH_REQUEST'&&s.role==='guest'){
+            if(typeof m.id==='string'&&m.id.length<150&&finite(m.t1))send(p,{type:'RTT_BENCH_REPLY',id:m.id,t2:received,t3:now()});
+            return;
+        }
+        if(m.type==='RTT_BENCH_REPLY'&&s.role==='host'){
+            const exp=rttExperiment,request=exp?.peer===p?exp.pending.get(m.id):null;
+            if(!request)return;exp.pending.delete(m.id);
+            if(!finite(m.t2)||!finite(m.t3)||m.t3<m.t2)return;
+            const rtt=(received-request.t1)-(m.t3-m.t2);
+            if(rtt<0||rtt>2000)return;
+            request.stage.exchanges.push({t1:request.t1,t2:m.t2,t3:m.t3,t4:received,rtt,offset:((m.t2-request.t1)+(m.t3-received))/2});
+            return;
+        }
         if(m.type==='HELLO') {
             if(m.id!==p.id)throw Error('Identificador de dispositivo inesperado.');
             p.name=String(m.name||'Móvil').slice(0,40);p.status=m.status;renderPlan();renderDevices();return;
