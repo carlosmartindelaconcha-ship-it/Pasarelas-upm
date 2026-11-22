@@ -39,7 +39,7 @@
                     const correction=final?current.correctionMs:entry.lag;
                     note.textContent=entry.error?'Corrección no disponible: '+entry.error:
                         (final?'Corrección final aplicada: ':'Corrección provisional del eje: ')+correction.toFixed(1)+' ms; signo '+(entry.polarity<0?'invertido':'conservado')+'. Señales filtradas y sin tendencia.';
-                    const wrap=document.createElement('div');wrap.className='joint-oma-plot';
+                    const wrap=document.createElement('div');wrap.className='joint-oma-plot';wrap.style.cssText='position:relative;width:100%;height:340px;box-sizing:border-box;padding:8px;border:1px solid #d7e5f0;border-radius:10px;background:#fbfdff;';
                     const canvas=document.createElement('canvas');canvas.setAttribute('aria-label','Comparación de sincronización del eje '+axis.toUpperCase());
                     wrap.append(canvas);box.append(heading,note,wrap);root.append(box);
                     const series=(rows,shift=0,sign=1)=>rows.map(row=>({x:(row[0]-entry.start-shift)/1000,y:row[1]*sign}));
