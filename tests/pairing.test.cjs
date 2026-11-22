@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const {webcrypto}=require('node:crypto');
-const source=fs.readFileSync(require('node:path').join(__dirname,'../app.js'),'utf8');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../src/joint/joint-app.js'),'utf8');
 const sdp='v=0\r\na=candidate:1 1 udp 123 192.168.1.2 5000 typ host\r\n';
 function setup(options={}) {
  const elements=new Map(),timers=new Map();let nextTimer=0;
@@ -20,17 +20,33 @@ function setup(options={}) {
   removeEventListener(type,fn){this.listeners.get(type)?.delete(fn)}
   emit(type,event={}){for(const fn of this.listeners.get(type)||[])fn(event)}
  }
- const ctx={console,TextEncoder,TextDecoder,Uint8Array,Blob,Response,Map,Set,Date,JSON,Number,Math,Promise,Error,crypto:webcrypto,performance:{now:()=>100},RTCPeerConnection:PC,atob,btoa,
+ const ctx={console,TextEncoder,TextDecoder,Uint8Array,Blob,Response,Map,Set,Date,JSON,Number,Math,Promise,Error,structuredClone,crypto:webcrypto,performance:{now:()=>100},RTCPeerConnection:PC,atob,btoa,
  document:{getElementById:el,querySelectorAll:()=>[],addEventListener(){},visibilityState:'visible'},window:{addEventListener(){},removeEventListener(){}},location:{hash:'',href:'https://test.example/app',pathname:'/app',search:''},
- setInterval:()=>0,clearInterval(){},setTimeout:(f,ms)=>{const id=++nextTimer;timers.set(id,{f,ms});return id},clearTimeout:id=>timers.delete(id),cancelAnimationFrame(){},history:{replaceState(){}},localStorage:{setItem(){}},navigator:{userAgent:options.userAgent||''},};
+ setInterval:()=>0,clearInterval(){},setTimeout:(f,ms)=>{const id=++nextTimer;timers.set(id,{f,ms});return id},clearTimeout:id=>timers.delete(id),cancelAnimationFrame(){},history:{replaceState(){}},localStorage:{setItem(){}},navigator:{userAgent:options.userAgent||''},
+ // The classic individual-test script supplies these shared chart helpers in browsers.
+ clampTemporalXAxis(){},keepTemporalYAxisCentered(){},formatYAxisTick:v=>String(v),};
  ctx.window.document=ctx.document;
  let block=source.slice(source.indexOf('(() => {',source.indexOf('MEDIDA CONJUNTA')));
  const end=block.lastIndexOf('})();');
- block=block.slice(0,end)+`renderDevices=()=>{}; renderPlan=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; savePlan=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary,candidateDetails,icePairSnapshot,qrTransferPages,acceptQrPage,isAndroidChrome,updateAndroidNearbyNotice};`+block.slice(end);
+ block=block.slice(0,end)+`renderDevices=()=>{}; startSync=()=>{}; checkRoute=()=>{}; workspace=()=>{}; globalThis.testApi={s,newPeer,wireChannel,watchPair,failPair,retryPair,invite,readCode,createGuestAnswer,pairingAction,localDescription,decodeToken,gather,candidateSummary,candidateDetails,icePairSnapshot,qrTransferPages,acceptQrPage,isAndroidChrome,updateAndroidNearbyNotice};`+block.slice(end);
+ // Load the browser plan controller before evaluating the joint application.
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/plan-controller.js'),'utf8'),ctx);
+ // The pairing suite tests transport, not the SVG/DOM plan renderer.
+ // Stub the controller's UI callbacks instead of reassigning immutable bindings.
+ const createPlanController = ctx.VWOMAPlan.createController;
+ ctx.VWOMAPlan = {createController:deps=>({...createPlanController(deps),renderPlan:()=>{},savePlan:()=>{}})};
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/webrtc-transport.js'),'utf8'),ctx);
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/clock-model.js'),'utf8'),ctx);
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/persistence.js'),'utf8'),ctx);
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/acquisition.js'),'utf8'),ctx);
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/calibration-math.js'),'utf8'),ctx);
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/calibration-controller.js'),'utf8'),ctx);
+ for(const name of ['exports.js','record-transfer.js','results-view.js','session-state.js','ui-events.js','tab-navigation.js'])
+  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../src/joint/'+name),'utf8'),ctx);
  vm.runInNewContext(block,ctx);
  el('jointNetworkMode').value='stun';const a=ctx.testApi;a.s.role='host';a.s.session='session';a.s.id='host';
  const peer=(id='guest')=>{const p=a.newPeer(id);p.pc.peer=p;a.s.currentInvite=id;a.wireChannel(p,p.pc.createDataChannel());return p};
- const answer=p=>'J1.'+btoa(JSON.stringify({v:3,network:p.network,kind:'answer',host:'host',peer:p.id,session:'session',expires:Date.now()+60000,sdp:{type:'answer',sdp}})).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+ const answer=p=>'J1.'+btoa(JSON.stringify({v:4,network:p.network,kind:'answer',host:'host',peer:p.id,session:'session',expires:Date.now()+60000,sdp:{type:'answer',sdp}})).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
  return {a,el,timers,peer,answer};
 }
 test('channel open closes the pairing modal, updates status and cancels timeout',()=>{
@@ -74,7 +90,7 @@ test('rejected answer closes peer rather than leaving an indefinite wait',async(
  const {a,peer,answer,timers}=setup({rejectRemote:true});const p=peer();p.pc.signalingState='have-local-offer';await assert.rejects(a.readCode(answer(p)),/Invalid SDP/);assert.equal(p.pairFailed,true);assert.equal(timers.size,0);
 });
 function token(payload){return 'J1.'+btoa(JSON.stringify(payload)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
-function offer(network='stun',candidate=sdp){return {v:3,network,kind:'offer',host:'master',peer:'guest',session:'new-session',expires:Date.now()+60000,sdp:{type:'offer',sdp:candidate}}}
+function offer(network='stun',candidate=sdp){return {v:4,network,kind:'offer',host:'master',peer:'guest',session:'new-session',expires:Date.now()+60000,sdp:{type:'offer',sdp:candidate}}}
 const srflx='v=0\r\na=candidate:2 1 udp 123 198.51.100.2 6000 typ srflx raddr 0.0.0.0 rport 0\r\n';
 test('STUN mode configures app-owned discovery servers; local mode configures none',()=>{
  const {a}=setup();const stun=a.newPeer('a','stun'),local=a.newPeer('b','local');assert.equal(stun.pc.config.iceServers[0].urls[0],'stun:stun.l.google.com:19302');assert.equal(local.pc.config.iceServers.length,0);assert.throws(()=>a.newPeer('x','unknown'),/modo/);
