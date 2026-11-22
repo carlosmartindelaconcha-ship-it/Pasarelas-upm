@@ -190,7 +190,7 @@
 
     // Diagnostic traffic has its own protocol and never enters the clock model.
     let rttExperiment=null, rttExperimentResult=null;
-    const benchmarkRates=[1000];
+    const benchmarkRates=[2000];
     const percentile=(values,p)=>{
         if(!values.length)return null;
         const a=values.slice().sort((x,y)=>x-y),pos=(a.length-1)*p,lo=Math.floor(pos);
