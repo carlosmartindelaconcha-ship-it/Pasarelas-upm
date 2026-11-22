@@ -738,6 +738,32 @@
             }else tell('Faltan setups en el almacenamiento local; conserva los JSON individuales.',true);
         }
     }
+    async function importSyncSetup(file){
+        if(!file)return;
+        if(file.size>150000000)throw Error('El JSON supera 150 MB.');
+        let data;try{data=JSON.parse(await file.text());}catch(_){throw Error('El archivo no contiene JSON válido.');}
+        if(data?.schema==='vwoma-oma-campaign-v1')throw Error('Selecciona el JSON de un único setup, no el archivo de campaña completa.');
+        if(!data?.networkClockLog||typeof data.networkClockLog!=='object'||!data.windowMasterMs)throw Error('El archivo no contiene los intercambios de sincronización de un setup.');
+        const runId=data.runId||data.records?.[0]?.id,calibration=data.synchronizationCalibration||data.records?.find(r=>r.synchronizationCalibration)?.synchronizationCalibration;
+        const start=Number(data.windowMasterMs.start),end=Number(data.windowMasterMs.end);
+        if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)throw Error('La ventana temporal del setup no es válida.');
+        const groups=Object.entries(data.networkClockLog).map(([id,rows],index)=>{
+            if(!Array.isArray(rows))return null;
+            const record=data.records?.find(r=>r.device?.id===id);
+            const model=data.syncModels?.[id]||record?.initialClock||record?.exportClock||null;
+            const prior=rows.filter(row=>row?.phase==='precal'&&(!calibration?.id||row.runId===calibration.id));
+            const during=rows.filter(row=>row?.phase==='during'&&(!runId||row.runId===runId));
+            return {key:'import'+index,name:record?.device?.name||id,preRows:prior,duringRows:during,model};
+        }).filter(Boolean);
+        if(!groups.some(group=>group.preRows.length||group.duringRows.length))throw Error('No hay intercambios de sincronización recuperables en este archivo.');
+        s.syncView.focus={};
+        s.importedSyncView={run:{start,end,plan:data.plan||{}},groups};
+        renderSyncResults(s.importedSyncView.run,groups);
+        $('jointSyncImportStatus').textContent='Resultados cargados: '+file.name;
+    }
+    $('jointSyncImport').addEventListener('change',guard(async event=>{
+        try{await importSyncSetup(event.target.files?.[0]);}finally{event.target.value='';}
+    }));
     globalThis.VWOMAUIEvents.bindEvents({
         s, $, guard, open, openStandaloneTest, resetSession,
         tab, renderResults, renderOMA, bindOmaEvents, renderSyncCalibration, renderSetups, generateSetups, createManualSetup, setSetupMode, editSelectedSetup, selectSetup, applySetup, confirmMeasured:confirmAndArchiveSetup, renderMeasureGuide,
