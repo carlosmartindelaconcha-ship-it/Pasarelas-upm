@@ -21,7 +21,7 @@
             return {...r,exportClock:valid?model:r.initialClock,samples:r.samples.map(row=>({raw:row,masterTimeMs:finite(row[8])?row[8]:toMaster(row[7],valid?model:r.initialClock)}))};
         });
         const expected=s.run.plan.points.filter(p=>p.device).map(p=>p.device);
-        return {schema:'pasarelas-upm-joint-export-v1',runId:s.run.id,session:s.session,plan:s.run.plan,setup:s.run.setup||null,windowMasterMs:{start:s.run.start,end:s.run.end},complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,p.samples])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'};
+        return {schema:'pasarelas-upm-joint-export-v1',runId:s.run.id,session:s.session,plan:s.run.plan,setup:s.run.setup||null,windowMasterMs:{start:s.run.start,end:s.run.end},syncModels:s.run.syncModels||{},synchronizationCalibration:s.run.synchronizationCalibration||null,complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,p.samples])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'};
     }
     function exportSession() {
         const data=buildSessionExport();download('ensayo_conjunto_'+s.run.id+'.json',data);
