@@ -977,6 +977,7 @@
                 </div>
                 <div id="jointPanelResults" role="tabpanel" aria-labelledby="jointTabResults" hidden>
                     <h3>Registros y resultados</h3><div id="jointResultsList"></div>
+                    <div class="joint-actions"><label class="joint-file">Cargar sincronización de un setup JSON<input id="jointSyncImport" type="file" accept=".json,application/json"></label></div><p id="jointSyncImportStatus" class="joint-help"></p>
                     <section id="jointSyncResults" class="joint-sync-results" hidden aria-labelledby="jointSyncResultsTitle"><h4 id="jointSyncResultsTitle">Calidad de sincronización</h4><p class="joint-help">La preparación usa 200 intercambios a 20 Hz y durante el ensayo se realizan 10 intercambios por segundo. El offset estima la diferencia entre relojes; la prueba física valida el desfase residual entre acelerómetros.</p><div id="jointSyncFormula"></div><div id="jointRttHistograms"></div></section>
                     <div class="joint-actions"><button id="jointDownload" type="button" data-vwoma-icon="download" class="vwoma-action">JSON bruto</button><button id="jointCsv" type="button" class="joint-secondary" data-vwoma-icon="file">CSV bruto</button><button id="jointDownloadProcessed" type="button" data-vwoma-icon="download" class="vwoma-action">JSON procesado</button><button id="jointCsvProcessed" type="button" class="joint-secondary" data-vwoma-icon="file">CSV procesado</button><button id="jointSendData" type="button" class="joint-secondary" data-vwoma-icon="upload">Reenviar mi registro</button><button id="jointNewRun" type="button" class="joint-secondary" data-vwoma-icon="plus">Preparar otro ensayo</button></div>
                     <p class="joint-help">Bruto: muestras y marcas originales. Procesado: ejes calibrados, reloj maestro y malla temporal común; Z con detrend lineal.</p>
@@ -1116,9 +1117,9 @@
     <script defer src="src/joint/acquisition.js?v=20261117-single-sensor-v1"></script>
     <script defer src="src/joint/calibration-math.js?v=20261115-sync-signed-axes-v1"></script>
     <script defer src="src/joint/calibration-controller.js?v=20261122-sync-waveforms-v1"></script>
-    <script defer src="src/joint/exports.js?v=20261121-campaign-idb-v1"></script>
+    <script defer src="src/joint/exports.js?v=20261122-sync-json-v1"></script>
     <script defer src="src/joint/record-transfer.js?v=20261113-transfer-diagnostics-v3"></script>
-    <script defer src="src/joint/results-view.js?v=20261113-comparison-detrend0-v9"></script>
+    <script defer src="src/joint/results-view.js?v=20261122-sync-json-v1"></script>
     <script defer src="src/oma/efdd-core.js?v=20261117-demo14-v1"></script>
     <script defer src="src/oma/efdd-demo.js?v=20261117-demo14-v1"></script>
     <script defer src="src/oma/efdd-ui.js?v=20261121-campaign-idb-v1"></script>
@@ -1127,7 +1128,7 @@
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/ui-events.js?v=20261121-campaign-idb-v1"></script>
     <script defer src="src/joint/measure-guide.js?v=20261114-phone-status-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261121-campaign-idb-v1"></script>
+    <script defer src="src/joint/joint-app.js?v=20261122-sync-json-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-setups-v2"></script>
 
 
