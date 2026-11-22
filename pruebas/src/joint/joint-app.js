@@ -178,6 +178,7 @@
         renderDevices: (...args) => renderDevices(...args), savePlan, renderPlan,
         startSync: (...args) => startSync(...args),
         onMessage: (...args) => onMessage(...args),
+        onDiagnosticChannel: (...args) => wireRttDiagnosticChannel(...args),
         revealActionTarget
     });
 
@@ -190,7 +191,21 @@
 
     // Diagnostic traffic has its own protocol and never enters the clock model.
     let rttExperiment=null, rttExperimentResult=null;
-    const benchmarkRates=[2000];
+    const benchmarkModes=[{key:'ordered_reliable',name:'Ordenado y fiable'},{key:'unordered_no_retransmit',name:'Sin orden ni reenvíos'}];
+    const benchmarkRate=2000;
+    function wireRttDiagnosticChannel(peer,channel){
+        channel.onmessage=event=>{
+            const received=now();
+            try{
+                if(typeof event.data!=='string'||event.data.length>MAX_MESSAGE)return;
+                const msg=JSON.parse(event.data);
+                if(msg.v!==VERSION||msg.session!==s.session)return;
+                if(s.role==='guest'&&msg.type==='RTT_BENCH_REQUEST'&&typeof msg.id==='string'&&msg.id.length<150&&finite(msg.t1)){
+                    channel.send(JSON.stringify({type:'RTT_BENCH_REPLY',id:msg.id,t2:received,t3:now(),v:VERSION,session:s.session}));
+                }else if(s.role==='host'&&msg.type==='RTT_BENCH_REPLY')onMessage(peer,msg,received);
+            }catch(error){incident('rtt-benchmark',error.message);}
+        };
+    }
     const percentile=(values,p)=>{
         if(!values.length)return null;
         const a=values.slice().sort((x,y)=>x-y),pos=(a.length-1)*p,lo=Math.floor(pos);
@@ -201,12 +216,12 @@
         $('rttBenchmarkDownload').hidden=!result;
         if(!result){$('rttBenchmarkResults').textContent='';return;}
         const fmt=n=>n==null?'—':n.toFixed(2);
-        $('rttBenchmarkResults').innerHTML='<div style="overflow-x:auto"><table><thead><tr><th>Objetivo (Hz)</th><th>Real (Hz)</th><th>Respuestas</th><th>RTT mín. (ms)</th><th>P10</th><th>Mediana</th><th>P90</th><th>Offset mediano (ms)</th></tr></thead><tbody>'+result.stages.map(x=>'<tr><td>'+x.targetHz+'</td><td>'+fmt(x.actualHz)+'</td><td>'+x.received+' / '+x.sent+'</td><td>'+fmt(x.minRtt)+'</td><td>'+fmt(x.p10Rtt)+'</td><td>'+fmt(x.medianRtt)+'</td><td>'+fmt(x.p90Rtt)+'</td><td>'+fmt(x.medianOffset)+'</td></tr>').join('')+'</tbody></table></div>';
+        $('rttBenchmarkResults').innerHTML='<div style="overflow-x:auto"><table><thead><tr><th>Canal</th><th>Objetivo (Hz)</th><th>Real (Hz)</th><th>Respuestas</th><th>RTT mín. (ms)</th><th>P10</th><th>Mediana</th><th>P90</th><th>Offset mediano (ms)</th></tr></thead><tbody>'+result.stages.map(x=>'<tr><td>'+escape(x.modeName)+'</td><td>'+x.targetHz+'</td><td>'+fmt(x.actualHz)+'</td><td>'+x.received+' / '+x.sent+'</td><td>'+fmt(x.minRtt)+'</td><td>'+fmt(x.p10Rtt)+'</td><td>'+fmt(x.medianRtt)+'</td><td>'+fmt(x.p90Rtt)+'</td><td>'+fmt(x.medianOffset)+'</td></tr>').join('')+'</tbody></table></div>';
     }
     function finishRttStage(stage,elapsed){
         const values=stage.exchanges.map(x=>x.rtt),offsets=stage.exchanges.map(x=>x.offset);
         Object.assign(stage,{elapsedMs:elapsed,actualHz:1000*stage.sent/elapsed,received:values.length,
-            minRtt:values.length?Math.min(...values):null,p10Rtt:percentile(values,.1),medianRtt:percentile(values,.5),p90Rtt:percentile(values,.9),p10Offset:percentile(offsets,.1),medianOffset:percentile(offsets,.5),p90Offset:percentile(offsets,.9)});
+            minRtt:percentile(values,0),p10Rtt:percentile(values,.1),medianRtt:percentile(values,.5),p90Rtt:percentile(values,.9),p10Offset:percentile(offsets,.1),medianOffset:percentile(offsets,.5),p90Offset:percentile(offsets,.9)});
     }
     async function runRttExperiment(){
         if(rttExperiment)return;
@@ -226,25 +241,50 @@
         rttExperiment=experiment;
         rttExperimentResult={schema:'vwoma-rtt-benchmark-v1',created:new Date().toISOString(),participant:peer.name,network:peer.network,scheduler:scheduler?'message-channel':'timeout-fallback',stages:[],complete:false};
         $('rttBenchmarkStart').disabled=true;$('rttBenchmarkStop').hidden=false;showRttExperiment();
+        let diagnosticChannel=null;
         try{
-            for(const rate of benchmarkRates){
+            for(const mode of benchmarkModes){
                 if(experiment.cancelled||peer.channel?.readyState!=='open'||running()||s.transaction)break;
-                const stage={targetHz:rate,sent:0,sendFailures:0,maxBufferedBytes:0,exchanges:[]};
+                let channel=peer.channel;
+                if(mode.key==='unordered_no_retransmit'){
+                    $('rttBenchmarkStatus').textContent='Preparando el canal sin orden ni reenvíos…';
+                    const supported=await new Promise(resolve=>{
+                        const timer=setTimeout(()=>{experiment.supportResolve=null;resolve(false);},5000);
+                        experiment.supportResolve=()=>{clearTimeout(timer);experiment.supportResolve=null;resolve(true);};
+                        if(!send(peer,{type:'RTT_BENCH_CAPABILITY',id:experiment.id})){clearTimeout(timer);experiment.supportResolve=null;resolve(false);}
+                    });
+                    if(!supported)throw Error('El participante no confirma la versión de la prueba. Recarga la página en ambos móviles y vuelve a conectarlos.');
+                    channel=peer.pc.createDataChannel('vwoma-rtt-unordered-v1',{ordered:false,maxRetransmits:0});
+                    diagnosticChannel=channel;wireRttDiagnosticChannel(peer,channel);
+                    await new Promise((resolve,reject)=>{
+                        const timer=setTimeout(()=>reject(Error('No se pudo abrir el canal de prueba. Recarga la página en ambos móviles.')),10000);
+                        channel.onopen=()=>{clearTimeout(timer);resolve();};
+                        channel.onerror=()=>{clearTimeout(timer);reject(Error('Falló el canal de prueba sin reenvíos.'));};
+                        channel.onclose=()=>{clearTimeout(timer);reject(Error('Se cerró el canal de prueba sin reenvíos.'));};
+                        if(channel.readyState==='open'){clearTimeout(timer);resolve();}
+                    });
+                    if(experiment.cancelled||running()||s.transaction)break;
+                }
+                const rate=benchmarkRate;
+                const stage={mode:mode.key,modeName:mode.name,ordered:channel.ordered,maxRetransmits:channel.maxRetransmits,targetHz:rate,sent:0,sendFailures:0,maxBufferedBytes:0,exchanges:[]};
                 rttExperimentResult.stages.push(stage);
                 const started=now(),duration=30000,interval=1000/rate;
                 let next=started,sequence=0,lastStatus=started-250;
-                while(!experiment.cancelled&&peer.channel?.readyState==='open'&&!running()&&!s.transaction&&now()-started<duration){
+                while(!experiment.cancelled&&peer.channel?.readyState==='open'&&channel.readyState==='open'&&!running()&&!s.transaction&&now()-started<duration){
                     const current=now();
                     if(current>=next){
-                        const id=experiment.id+':'+rate+':'+(sequence++),t1=now();
-                        stage.maxBufferedBytes=Math.max(stage.maxBufferedBytes,peer.channel.bufferedAmount||0);
+                        const id=experiment.id+':'+mode.key+':'+(sequence++),t1=now();
+                        stage.maxBufferedBytes=Math.max(stage.maxBufferedBytes,channel.bufferedAmount||0);
                         experiment.pending.set(id,{t1,stage});
-                        if(send(peer,{type:'RTT_BENCH_REQUEST',id,t1}))stage.sent++;
+                        let sent=false;
+                        if(channel===peer.channel)sent=send(peer,{type:'RTT_BENCH_REQUEST',id,t1});
+                        else try{channel.send(JSON.stringify({type:'RTT_BENCH_REQUEST',id,t1,v:VERSION,session:s.session}));sent=true;}catch(error){incident('rtt-benchmark',error.message);}
+                        if(sent)stage.sent++;
                         else {experiment.pending.delete(id);stage.sendFailures++;}
                         // Do not compensate for late callbacks with artificial bursts.
                         next=Math.max(next+interval,now());
                     }
-                    if(now()-lastStatus>=250){$('rttBenchmarkStatus').textContent='Objetivo '+rate+' Hz · '+Math.min(30,Math.floor((now()-started)/1000))+' / 30 s · enviados '+stage.sent;lastStatus=now();}
+                    if(now()-lastStatus>=250){$('rttBenchmarkStatus').textContent=mode.name+' · objetivo '+rate+' Hz · '+Math.min(30,Math.floor((now()-started)/1000))+' / 30 s · enviados '+stage.sent;lastStatus=now();}
                     await yieldScheduler(Math.max(0,next-now()));
                 }
                 const elapsed=now()-started;
@@ -253,9 +293,9 @@
                 for(const [id,pending] of experiment.pending)if(pending.stage===stage)experiment.pending.delete(id);
                 finishRttStage(stage,elapsed);showRttExperiment();
             }
-            rttExperimentResult.complete=!experiment.cancelled&&rttExperimentResult.stages.length===benchmarkRates.length&&rttExperimentResult.stages.every(x=>x.elapsedMs>=29900);
+            rttExperimentResult.complete=!experiment.cancelled&&rttExperimentResult.stages.length===benchmarkModes.length&&rttExperimentResult.stages.every(x=>x.elapsedMs>=29900);
             $('rttBenchmarkStatus').textContent=rttExperimentResult.complete?'Prueba terminada. Descarga el JSON para analizar los intercambios.':'Prueba detenida o interrumpida; se conservan los resultados disponibles.';
-        }finally{scheduler?.port1.close();scheduler?.port2.close();rttExperiment=null;$('rttBenchmarkStart').disabled=false;$('rttBenchmarkStop').hidden=true;showRttExperiment();}
+        }finally{diagnosticChannel?.close();scheduler?.port1.close();scheduler?.port2.close();rttExperiment=null;$('rttBenchmarkStart').disabled=false;$('rttBenchmarkStop').hidden=true;showRttExperiment();}
     }
     $('rttBenchmarkStart').onclick=guard(runRttExperiment);
     $('rttBenchmarkStop').onclick=()=>{if(rttExperiment)rttExperiment.cancelled=true;};
@@ -281,6 +321,14 @@
     }
 
     async function onMessage(p,m,received) {
+        if(m.type==='RTT_BENCH_CAPABILITY'&&s.role==='guest'){
+            if(typeof m.id==='string'&&m.id.length<150)send(p,{type:'RTT_BENCH_CAPABILITY_ACK',id:m.id});
+            return;
+        }
+        if(m.type==='RTT_BENCH_CAPABILITY_ACK'&&s.role==='host'){
+            if(rttExperiment?.peer===p&&m.id===rttExperiment.id)rttExperiment.supportResolve?.();
+            return;
+        }
         if(m.type==='RTT_BENCH_REQUEST'&&s.role==='guest'){
             if(typeof m.id==='string'&&m.id.length<150&&finite(m.t1))send(p,{type:'RTT_BENCH_REPLY',id:m.id,t2:received,t3:now()});
             return;

@@ -5,7 +5,7 @@
  */
 (function registerTransport(root) {
     'use strict';
-    function createTransport({ s, VERSION, STUN_SERVERS, MAX_PEERS, MAX_TOKEN, MAX_MESSAGE, QR_CHUNK_SIZE, MAX_QR_PAGES, uid, now, finite, $, running, tell, incident, guard, tab, open, workspace, requireHostEdit, localStatus, renderDevices, savePlan, renderPlan, startSync, onMessage, revealActionTarget=()=>{} }) {
+    function createTransport({ s, VERSION, STUN_SERVERS, MAX_PEERS, MAX_TOKEN, MAX_MESSAGE, QR_CHUNK_SIZE, MAX_QR_PAGES, uid, now, finite, $, running, tell, incident, guard, tab, open, workspace, requireHostEdit, localStatus, renderDevices, savePlan, renderPlan, startSync, onMessage, onDiagnosticChannel=()=>{}, revealActionTarget=()=>{} }) {
     // Bidirectional manual signaling, compressible QR; never send SDP to a service.
     async function encodeToken(payload) {
         const bytes=new TextEncoder().encode(JSON.stringify(payload));
@@ -439,7 +439,7 @@
             diagnosticEvent(p,'error STUN',code+' · '+meaning);
             showPairDiagnostic(p,'búsqueda de direcciones',meaning);
         };
-        p.pc.ondatachannel=e=>wireChannel(p,e.channel);
+        p.pc.ondatachannel=e=>{if(e.channel.label==='vwoma-rtt-unordered-v1'){onDiagnosticChannel(p,e.channel);return;}wireChannel(p,e.channel);};
     }
     function newPeer(id, network=$('jointNetworkMode').value) {
         if(typeof RTCPeerConnection==='undefined') throw Error('WebRTC no está disponible en este navegador.');
