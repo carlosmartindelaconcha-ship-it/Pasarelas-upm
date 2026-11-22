@@ -215,8 +215,16 @@
         const peers=[...s.peers.values()].filter(p=>p.channel?.readyState==='open');
         if(peers.length!==1)throw Error('Conecta exactamente un participante para esta prueba.');
         const peer=peers[0],experiment={id:uid(),peer,pending:new Map(),cancelled:false};
+        // MessageChannel yields to other browser tasks without relying on nested
+        // short setTimeout callbacks, which browsers can clamp to several ms.
+        const scheduler=typeof MessageChannel==='function'?new MessageChannel():null;
+        const yieldScheduler=delay=>{
+            if(delay>8)return pause(delay-4);
+            if(!scheduler)return pause(Math.max(0,delay));
+            return new Promise(resolve=>{scheduler.port1.onmessage=resolve;scheduler.port2.postMessage(0);});
+        };
         rttExperiment=experiment;
-        rttExperimentResult={schema:'vwoma-rtt-benchmark-v1',created:new Date().toISOString(),participant:peer.name,network:peer.network,stages:[],complete:false};
+        rttExperimentResult={schema:'vwoma-rtt-benchmark-v1',created:new Date().toISOString(),participant:peer.name,network:peer.network,scheduler:scheduler?'message-channel':'timeout-fallback',stages:[],complete:false};
         $('rttBenchmarkStart').disabled=true;$('rttBenchmarkStop').hidden=false;showRttExperiment();
         try{
             for(const rate of benchmarkRates){
@@ -237,7 +245,7 @@
                         next=Math.max(next+interval,now());
                     }
                     if(now()-lastStatus>=250){$('rttBenchmarkStatus').textContent='Objetivo '+rate+' Hz · '+Math.min(30,Math.floor((now()-started)/1000))+' / 30 s · enviados '+stage.sent;lastStatus=now();}
-                    await pause(Math.max(0,next-now()));
+                    await yieldScheduler(Math.max(0,next-now()));
                 }
                 const elapsed=now()-started;
                 // Allow late replies from this stage without transmitting more messages.
@@ -247,7 +255,7 @@
             }
             rttExperimentResult.complete=!experiment.cancelled&&rttExperimentResult.stages.length===benchmarkRates.length&&rttExperimentResult.stages.every(x=>x.elapsedMs>=29900);
             $('rttBenchmarkStatus').textContent=rttExperimentResult.complete?'Prueba terminada. Descarga el JSON para analizar los intercambios.':'Prueba detenida o interrumpida; se conservan los resultados disponibles.';
-        }finally{rttExperiment=null;$('rttBenchmarkStart').disabled=false;$('rttBenchmarkStop').hidden=true;showRttExperiment();}
+        }finally{scheduler?.port1.close();scheduler?.port2.close();rttExperiment=null;$('rttBenchmarkStart').disabled=false;$('rttBenchmarkStop').hidden=true;showRttExperiment();}
     }
     $('rttBenchmarkStart').onclick=guard(runRttExperiment);
     $('rttBenchmarkStop').onclick=()=>{if(rttExperiment)rttExperiment.cancelled=true;};
