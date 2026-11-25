@@ -4,7 +4,7 @@
  */
 (function registerExports(root) {
     'use strict';
-    function createExports({s,finite,median,MAX_PEERS,toMaster,validModel,
+    function createExports({s,finite,median,MAX_PEERS,toMaster,validModel,fitSetupClock,
                             correctedVector,localRecord,document,Blob,URL,setTimeout}) {
     function download(name, value, mime='application/json') {
         const blob=new Blob([typeof value==='string'?value:JSON.stringify(value,null,2)],{type:mime});
@@ -12,16 +12,20 @@
         document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
     }
 
+    function finalizedRecord(r) {
+        if(r.device.role==='host')return {...r,samples:r.samples.map(raw=>({raw,masterTimeMs:raw[2]}))};
+        const peer=s.peers.get(r.device.id);
+        const model=fitSetupClock(peer?.runExchanges||[],s.run.id,s.run.start,s.run.end);
+        if(!model)throw Error('No hay intercambios válidos del setup para '+(r.device.name||'participante')+'. No se puede sincronizar el resultado.');
+        const physical=Number(r.initialClock?.physicalCorrectionMs||0);
+        const applied={...model,offset:model.offset+physical,physicalCorrectionMs:physical};
+        return {...r,exportClock:applied,samples:r.samples.map(raw=>({raw,masterTimeMs:toMaster(raw[2],applied)}))};
+    }
     function buildSessionExport() {
         if(!s.run?.finished)throw Error('Termina primero el ensayo.');
-        const records=[...s.results.values()].map(r=>{
-            // Keep originals; use one final model per record to avoid time jumps.
-            const model=r.device.id===s.id?r.finalClock:(s.peers.get(r.device.id)?.model||r.finalClock);
-            const valid=validModel(model)||r.device.role==='host';
-            return {...r,exportClock:valid?model:r.initialClock,samples:r.samples.map(row=>({raw:row,masterTimeMs:finite(row[8])?row[8]:toMaster(row[7],valid?model:r.initialClock)}))};
-        });
+        const records=[...s.results.values()].map(finalizedRecord);
         const expected=s.run.plan.points.filter(p=>p.device).map(p=>p.device);
-        return {schema:'pasarelas-upm-joint-export-v1',runId:s.run.id,session:s.session,plan:s.run.plan,setup:s.run.setup||null,windowMasterMs:{start:s.run.start,end:s.run.end},syncModels:s.run.syncModels||{},synchronizationCalibration:s.run.synchronizationCalibration||null,complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,p.samples])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'};
+        return {schema:'pasarelas-upm-joint-export-v1',runId:s.run.id,session:s.session,plan:s.run.plan,setup:s.run.setup||null,windowMasterMs:{start:s.run.start,end:s.run.end},syncModels:s.run.syncModels||{},synchronizationCalibration:s.run.synchronizationCalibration||null,complete:expected.every(id=>s.results.has(id)),missingDevices:expected.filter(id=>!s.results.has(id)),networkClockLog:Object.fromEntries([...s.peers.values()].map(p=>[p.id,[...p.samples,...(p.runExchanges||[])]])),records,validation:'Experimental: no certified physical sensor synchronization. Data have not been resampled.'};
     }
     function exportSession() {
         const data=buildSessionExport();download('ensayo_conjunto_'+s.run.id+'.json',data);
@@ -58,11 +62,7 @@
     function comparisonExport() {
         if(s.compareExport) return s.compareExport;
         if(!s.run?.finished) return null;
-        const records=[...s.results.values()].map(r=>{
-            const model=r.device.id===s.id?r.finalClock:(s.peers.get(r.device.id)?.model||r.finalClock);
-            const use=validModel(model)||r.device.role==='host'?model:r.initialClock;
-            return {...r,samples:r.samples.map(raw=>({raw,masterTimeMs:finite(raw[8])?raw[8]:toMaster(raw[7],use)}))};
-        });
+        const records=[...s.results.values()].map(finalizedRecord);
         return {plan:s.run.plan,setup:s.run.setup||null,windowMasterMs:{start:s.run.start,end:s.run.end},records};
     }
     function validComparisonExport(data) {

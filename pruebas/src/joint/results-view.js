@@ -44,7 +44,7 @@
     }
     function histogramMarkup(group,phase,metric,values) {
         const key=`${group.key}:${phase}:${metric}`,focus=s.syncView.focus[key],raw=values.filter(finite),data=focus?raw.filter(value=>value>=focus.low&&value<=focus.high):raw;
-        const label=metric==='rtt'?'RTT':'Residuo de offset',phaseLabel=phase==='pre'?'Calibración — 200 intercambios a 20 Hz':'Durante el ensayo — 10/s';
+        const label=metric==='rtt'?'RTT':'Residuo de offset',phaseLabel=phase==='pre'?'Calibración — objetivo 1.000 intercambios a 1.000 Hz':'Durante el ensayo — objetivo 1.000 Hz';
         if(!data.length)return `<figure class="joint-rtt-figure"><figcaption>${label} · ${phaseLabel} · sin intercambios en este rango</figcaption></figure>`;
         const suffix=focus?` · zoom: ${focus.low.toFixed(2)} a ${focus.high.toFixed(2)} ms`:'';
         const detail=metric==='offset'?' · respecto al modelo inicial robusto':'';

@@ -12,7 +12,7 @@
         const correctedVector=(values,calibration=s.calibration)=>
             math.correctedVector(values,calibration);
         const CAL_CYCLE_MS=2000, CAL_GESTURE_MS=2500, CAL_INTRO_MS=5000, CAL_OBSERVE_MS=1100;
-        const SYNC_GESTURE_MS=6000, SYNC_READY_MS=3000, SYNC_DEMO_MS=7500;
+        const SYNC_GESTURE_MS=30000, SYNC_READY_MS=3000, SYNC_DEMO_MS=7500;
         const syncAsset=(axis,kind)=>'assets/joint/telefono-sincronizacion-eje-'+axis.toUpperCase()+'-tabla-madera-'+kind+'.svg?v=20261114-physical-sync-board-v1';
         let syncDemoSequence=0;
         // Las señales de diagnóstico permanecen fuera del estado exportado del ensayo.
@@ -248,7 +248,7 @@
             ready?(state.lastFeedback|| (s.role==='host'?'Pulsa «Gesto X», «Gesto Y» o «Gesto Z».':'Preparado. El maestro seleccionará un eje.')):
             active?(gesture.phase==='finished'?'Gesto capturado. Esperando el resultado…':
                 masterNow<gesture.start?'Móviles quietos hasta «¡AHORA!».':
-                'Mueve el conjunto en '+axis.toUpperCase()+' durante 6 segundos.'):
+                'Mueve el conjunto en '+axis.toUpperCase()+' durante 30 segundos.'):
             phase==='processing'?'Analizando el movimiento de los móviles.':
             phase==='applying'?'Actualizando los signos de los participantes y esperando confirmación.':
             phase==='accepted'?'Sincronización física completada.':
@@ -276,7 +276,7 @@
         if(phase==='accepted')stableSyncText($('jointSyncHelp'),'Sincronización validada. Puedes pasar a Medir.');
         else if(phase==='applying')stableSyncText($('jointSyncHelp'),'Confirmando que todos los móviles han aplicado los signos del maestro.');
         else if(phase==='gesture-ready')stableSyncText($('jointSyncHelp'),ready?
-            (s.role==='host'?'Elige un eje. Tras 3 s quieto, mueve el conjunto durante 6 s. Si falla, repite ese eje.':'Espera a que el maestro inicie cada gesto.'):
+            (s.role==='host'?'Elige un eje. Tras 3 s quieto, mueve el conjunto durante 30 s. Si falla, repite ese eje.':'Espera a que el maestro inicie cada gesto.'):
             guide==='demo'?'Observa el ejemplo; después comenzarán los gestos.':
             'Lee las instrucciones y observa el movimiento antes de empezar.');
         else if(phase==='failed')stableSyncText($('jointSyncHelp'),'La prueba no se ha validado. Pulsa «Preparar sincronización» para repetir.');
@@ -435,13 +435,13 @@
         // El estado se exporta con el ensayo: guarda IDs, nunca objetos RTCPeerConnection.
         clearSyncWaveforms();
         const id=uid();s.syncCalibration={phase:'network',accepted:false,gesture:null,results:{},models:{},correctionMs:0,id,peerIds:peers.map(p=>p.id)};tab('Sync');renderSyncCalibration();
-        tell('Midiendo 200 intercambios de reloj a 20 Hz por participante (unos 10 s)…');
+        tell('Midiendo 1.000 intercambios de reloj por participante (objetivo 1.000 Hz)…');
         try {
-            await Promise.all(peers.map(p=>startSync(p,200,50,'precal',id)));
+            await Promise.all(peers.map(p=>startSync(p,1000,1,'precal',id)));
             await pause(500);
             for(const p of peers){
                 const rows=p.samples.filter(row=>row.runId===id&&row.phase==='precal');
-                if(rows.length<185)throw Error('Solo se completaron '+rows.length+' de 200 intercambios con '+p.name+'. Repite la calibración.');
+                if(rows.length<185)throw Error('Solo se completaron '+rows.length+' de 1.000 intercambios con '+p.name+'. Repite la calibración.');
                 const model=clockFit(rows);
                 if(!model)throw Error('No se pudo ajustar el reloj de '+p.name+'.');
                 p.model=model;p.startModel=structuredClone(model);
@@ -469,8 +469,8 @@
         armSyncGesture(payload,{offset:0,drift:0,reference:0,count:0,rtt:0});broadcast(payload);
         revealActionTarget('jointSyncAnimation','start');
         tell('Gesto '+axis.toUpperCase()+' preparado: quietos durante la cuenta atrás.');
-        // 3 s de cuenta atrás + 6 s de gesto + 4 s para que todos envíen su ventana.
-        setTimeout(()=>finalizeSyncGesture(state.id,axis),13000);
+        // 3 s de cuenta atrás + 30 s de gesto + 4 s para que todos envíen su ventana.
+        setTimeout(()=>finalizeSyncGesture(state.id,axis),SYNC_READY_MS+SYNC_GESTURE_MS+4000);
     }
     function finalizeSyncGesture(id,axis) {
         const state=s.syncCalibration,g=state.gesture;if(s.role!=='host'||state.id!==id||!g||g.id!==id||['accepted','failed','applying'].includes(state.phase))return;

@@ -17,7 +17,7 @@
             if(!running()||s.role!=='host')return;
             for(const p of s.peers.values())
                 if(p.channel?.readyState==='open'&&pointFor(p.id))syncOnce(p,'during',s.run.id);
-        },100);
+        },1);
     }
     function stopDuringSync(){clearInterval(s.duringSyncTimer);s.duringSyncTimer=null;}
     async function requestWake() {try{if(navigator.wakeLock)s.wake=await navigator.wakeLock.request('screen');}catch(e){incident('screen','No se pudo mantener la pantalla activa.');}}
@@ -79,6 +79,7 @@
             ui.refresh();
             return;
         }
+        for(const p of peers)p.runExchanges=[];
         const id=uid(),tx={id,ready:new Map(),acks:new Set(),error:null,phase:'ready',peers};
         s.transaction=tx;ui.preparing();
         try {

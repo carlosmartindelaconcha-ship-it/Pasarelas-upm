@@ -185,7 +185,7 @@
     // Clock estimation is independent of WebRTC and of the browser UI.
     // Retain the original default model for participant -> master conversion.
     const clockModel = globalThis.VWOMAClockModel.createClockModel({now, finite});
-    const { median, clockFit, fromMaster, validModel,
+    const { median, clockFit, fitSetupClock, fromMaster, validModel,
             modelOffsetAt, offsetResidual, selectedForModel, syncMetric } = clockModel;
     const toMaster=(t,m=s.syncModel)=>clockModel.toMaster(t,m);
 
@@ -308,7 +308,7 @@
     function syncOnce(p,phase='idle',runId=null) {
         if(p.channel?.readyState!=='open')return;
         const id=uid(),t1=now();p.requests.set(id,{time:t1,phase,runId});send(p,{type:'SYNC_REQUEST',id,t1});
-        for(const [key,request] of p.requests)if(t1-request.time>10000)p.requests.delete(key);
+        if(!p.lastRequestCleanup || t1-p.lastRequestCleanup>=1000){for(const [key,request] of p.requests)if(t1-request.time>10000)p.requests.delete(key);p.lastRequestCleanup=t1;}
     }
     async function startSync(p,count=24,spacing=100,phase='connection',runId=null) {
         if(p.syncing&&p.syncPromise)await p.syncPromise;
@@ -357,8 +357,8 @@
             if(!finite(m.t2)||!finite(m.t3)||m.t3<m.t2)return;
             const rtt=(received-t1)-(m.t3-m.t2);if(rtt<0||rtt>2000)return;
             const row={t1,t2:m.t2,t3:m.t3,t4:received,rtt,offset:((m.t2-t1)+(m.t3-received))/2,local:(m.t2+m.t3)/2,phase:request.phase,runId:request.runId};
-            p.samples.push(row);if(p.samples.length>MAX_SYNC_SAMPLES)p.samples.shift();p.model=clockFit(p.samples);
-            if(p.model){send(p,{type:'CLOCK_MODEL',model:p.model,exchange:row});}
+            if(row.phase==='during'&&s.run?.id===row.runId){p.runExchanges ||= [];p.runExchanges.push(row);}else{p.samples.push(row);if(p.samples.length>MAX_SYNC_SAMPLES)p.samples.shift();}
+            if(!p.lastModelUpdate || received-p.lastModelUpdate>=250){p.model=clockFit(p.samples);p.lastModelUpdate=received;if(p.model)send(p,{type:'CLOCK_MODEL',model:p.model});}
             return;
         }
         if(m.type==='CLOCK_MODEL'&&s.role==='guest') {
@@ -399,9 +399,23 @@
         }
         if(m.type==='SYNC_GESTURE_READY'&&s.role==='host')return;
         if(m.type==='SYNC_GESTURE_REJECT'&&s.role==='host'){if(s.syncCalibration.id===m.id){s.syncCalibration.phase='failed';tell(p.name+': '+String(m.reason||'no pudo preparar la prueba.'),true);renderSyncCalibration();}return;}
+        if(m.type==='SYNC_GESTURE_CHUNK'&&s.role==='host') {
+            if(s.syncCalibration.id!==m.id||!['x','y','z'].includes(m.axis)||!Number.isInteger(m.index)||!Number.isInteger(m.total)||m.total<1||m.total>40||m.index<0||m.index>=m.total||!Array.isArray(m.samples)||m.samples.length>400||!m.calibration?.map)return;
+            p.gestureChunks ||= {};
+            const key=m.id+':'+m.axis;
+            let item=p.gestureChunks[key];
+            if(!item)item=p.gestureChunks[key]={total:m.total,parts:new Array(m.total),calibration:m.calibration};
+            if(item.total!==m.total)return;
+            item.parts[m.index]=m.samples;
+            if(Array.from({length:item.total},(_,i)=>Array.isArray(item.parts[i])).every(Boolean)) {
+                delete p.gestureChunks[key];
+                return onMessage(p,{type:'SYNC_GESTURE_RESULT',id:m.id,axis:m.axis,samples:item.parts.flat(),calibration:item.calibration},received);
+            }
+            return;
+        }
         if(m.type==='SYNC_GESTURE_RESULT'&&s.role==='host') {
             // Conserva incluso las ventanas cortas para diagnosticar por qué falló el iPhone.
-            if(s.syncCalibration.id!==m.id||!Array.isArray(m.samples)||m.samples.length>1800)return;
+            if(s.syncCalibration.id!==m.id||!Array.isArray(m.samples)||m.samples.length>16000)return;
             if(!m.calibration?.map)return;
             if(!['x','y','z'].includes(m.axis))return;
             const result=s.syncCalibration.results[p.id]||{windows:{},axes:{},calibration:m.calibration,accepted:false};
@@ -554,7 +568,7 @@
         if(![x,y,z].every(finite))return;
         const received=now();
         // Event creation time, not hardware sampling time. Preserve raw and receipt.
-        const used=timestamp!==null&&timestamp<=received+5&&timestamp>=received-1000?timestamp:received;
+        const used=received;
         if(running()&&s.lastSample&&received-s.lastSample>250)incident('sample-gap','Sin eventos de movimiento durante '+Math.round(received-s.lastSample)+' ms.');
         const run=s.run;
         // Durante el ensayo la malla queda anclada al modelo confirmado al arrancar.
@@ -642,7 +656,7 @@
     /* Binary file download, validated exports and common-grid interpolation. */
     const {download,exportSession,buildSessionExport,processedCommonExport,exportProcessedJson,exportProcessedCsv,exportCsv,comparisonExport,validComparisonExport,samplePeriodMs,structuralValue,resampleAxis,detrendPoints} =
         globalThis.VWOMAExports.createExports({
-            s,finite,median,MAX_PEERS,toMaster,validModel,correctedVector,localRecord,
+            s,finite,median,MAX_PEERS,toMaster,validModel,fitSetupClock,correctedVector,localRecord,
             document,Blob:typeof Blob==='undefined'?null:Blob,
             URL:typeof URL==='undefined'?null:URL,setTimeout
         });
@@ -764,7 +778,8 @@
             gesture.phase='finished';
             if(s.role==='guest'&&!gesture.sent){
                 gesture.sent=true;const host=[...s.peers.values()][0];
-                send(host,{type:'SYNC_GESTURE_RESULT',id:gesture.id,axis:gesture.axis,samples:gesture.samples,calibration:s.calibration});
+                const chunkSize=300,total=Math.max(1,Math.ceil(gesture.samples.length/chunkSize));
+                for(let index=0;index<total;index++)send(host,{type:'SYNC_GESTURE_CHUNK',id:gesture.id,axis:gesture.axis,index,total,samples:gesture.samples.slice(index*chunkSize,(index+1)*chunkSize),calibration:s.calibration});
                 tell('Ventana del gesto enviada al maestro. Procesando correlaciones…');
             }
         }

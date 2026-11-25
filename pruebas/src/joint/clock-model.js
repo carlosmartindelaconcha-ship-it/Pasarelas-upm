@@ -31,6 +31,33 @@
         const residual=Math.sqrt(chosen.reduce((a,v)=>a+(v.offset-offset-drift*(v.local-reference))**2,0)/chosen.length);
         return {reference,offset,drift,rtt:sorted[0].rtt,residual,count:samples.length,selectedCount:chosen.length,rttCutoff:cutoff,rttMedian:median(chosen.map(v=>v.rtt)),span,method:'mediana del 30 % de RTT menor; deriva Theil–Sen',updated:now()};
     }
+    // Modelo definitivo de un único setup: no reutiliza datos anteriores.
+    function fitSetupClock(samples, runId, start, end) {
+        const rows=samples.filter(v=>v.runId===runId && v.phase==='during' &&
+            finite(v.local) && finite(v.offset) && finite(v.rtt) && v.rtt>=0 &&
+            finite(v.t1) && v.t1>=start && v.t1<=end);
+        if(!rows.length || !(end>start))return null;
+        const low=rows.filter(v=>v.rtt<10);
+        const times=low.map(v=>v.t1);
+        const span=low.length?times.reduce((m,t)=>Math.max(m,t),-Infinity)-times.reduce((m,t)=>Math.min(m,t),Infinity):0;
+        const distributed=low.length>10 && span >= (end-start)*0.5 &&
+            times.some(t=>t<=start+(end-start)/3) && times.some(t=>t>=start+2*(end-start)/3);
+        let selected,reference,offset,drift,method;
+        if(distributed){
+            selected=low;reference=selected.reduce((a,v)=>a+v.local,0)/selected.length;
+            const avg=selected.reduce((a,v)=>a+v.offset,0)/selected.length;
+            let xy=0,xx=0;for(const v of selected){const dx=v.local-reference;xy+=dx*(v.offset-avg);xx+=dx*dx;}
+            if(!xx)return null;drift=xy/xx;offset=avg;method='regresión lineal RTT < 10 ms';
+        } else {
+            const ordered=[...rows].sort((a,b)=>a.rtt-b.rtt);
+            selected=ordered.slice(0,Math.max(1,Math.ceil(ordered.length*.3)));
+            reference=median(selected.map(v=>v.local));offset=median(selected.map(v=>v.offset));drift=0;
+            method='mediana del 30 % de RTT menor';
+        }
+        if(!finite(offset)||!finite(drift)||Math.abs(drift)>.005)return null;
+        return {reference,offset,drift,method,count:rows.length,selectedCount:selected.length,
+            rtt:selected.reduce((m,v)=>Math.min(m,v.rtt),Infinity),span,lowRttCount:low.length};
+    }
     const toMaster=(t,m)=>t-m.offset-m.drift*(t-m.reference);
     const fromMaster=(t,m)=> (t+m.offset-m.drift*m.reference)/(1-m.drift);
 
@@ -43,7 +70,7 @@
     function syncMetric(row,metric,model){return metric==='rtt'?row.rtt:offsetResidual(row,model);}
 
         return Object.freeze({
-            median, clockFit, toMaster, fromMaster, validModel,
+            median, clockFit, fitSetupClock, toMaster, fromMaster, validModel,
             modelOffsetAt, offsetResidual, selectedForModel, syncMetric
         });
     }
