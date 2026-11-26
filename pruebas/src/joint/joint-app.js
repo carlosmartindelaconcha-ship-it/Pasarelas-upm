@@ -159,6 +159,7 @@
         $('jointSync').hidden=s.role!=='host';
         $('jointSoloHint').hidden=s.role!=='host'||hasParticipants;
         $('jointDuration').disabled=s.role!=='host'||!!running()||!!s.transaction;
+        $('jointSetupDuration').disabled=$('jointDuration').disabled;
         $('jointEnableSensor').disabled=s.sensorEnabled;
         $('jointStop').disabled=!measuring;
         $('jointPair').disabled=!!running()||!!s.transaction;
@@ -558,6 +559,11 @@
                 tab('Setups');
             }
         });
+
+    // Ambos controles comparten la duración utilizada por la adquisición.
+    const setupDuration=$('jointSetupDuration'), measureDuration=$('jointDuration');
+    setupDuration.addEventListener('input',()=>{measureDuration.value=setupDuration.value;});
+    measureDuration.addEventListener('input',()=>{setupDuration.value=measureDuration.value;});
 
     function motion(event) {
         const a=event.accelerationIncludingGravity;

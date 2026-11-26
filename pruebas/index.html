@@ -874,6 +874,9 @@
                         <div><span>Móviles conectados</span><strong id="jointSetupPhoneCount">0</strong></div>
                         <div><span>Puntos de medida</span><strong id="jointSetupSensorCount">0</strong></div>
                     </div>
+                    <label for="jointSetupDuration">Duración de cada setup (s)
+                        <input id="jointSetupDuration" type="number" min="5" max="1800" step="1" value="60" inputmode="numeric" aria-label="Duración de cada setup en segundos">
+                    </label>
                     <div class="joint-setup-mode" role="group" aria-label="Modo de planificación">
                         <button id="jointSetupModeManual" type="button" aria-pressed="false" class="joint-secondary" data-vwoma-icon="edit">Manual</button>
                         <button id="jointSetupModeAuto" type="button" aria-pressed="true" class="joint-secondary" data-vwoma-icon="setups">Propuestas automáticas</button>
@@ -1129,7 +1132,7 @@
     <script defer src="src/joint/session-state.js?v=20261114-setups-v2"></script>
     <script defer src="src/joint/ui-events.js?v=20261121-campaign-idb-v1"></script>
     <script defer src="src/joint/measure-guide.js?v=20261114-phone-status-v1"></script>
-    <script defer src="src/joint/joint-app.js?v=20261125-sync-setup-v2"></script>
+    <script defer src="src/joint/joint-app.js?v=20261126-setup-duration-v1"></script>
     <script defer src="vwoma-i18n.js?v=20261114-setups-v2"></script>
 
 
